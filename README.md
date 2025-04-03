@@ -2,7 +2,7 @@
 
 ## Quick Start
 
-Before being able to use this project be sure to run
+Before being able to use this project be sure to run to install all dependencies
 
 ```bash
 npm install
