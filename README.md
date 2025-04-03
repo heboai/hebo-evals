@@ -10,7 +10,7 @@ npm install
 
 To test the parser with example test cases:
 
-Add your test in the directory 
+Add your test case in the directory 
 
 ``hebo-eval/test-case``
 
