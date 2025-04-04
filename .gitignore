@@ -1,0 +1,13 @@
+# Node.js / TypeScript
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+
+# OS generated files
+.DS_Store
+Thumbs.db 
