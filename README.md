@@ -78,59 +78,6 @@ npm run build
 - `npm run lint` - Run linter
 - `npm run format` - Format code
 
-### Publishing to npm
-
-#### Manual Publishing
-
-1. Create an npm account if you don't have one:
-
-   ```bash
-   npm adduser
-   ```
-
-2. Login to your npm account:
-
-   ```bash
-   npm login
-   ```
-
-3. Before publishing, make sure to:
-
-   - Update the version in package.json (`npm version patch|minor|major`)
-   - Build the project (`npm run build`)
-   - Run tests (`npm test`)
-   - Check the package contents (`npm pack --dry-run`)
-
-4. Publish the package:
-   ```bash
-   npm publish
-   ```
-
-#### Automated Publishing
-
-The package is automatically published to npm when a new tag is pushed to the repository. The process:
-
-1. Updates the version in package.json
-2. Creates a git tag
-3. Pushes the tag to trigger the GitHub Action
-
-Example workflow:
-
-```bash
-# Update version
-npm version patch  # or minor/major
-
-# Push changes and tag
-git push --follow-tags
-```
-
-The GitHub Action will:
-
-- Verify the package version matches the tag
-- Run tests
-- Build the project
-- Publish to npm
-
 #### Publishing Checklist
 
 - [ ] Update version number
@@ -139,7 +86,7 @@ The GitHub Action will:
 - [ ] Build project
 - [ ] Check package contents
 - [ ] Create and push git tag
-- [ ] Verify automated publish
+- [ ] Verify CI publish
 
 ## License
 
