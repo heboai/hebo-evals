@@ -80,6 +80,8 @@ npm run build
 
 ### Publishing to npm
 
+#### Manual Publishing
+
 1. Create an npm account if you don't have one:
 
    ```bash
@@ -104,6 +106,31 @@ npm run build
    npm publish
    ```
 
+#### Automated Publishing
+
+The package is automatically published to npm when a new tag is pushed to the repository. The process:
+
+1. Updates the version in package.json
+2. Creates a git tag
+3. Pushes the tag to trigger the GitHub Action
+
+Example workflow:
+
+```bash
+# Update version
+npm version patch  # or minor/major
+
+# Push changes and tag
+git push --follow-tags
+```
+
+The GitHub Action will:
+
+- Verify the package version matches the tag
+- Run tests
+- Build the project
+- Publish to npm
+
 #### Publishing Checklist
 
 - [ ] Update version number
@@ -111,8 +138,8 @@ npm run build
 - [ ] Run tests
 - [ ] Build project
 - [ ] Check package contents
-- [ ] Publish to npm
-- [ ] Tag release in git
+- [ ] Create and push git tag
+- [ ] Verify automated publish
 
 ## License
 
