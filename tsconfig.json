@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "commonjs",
+    "module": "ES2020",
     "lib": ["ES2020"],
     "declaration": true,
     "outDir": "./dist",
@@ -17,6 +17,6 @@
       "*": ["node_modules/*"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests", "**/*.test.ts"]
+  "include": ["src/**/*", "src/**/*.ts", "src/**/*.test.ts"],
+  "exclude": ["node_modules", "dist"]
 }

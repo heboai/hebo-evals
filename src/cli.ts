@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { version } from '../package.json';
+import { version } from './utils/package-info.js';
 
 /**
  * Main CLI entry point for Hebo Eval
@@ -10,6 +10,10 @@ import { version } from '../package.json';
 
 const program = new Command();
 
+/**
+ * Creates and configures the CLI program
+ * @returns Configured Commander program
+ */
 program
   .name('hebo-eval')
   .description('A CLI tool for evaluating and testing language models')
