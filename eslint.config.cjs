@@ -1,26 +1,25 @@
-const { defineConfig } = require('eslint/config');
-const eslintPluginPrettier = require('eslint-plugin-prettier');
-const eslintConfigPrettier = require('eslint-config-prettier');
-const typescriptEslintParser = require('@typescript-eslint/parser');
-const typescriptEslintPlugin = require('@typescript-eslint/eslint-plugin');
-
-module.exports = defineConfig([
-  {
-    files: ['**/*.ts', '**/*.tsx'],
-    languageOptions: {
-      parser: typescriptEslintParser,
-      parserOptions: {
-        project: './tsconfig.json',
-      },
-    },
-    plugins: {
-      '@typescript-eslint': typescriptEslintPlugin,
-      prettier: eslintPluginPrettier,
-    },
-    rules: {
-      ...eslintConfigPrettier.rules,
-      'prettier/prettier': 'error',
-      'no-var': 'error',
-    },
+module.exports = {
+  root: true,
+  env: {
+    node: true,
+    jest: true,
   },
-]);
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    project: ['./tsconfig.json'],
+    tsconfigRootDir: __dirname,
+    sourceType: 'module',
+  },
+  plugins: ['@typescript-eslint', 'prettier'],
+  extends: [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended',
+    'plugin:@typescript-eslint/recommended-requiring-type-checking',
+    'prettier',
+  ],
+  rules: {
+    'prettier/prettier': 'error',
+    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+  },
+  ignorePatterns: ['dist', 'node_modules', '*.js', '*.cjs', '*.mjs'],
+};
