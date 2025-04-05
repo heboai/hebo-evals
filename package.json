@@ -28,7 +28,7 @@
     "testing"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "FSL-1.1-ALv2",
   "dependencies": {
     "commander": "^13.1.0",
     "zod": "^3.22.4"
