@@ -1,7 +1,7 @@
 import { BaseMessage } from '../../core/types/message.types';
 
 /**
- * Types for Hebo API interactions
+ * Types for OpenAI Response API interactions
  */
 
 /**
@@ -16,7 +16,7 @@ export interface OpenAIMessage extends BaseMessage {
 }
 
 /**
- * Represents a request to the Hebo API
+ * Represents a request to the OpenAI Response API
  */
 export interface ResponseRequest {
   /**
@@ -41,7 +41,7 @@ export interface ResponseRequest {
 }
 
 /**
- * Represents a response from the Hebo API
+ * Represents a response from the OpenAI Response API
  */
 export interface Response {
   /**
