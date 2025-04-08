@@ -1,3 +1,5 @@
+import { BaseMessage, MessageRole } from '../../core/types/message.types';
+
 /**
  * Represents the base configuration for an agent
  */
@@ -20,7 +22,7 @@ export interface AgentMessage {
   /**
    * The role of the message sender
    */
-  role: 'user' | 'assistant' | 'system';
+  role: MessageRole;
 }
 
 /**
@@ -30,7 +32,7 @@ export interface AgentInput {
   /**
    * List of messages to send to the agent
    */
-  messages: AgentMessage[];
+  messages: BaseMessage[];
 }
 
 /**

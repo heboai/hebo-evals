@@ -7,6 +7,8 @@ import {
   AgentOutput,
 } from '../agents/types/agent.types';
 import { HeboAgent } from '../agents/implementations/hebo-agent';
+import { MessageRole } from '../core/types/message.types';
+import { roleMapper } from '../core/utils/role-mapper';
 
 /**
  * Test implementation of BaseAgent for testing abstract functionality
@@ -24,10 +26,10 @@ describe('Agent Types and Interfaces', () => {
   describe('AgentMessage', () => {
     it('should create a valid user message', () => {
       const message: AgentMessage = {
-        role: 'user',
+        role: MessageRole.USER,
         content: 'Hello',
       };
-      expect(message.role).toBe('user');
+      expect(message.role).toBe(MessageRole.USER);
       expect(message.content).toBe('Hello');
     });
   });
@@ -36,8 +38,8 @@ describe('Agent Types and Interfaces', () => {
     it('should create input with multiple messages', () => {
       const input: AgentInput = {
         messages: [
-          { role: 'user', content: 'Hello' },
-          { role: 'assistant', content: 'Hi there' },
+          { role: MessageRole.USER, content: 'Hello' },
+          { role: MessageRole.ASSISTANT, content: 'Hi there' },
         ],
       };
       expect(input.messages).toHaveLength(2);
@@ -87,7 +89,7 @@ describe('BaseAgent', () => {
       await agent.authenticate({ apiKey: 'test-key' });
 
       const input: AgentInput = {
-        messages: [{ role: 'user', content: 'Hello' }],
+        messages: [{ role: MessageRole.USER, content: 'Hello' }],
       };
 
       const output = await agent.sendInput(input);
@@ -97,7 +99,7 @@ describe('BaseAgent', () => {
     it('should throw error if not authenticated before sending input', async () => {
       await agent.initialize(config);
       const input: AgentInput = {
-        messages: [{ role: 'user', content: 'Hello' }],
+        messages: [{ role: MessageRole.USER, content: 'Hello' }],
       };
       await expect(agent.sendInput(input)).rejects.toThrow();
     });
@@ -108,7 +110,6 @@ describe('HeboAgent', () => {
   let agent: HeboAgent;
   const config = {
     model: 'gpt-4o',
-    systemMessage: 'You are a test agent',
   };
 
   beforeEach(() => {
@@ -116,43 +117,27 @@ describe('HeboAgent', () => {
   });
 
   describe('Message History', () => {
-    it('should initialize with system message', () => {
-      expect(agent['messageHistory']).toHaveLength(1);
-      expect(agent['messageHistory'][0].role).toBe('system');
-    });
-
     it('should maintain conversation history', async () => {
       await agent.initialize(config);
       await agent.authenticate({ apiKey: 'test-key' });
 
       const input: AgentInput = {
         messages: [
-          { role: 'user', content: 'Hello' },
-          { role: 'assistant', content: 'Hi there' },
+          { role: MessageRole.USER, content: 'Hello' },
+          { role: MessageRole.ASSISTANT, content: 'Hi there' },
         ],
       };
 
       await agent.sendInput(input);
-      expect(agent['messageHistory']).toHaveLength(3); // system + 2 messages
+      expect(agent['messageHistory']).toHaveLength(2);
     });
   });
 
   describe('Message Conversion', () => {
-    it('should convert agent messages to Hebo format', () => {
-      const messages: AgentMessage[] = [
-        { role: 'user', content: 'Hello' },
-        { role: 'assistant', content: 'Hi' },
-      ];
-
-      const converted = agent['convertToHeboMessages'](messages);
-      expect(converted).toHaveLength(2);
-      expect(converted[0].role).toBe('user');
-    });
-
     it('should handle role conversion correctly', () => {
-      expect(agent['convertRole']('user')).toBe('user');
-      expect(agent['convertRole']('assistant')).toBe('assistant');
-      expect(agent['convertRole']('system')).toBe('system');
+      expect(roleMapper.toOpenAI(MessageRole.USER)).toBe('user');
+      expect(roleMapper.toOpenAI(MessageRole.ASSISTANT)).toBe('assistant');
+      expect(roleMapper.toOpenAI(MessageRole.SYSTEM)).toBe('system');
     });
   });
 });

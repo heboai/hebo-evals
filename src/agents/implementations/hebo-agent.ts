@@ -1,16 +1,11 @@
 import { BaseAgent } from '../interfaces/base-agent';
+import { AgentConfig, AgentInput, AgentOutput } from '../types/agent.types';
 import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-  AgentMessage,
-} from '../types/agent.types';
-import {
-  Message,
-  MessageRole,
   Response,
   ResponseRequest,
+  OpenAIMessage,
 } from '../types/openai.types';
+import { roleMapper } from '../../core/utils/role-mapper';
 
 /**
  * Configuration specific to Hebo agent
@@ -24,14 +19,9 @@ export interface HeboAgentConfig extends AgentConfig {
 
   /**
    * Whether to store the conversation
-   * @default false
+   * @default true
    */
   store?: boolean;
-
-  /**
-   * Optional system message to set the behavior of the agent
-   */
-  systemMessage?: string;
 }
 
 /**
@@ -41,21 +31,13 @@ export class HeboAgent extends BaseAgent {
   private baseUrl: string;
   private store: boolean;
   private previousResponseId?: string;
-  private systemMessage?: string;
-  private messageHistory: AgentMessage[] = [];
+  private messageHistory: OpenAIMessage[] = [];
 
   constructor(config: HeboAgentConfig) {
     super(config);
     this.baseUrl = config.baseUrl || 'https://api.hebo.ai';
-    this.store = config.store || false;
-    this.systemMessage = config.systemMessage;
-
-    if (this.systemMessage) {
-      this.messageHistory.push({
-        role: 'system',
-        content: this.systemMessage,
-      });
-    }
+    this.store = config.store || true;
+    this.messageHistory = [];
   }
 
   /**
@@ -77,9 +59,9 @@ export class HeboAgent extends BaseAgent {
 
     const request: ResponseRequest = {
       model: this.config.model,
-      messages: this.convertToHeboMessages(this.messageHistory),
       store: this.store,
       previous_response_id: this.previousResponseId,
+      messages: this.messageHistory,
     };
 
     try {
@@ -88,9 +70,12 @@ export class HeboAgent extends BaseAgent {
 
       // Add assistant's response to history
       if (response.choices[0]?.message) {
+        const message = response.choices[0].message;
         this.messageHistory.push({
-          role: 'assistant',
-          content: response.choices[0].message.content || '',
+          role: roleMapper.toRole(message.role),
+          content: message.content || '',
+          toolUsage: message.toolUsage,
+          toolResponse: message.toolResponse,
         });
       }
 
@@ -126,32 +111,6 @@ export class HeboAgent extends BaseAgent {
   }
 
   /**
-   * Converts agent messages to Hebo API messages
-   */
-  private convertToHeboMessages(messages: AgentMessage[]): Message[] {
-    return messages.map((message) => ({
-      role: this.convertRole(message.role),
-      content: message.content,
-    }));
-  }
-
-  /**
-   * Converts agent message role to Hebo message role
-   */
-  private convertRole(role: AgentMessage['role']): MessageRole {
-    switch (role) {
-      case 'user':
-        return MessageRole.USER;
-      case 'assistant':
-        return MessageRole.ASSISTANT;
-      case 'system':
-        return MessageRole.SYSTEM;
-      default:
-        return MessageRole.USER;
-    }
-  }
-
-  /**
    * Makes a request to the Hebo API
    */
   private async makeRequest(request: ResponseRequest): Promise<Response> {
@@ -179,11 +138,5 @@ export class HeboAgent extends BaseAgent {
   public override async cleanup(): Promise<void> {
     await super.cleanup();
     this.messageHistory = [];
-    if (this.systemMessage) {
-      this.messageHistory.push({
-        role: 'system',
-        content: this.systemMessage,
-      });
-    }
   }
 }
