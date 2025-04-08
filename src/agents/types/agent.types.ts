@@ -3,9 +3,9 @@
  */
 export interface AgentConfig {
   /**
-   * Display name for the agent
+   * The model to use for the agent
    */
-  name: string;
+  model: string;
 }
 
 /**
@@ -21,11 +21,6 @@ export interface AgentMessage {
    * The role of the message sender
    */
   role: 'user' | 'assistant' | 'system';
-
-  /**
-   * Optional name of the message sender
-   */
-  name?: string;
 }
 
 /**
@@ -36,16 +31,6 @@ export interface AgentInput {
    * List of messages to send to the agent
    */
   messages: AgentMessage[];
-
-  /**
-   * Optional context or additional information to provide to the agent
-   */
-  context?: Record<string, unknown>;
-
-  /**
-   * Optional parameters to control the agent's behavior
-   */
-  parameters?: Record<string, unknown>;
 }
 
 /**

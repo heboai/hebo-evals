@@ -17,11 +17,6 @@ import {
  */
 export interface HeboAgentConfig extends AgentConfig {
   /**
-   * The model to use for the agent
-   */
-  model: string;
-
-  /**
    * The base URL for the Hebo API
    * @default 'https://api.hebo.ai'
    */
@@ -43,7 +38,6 @@ export interface HeboAgentConfig extends AgentConfig {
  * Implementation of the Hebo agent
  */
 export class HeboAgent extends BaseAgent {
-  private model: string;
   private baseUrl: string;
   private store: boolean;
   private previousResponseId?: string;
@@ -52,7 +46,6 @@ export class HeboAgent extends BaseAgent {
 
   constructor(config: HeboAgentConfig) {
     super(config);
-    this.model = config.model;
     this.baseUrl = config.baseUrl || 'https://api.hebo.ai';
     this.store = config.store || false;
     this.systemMessage = config.systemMessage;
@@ -69,7 +62,7 @@ export class HeboAgent extends BaseAgent {
    * Validates the Hebo-specific configuration
    */
   public override validateConfig(): Promise<boolean> {
-    if (!this.model) {
+    if (!this.config.model) {
       throw new Error('Model is required for Hebo agent');
     }
     return super.validateConfig();
@@ -83,7 +76,7 @@ export class HeboAgent extends BaseAgent {
     this.messageHistory.push(...input.messages);
 
     const request: ResponseRequest = {
-      model: this.model,
+      model: this.config.model,
       messages: this.convertToHeboMessages(this.messageHistory),
       store: this.store,
       previous_response_id: this.previousResponseId,
@@ -139,7 +132,6 @@ export class HeboAgent extends BaseAgent {
     return messages.map((message) => ({
       role: this.convertRole(message.role),
       content: message.content,
-      name: message.name,
     }));
   }
 

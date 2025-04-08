@@ -76,8 +76,8 @@ export abstract class BaseAgent implements IAgent {
    * @throws Error if the configuration is invalid
    */
   validateConfig(): Promise<boolean> {
-    if (!this.config.name) {
-      throw new Error('Agent name is required');
+    if (!this.config.model) {
+      throw new Error('Agent model is required');
     }
     return Promise.resolve(true);
   }
