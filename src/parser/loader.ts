@@ -127,7 +127,6 @@ export class TestCaseLoader {
    * @returns The test case name
    */
   private getTestCaseName(filePath: string): string {
-    const baseName = basename(filePath);
-    return baseName.replace('.txt', '');
+    return basename(filePath, '.txt');
   }
 }
