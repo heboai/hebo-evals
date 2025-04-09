@@ -92,7 +92,7 @@ export interface Response {
   /**
    * The token usage information
    */
-  usage: {
+  usage?: {
     /**
      * The number of tokens used in the prompt
      */

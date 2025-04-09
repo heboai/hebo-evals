@@ -36,7 +36,7 @@ export class HeboAgent extends BaseAgent {
   constructor(config: HeboAgentConfig) {
     super(config);
     this.baseUrl = config.baseUrl || 'https://api.hebo.ai';
-    this.store = config.store || true;
+    this.store = config.store ?? true;
     this.messageHistory = [];
   }
 
@@ -69,13 +69,13 @@ export class HeboAgent extends BaseAgent {
       this.previousResponseId = response.id;
 
       // Add assistant's response to history
-      if (response.choices[0]?.message) {
+      if (response.choices.length > 0 && response.choices[0].message) {
         const message = response.choices[0].message;
         this.messageHistory.push({
           role: roleMapper.toRole(message.role),
           content: message.content || '',
-          toolUsage: message.toolUsage,
-          toolResponse: message.toolResponse,
+          toolUsages: message.toolUsages || [],
+          toolResponses: message.toolResponses || [],
         });
       }
 
@@ -130,6 +130,23 @@ export class HeboAgent extends BaseAgent {
     }
 
     return response.json() as Promise<Response>;
+  }
+
+  /**
+   * Gets the authentication headers for the Hebo API
+   * @returns Record containing the authentication headers
+   * @throws Error if authentication configuration is invalid
+   */
+  protected override getAuthHeaders(): Record<string, string> {
+    if (!this.authConfig) {
+      throw new Error('Authentication configuration not found');
+    }
+
+    const { apiKey } = this.authConfig;
+
+    return {
+      'X-API-Key': apiKey,
+    };
   }
 
   /**

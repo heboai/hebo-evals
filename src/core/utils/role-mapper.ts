@@ -19,8 +19,12 @@ export class RoleMapper {
       case MessageRole.SYSTEM:
         return 'system';
       case MessageRole.TOOL:
+      case MessageRole.FUNCTION:
         return 'function';
       default:
+        console.warn(
+          `Unrecognized role: ${role as string}, defaulting to USER`,
+        );
         return 'user';
     }
   }
@@ -41,6 +45,7 @@ export class RoleMapper {
       case 'developer':
         return MessageRole.DEVELOPER;
       default:
+        console.warn(`Unrecognized role: ${role}, defaulting to USER`);
         return MessageRole.USER;
     }
   }

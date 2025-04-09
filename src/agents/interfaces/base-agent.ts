@@ -11,6 +11,11 @@ import {
  *
  * This class provides a foundation for implementing the IAgent interface,
  * including common functionality and error handling.
+ *
+ * @remarks
+ * Agents are designed to be initialized once during their lifecycle. Reinitialization
+ * is not supported as it could lead to inconsistent state. If you need to change
+ * the agent's configuration, create a new instance instead.
  */
 export abstract class BaseAgent implements IAgent {
   protected config: AgentConfig;
@@ -34,8 +39,14 @@ export abstract class BaseAgent implements IAgent {
    * Initializes the agent with the provided configuration
    * @param config The agent configuration
    * @returns Promise that resolves when initialization is complete
+   * @throws Error if the agent is already initialized
    */
   async initialize(config: AgentConfig): Promise<void> {
+    if (this.isInitialized) {
+      throw new Error(
+        'Agent is already initialized. Create a new instance to use different configuration.',
+      );
+    }
     this.config = config;
     await this.validateConfig();
     this.isInitialized = true;
@@ -96,6 +107,7 @@ export abstract class BaseAgent implements IAgent {
   /**
    * Gets the authentication headers for the request
    * @returns Record containing the authentication headers
+   * @throws Error if authentication configuration is invalid or headerFormat is missing the {apiKey} placeholder
    */
   protected getAuthHeaders(): Record<string, string> {
     if (!this.authConfig) {
@@ -107,6 +119,11 @@ export abstract class BaseAgent implements IAgent {
       headerName = 'Authorization',
       headerFormat = 'Bearer {apiKey}',
     } = this.authConfig;
+
+    if (!headerFormat.includes('{apiKey}')) {
+      throw new Error('headerFormat must contain the {apiKey} placeholder');
+    }
+
     const headerValue = headerFormat.replace('{apiKey}', apiKey);
 
     return {

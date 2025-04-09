@@ -1,4 +1,4 @@
-import { BaseMessage, MessageRole } from '../../core/types/message.types';
+import { BaseMessage } from '../../core/types/message.types';
 
 /**
  * Represents the base configuration for an agent
@@ -6,23 +6,9 @@ import { BaseMessage, MessageRole } from '../../core/types/message.types';
 export interface AgentConfig {
   /**
    * The model to use for the agent
+   * @example "myfirstagent:next", "myfirstagent:v1"
    */
   model: string;
-}
-
-/**
- * Represents a single message in a conversation
- */
-export interface AgentMessage {
-  /**
-   * The content of the message
-   */
-  content: string;
-
-  /**
-   * The role of the message sender
-   */
-  role: MessageRole;
 }
 
 /**
