@@ -1,13 +1,9 @@
 import { TestCaseParser } from '../parser/tokenizer.js';
 import { Parser } from '../parser/parser.js';
 import { TestCaseLoader } from '../parser/loader.js';
-import {
-  MessageRole,
-  ToolUsage,
-  ToolResponse,
-} from '../core/types/message.types.js';
+import { MessageRole } from '../core/types/message.types.js';
 import { ParseError } from '../parser/parser.js';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir, readdir, unlink, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -43,15 +39,17 @@ tool response: Found results`;
 
         const result = tokenizer.tokenize(text);
 
-        expect(result).toHaveLength(5);
+        expect(result).toHaveLength(4);
         expect(result[0]).toEqual({ type: 'role', value: 'assistant' });
         expect(result[1]).toEqual({
           type: 'content',
           value: 'Let me check that',
         });
-        expect(result[2]).toEqual({ type: 'tool_use', value: 'search' });
-        expect(result[3]).toEqual({ type: 'args', value: '{"query": "test"}' });
-        expect(result[4]).toEqual({
+        expect(result[2]).toEqual({
+          type: 'tool_use',
+          value: 'search args: {"query": "test"}',
+        });
+        expect(result[3]).toEqual({
           type: 'tool_response',
           value: 'Found results',
         });
@@ -85,7 +83,7 @@ user: How are you?`;
     });
 
     describe('parse', () => {
-      it('should parse a valid test case', () => {
+      it('should parse a simple conversation into separate message blocks', () => {
         const text = `user: Hello
 assistant: Hi there
 user: How are you?`;
@@ -94,32 +92,130 @@ user: How are you?`;
 
         expect(result.name).toBe('test-case');
         expect(result.messageBlocks).toHaveLength(3);
+
+        // First message
         expect(result.messageBlocks[0]).toEqual({
           role: MessageRole.USER,
           content: 'Hello',
           toolUsages: [],
           toolResponses: [],
         });
+
+        // Second message
+        expect(result.messageBlocks[1]).toEqual({
+          role: MessageRole.ASSISTANT,
+          content: 'Hi there',
+          toolUsages: [],
+          toolResponses: [],
+        });
+
+        // Third message
+        expect(result.messageBlocks[2]).toEqual({
+          role: MessageRole.USER,
+          content: 'How are you?',
+          toolUsages: [],
+          toolResponses: [],
+        });
       });
 
-      it('should handle tool usage and responses', () => {
+      it('should handle tool usage with args as string', () => {
         const text = `assistant: Let me check that
-tool use: search
-args: {"query": "test"}
+tool use: search args: {"query": "test"}
 tool response: Found results
 assistant: Here's what I found`;
 
         const result = parser.parse(text, 'test-case');
 
-        expect(result.messageBlocks).toHaveLength(1);
-        expect(result.messageBlocks[0].toolUsages).toHaveLength(1);
-        const messageBlock = result.messageBlocks[0];
-        expect((messageBlock.toolUsages as ToolUsage[])[0]).toEqual({
-          name: 'search',
-          args: { query: 'test' },
+        expect(result.messageBlocks).toHaveLength(2);
+
+        // First message block with tool usage
+        expect(result.messageBlocks[0]).toEqual({
+          role: MessageRole.ASSISTANT,
+          content: 'Let me check that',
+          toolUsages: [
+            {
+              name: 'search',
+              args: '{"query": "test"}',
+            },
+          ],
+          toolResponses: [
+            {
+              content: 'Found results',
+            },
+          ],
         });
-        expect((messageBlock.toolResponses as ToolResponse[])[0]).toEqual({
-          content: 'Found results',
+
+        // Second message block
+        expect(result.messageBlocks[1]).toEqual({
+          role: MessageRole.ASSISTANT,
+          content: "Here's what I found",
+          toolUsages: [],
+          toolResponses: [],
+        });
+      });
+
+      it('should handle example.txt format correctly', () => {
+        const text = `user: hello
+assistant: hello how can I help you?
+user: can you please search the weather in new york for me?
+assistant: sure
+tool use: weather_search args: {"location": "New York"}
+tool response: New York, NY, USA: 59 °F Precipitation: 80% Humidity: 96% Wind: 2 mph
+assistant: It's rainy in New York, NY, today, with a temperature of 59°F, 80% precipitation, 96% humidity, and light 2 mph winds. Be prepared for wet conditions!`;
+
+        const result = parser.parse(text, 'example');
+
+        expect(result.messageBlocks).toHaveLength(5);
+
+        // First message
+        expect(result.messageBlocks[0]).toEqual({
+          role: MessageRole.USER,
+          content: 'hello',
+          toolUsages: [],
+          toolResponses: [],
+        });
+
+        // Second message
+        expect(result.messageBlocks[1]).toEqual({
+          role: MessageRole.ASSISTANT,
+          content: 'hello how can I help you?',
+          toolUsages: [],
+          toolResponses: [],
+        });
+
+        // Third message
+        expect(result.messageBlocks[2]).toEqual({
+          role: MessageRole.USER,
+          content: 'can you please search the weather in new york for me?',
+          toolUsages: [],
+          toolResponses: [],
+        });
+
+        // Fourth message with tool usage
+        expect(result.messageBlocks[3]).toEqual({
+          role: MessageRole.ASSISTANT,
+          content: 'sure',
+          toolUsages: [
+            {
+              name: 'weather_search',
+              args: '{"location": "New York"}',
+            },
+          ],
+          toolResponses: [
+            {
+              content:
+                'New York, NY, USA: 59 °F Precipitation: 80% Humidity: 96% Wind: 2 mph',
+            },
+          ],
+        });
+
+        // Fifth message
+        expect(result.messageBlocks[4]).toEqual({
+          role: MessageRole.ASSISTANT,
+          content:
+            "It's rainy in New York, NY, today, with a temperature of 59°F, 80% precipitation, 96% humidity, and light 2 mph winds. Be prepared for wet conditions!",
+          toolUsages: [],
+          toolResponses: [],
         });
       });
 
@@ -146,12 +242,19 @@ args: invalid json`;
     beforeEach(async () => {
       loader = new TestCaseLoader();
       tempDir = join(tmpdir(), 'hebo-eval-tests');
+      // Ensure clean directory for each test
       await mkdir(tempDir, { recursive: true });
     });
 
     afterEach(async () => {
       // Cleanup temp files
-      // Note: In a real implementation, you'd want to properly clean up the temp directory
+      try {
+        const files = await readdir(tempDir);
+        await Promise.all(files.map((file) => unlink(join(tempDir, file))));
+        await rmdir(tempDir);
+      } catch (error) {
+        console.error('Cleanup error:', error);
+      }
     });
 
     describe('loadFromDirectory', () => {
@@ -160,17 +263,19 @@ args: invalid json`;
         const testFile1 = join(tempDir, 'test1.txt');
         const testFile2 = join(tempDir, 'test2.txt');
 
-        await writeFile(
-          testFile1,
-          `user: Hello
+        // Create files and wait for them to be written
+        await Promise.all([
+          writeFile(
+            testFile1,
+            `user: Hello
 assistant: Hi there`,
-        );
-
-        await writeFile(
-          testFile2,
-          `user: How are you?
+          ),
+          writeFile(
+            testFile2,
+            `user: How are you?
 assistant: I'm good`,
-        );
+          ),
+        ]);
 
         const result = await loader.loadFromDirectory(tempDir);
 
