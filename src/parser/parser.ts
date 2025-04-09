@@ -3,8 +3,6 @@ import {
   MessageRole,
   BaseMessage,
   TestCase,
-  ToolUsage,
-  ToolResponse,
 } from '../core/types/message.types';
 import { roleMapper } from '../core/utils/role-mapper';
 
@@ -42,8 +40,6 @@ export class Parser {
     const elements = this.parser.tokenize(text);
     const messageBlocks: BaseMessage[] = [];
     let currentBlock: BaseMessage | null = null;
-    let currentToolUsages: ToolUsage[] = [];
-    let currentToolResponses: ToolResponse[] = [];
 
     for (let i = 0; i < elements.length; i++) {
       const element = elements[i];
@@ -84,25 +80,26 @@ export class Parser {
             throw new ParseError('Tool use found without a role');
           }
 
-          // Parse tool usage
-          const toolName = element.value;
-          const nextElement = elements[i + 1];
-          if (!nextElement || nextElement.type !== 'args') {
-            throw new ParseError('Tool use must be followed by args');
+          // Parse tool usage and args from the combined value
+          const toolValue = element.value;
+          const argsMatch = toolValue.match(/^(.*?)\s*args:\s*(.*)$/);
+
+          if (!argsMatch) {
+            throw new ParseError(
+              'Tool use must include args in format: "name args: {...}"',
+            );
           }
 
-          try {
-            const args = JSON.parse(nextElement.value) as Record<
-              string,
-              unknown
-            >;
-            currentToolUsages.push({ name: toolName, args });
-            i++; // Skip args element
-          } catch (error: unknown) {
-            const errorMessage =
-              error instanceof Error ? error.message : 'Unknown error';
-            throw new ParseError(`Invalid tool args format: ${errorMessage}`);
+          const toolName = argsMatch[1].trim();
+          const args = argsMatch[2].trim();
+
+          if (!currentBlock.toolUsages) {
+            currentBlock.toolUsages = [];
           }
+          currentBlock.toolUsages.push({
+            name: toolName,
+            args: args,
+          });
           break;
         }
 
@@ -111,7 +108,10 @@ export class Parser {
             throw new ParseError('Tool response found without a role');
           }
 
-          currentToolResponses.push({ content: element.value });
+          if (!currentBlock.toolResponses) {
+            currentBlock.toolResponses = [];
+          }
+          currentBlock.toolResponses.push({ content: element.value });
           break;
         }
       }
@@ -119,8 +119,6 @@ export class Parser {
 
     // Add the last block if exists
     if (currentBlock) {
-      currentBlock.toolUsages = currentToolUsages;
-      currentBlock.toolResponses = currentToolResponses;
       messageBlocks.push(currentBlock);
     }
 
@@ -157,46 +155,22 @@ export class Parser {
       throw new ParseError('Test case must contain at least one message block');
     }
 
-    // Check that the last message is from the assistant or human agent
-    const lastBlock = messageBlocks[messageBlocks.length - 1];
-    if (
-      lastBlock.role !== MessageRole.ASSISTANT &&
-      lastBlock.role !== MessageRole.HUMAN_AGENT
-    ) {
-      throw new ParseError(
-        'Last message must be from the assistant or human agent',
-      );
-    }
-
     // Validate tool usage and response sequence
-    for (let i = 0; i < messageBlocks.length; i++) {
-      const block = messageBlocks[i];
-
-      if (block.toolUsages?.length) {
-        // Tool usage must be preceded by assistant or human agent message
+    for (const block of messageBlocks) {
+      if (block.toolUsages && block.toolUsages.length > 0) {
+        // Tool usage must be from assistant or human agent
         if (
           block.role !== MessageRole.ASSISTANT &&
           block.role !== MessageRole.HUMAN_AGENT
         ) {
           throw new ParseError(
-            'Tool usage must be preceded by assistant or human agent message',
+            'Tool usage must be from assistant or human agent message',
           );
         }
 
         // Tool usage must be followed by tool response
-        if (!block.toolResponses?.length) {
+        if (!block.toolResponses || block.toolResponses.length === 0) {
           throw new ParseError('Tool usage must be followed by tool response');
-        }
-
-        // Tool response must be followed by assistant or human agent message
-        if (
-          i === messageBlocks.length - 1 ||
-          (messageBlocks[i + 1].role !== MessageRole.ASSISTANT &&
-            messageBlocks[i + 1].role !== MessageRole.HUMAN_AGENT)
-        ) {
-          throw new ParseError(
-            'Tool response must be followed by assistant or human agent message',
-          );
         }
       }
     }

@@ -57,14 +57,17 @@ export class TestCaseLoader {
           const testCase = await this.loadFile(file);
           result.testCases.push(testCase);
         } catch (error) {
+          // On any error, stop processing and return the error
           result.errors.push({
             filePath: file,
             message:
               error instanceof Error ? error.message : 'Unknown error occurred',
           });
+          return result;
         }
       }
     } catch (error) {
+      // If we can't read the directory, add it as an error
       result.errors.push({
         filePath: directoryPath,
         message:
@@ -79,23 +82,32 @@ export class TestCaseLoader {
    * Gets all test files from a directory recursively
    * @param directoryPath The path to the directory
    * @returns Promise that resolves with an array of file paths
+   * @throws Error if the directory cannot be read
    */
   private async getTestFiles(directoryPath: string): Promise<string[]> {
-    const files: string[] = [];
-    const entries = await readdir(directoryPath, { withFileTypes: true });
+    try {
+      const files: string[] = [];
+      const entries = await readdir(directoryPath, { withFileTypes: true });
 
-    for (const entry of entries) {
-      const fullPath = join(directoryPath, entry.name);
+      for (const entry of entries) {
+        const fullPath = join(directoryPath, entry.name);
 
-      if (entry.isDirectory()) {
-        const subFiles = await this.getTestFiles(fullPath);
-        files.push(...subFiles);
-      } else if (entry.isFile() && extname(entry.name) === '.txt') {
-        files.push(fullPath);
+        if (entry.isDirectory()) {
+          const subFiles = await this.getTestFiles(fullPath);
+          files.push(...subFiles);
+        } else if (entry.isFile() && extname(entry.name) === '.txt') {
+          files.push(fullPath);
+        }
       }
-    }
 
-    return files;
+      return files;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(
+        `Cannot read directory: ${directoryPath}. ${errorMessage}`,
+      );
+    }
   }
 
   /**

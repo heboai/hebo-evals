@@ -42,7 +42,7 @@ export enum MessageRole {
  */
 export interface ToolUsage {
   name: string;
-  args: Record<string, unknown>;
+  args: string;
 }
 
 /**
