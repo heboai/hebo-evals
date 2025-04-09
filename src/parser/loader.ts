@@ -1,5 +1,5 @@
 import { readFile, readdir } from 'fs/promises';
-import { join, extname } from 'path';
+import { join, extname, basename } from 'path';
 import { Parser } from './parser';
 import { TestCase } from '../core/types/message.types';
 
@@ -127,7 +127,7 @@ export class TestCaseLoader {
    * @returns The test case name
    */
   private getTestCaseName(filePath: string): string {
-    const baseName = filePath.split('/').pop() || '';
+    const baseName = basename(filePath);
     return baseName.replace('.txt', '');
   }
 }
