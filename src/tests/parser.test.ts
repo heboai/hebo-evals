@@ -32,6 +32,142 @@ user: How are you?`;
         expect(result[5]).toEqual({ type: 'content', value: 'How are you?' });
       });
 
+      it('should handle Windows-style line endings', () => {
+        const text = 'user: Hello\r\nassistant: Hi there\r\nuser: How are you?';
+
+        const result = tokenizer.tokenize(text);
+
+        expect(result).toHaveLength(6);
+        expect(result[0]).toEqual({ type: 'role', value: 'user' });
+        expect(result[1]).toEqual({ type: 'content', value: 'Hello' });
+        expect(result[2]).toEqual({ type: 'role', value: 'assistant' });
+        expect(result[3]).toEqual({ type: 'content', value: 'Hi there' });
+        expect(result[4]).toEqual({ type: 'role', value: 'user' });
+        expect(result[5]).toEqual({ type: 'content', value: 'How are you?' });
+      });
+
+      it('should handle mixed line endings', () => {
+        const text =
+          'user: Hello\r\nassistant: Hi there\nuser: How are you?\r\n';
+
+        const result = tokenizer.tokenize(text);
+
+        expect(result).toHaveLength(6);
+        expect(result[0]).toEqual({ type: 'role', value: 'user' });
+        expect(result[1]).toEqual({ type: 'content', value: 'Hello' });
+        expect(result[2]).toEqual({ type: 'role', value: 'assistant' });
+        expect(result[3]).toEqual({ type: 'content', value: 'Hi there' });
+        expect(result[4]).toEqual({ type: 'role', value: 'user' });
+        expect(result[5]).toEqual({ type: 'content', value: 'How are you?' });
+      });
+
+      it('should handle lines starting with colons', () => {
+        const text = `user: Hello
+assistant: :This is a line starting with colon
+user: How are you?`;
+
+        const result = tokenizer.tokenize(text);
+
+        expect(result).toHaveLength(6);
+        expect(result[0]).toEqual({ type: 'role', value: 'user' });
+        expect(result[1]).toEqual({ type: 'content', value: 'Hello' });
+        expect(result[2]).toEqual({ type: 'role', value: 'assistant' });
+        expect(result[3]).toEqual({
+          type: 'content',
+          value: ':This is a line starting with colon',
+        });
+        expect(result[4]).toEqual({ type: 'role', value: 'user' });
+        expect(result[5]).toEqual({ type: 'content', value: 'How are you?' });
+      });
+
+      it('should handle unusual whitespace patterns', () => {
+        const text = `user: Hello
+\tassistant: Hi there
+user: \tHow are you?
+\t\tassistant: I'm good`;
+
+        const result = tokenizer.tokenize(text);
+
+        expect(result).toHaveLength(8);
+        expect(result[0]).toEqual({ type: 'role', value: 'user' });
+        expect(result[1]).toEqual({ type: 'content', value: 'Hello' });
+        expect(result[2]).toEqual({ type: 'role', value: 'assistant' });
+        expect(result[3]).toEqual({ type: 'content', value: 'Hi there' });
+        expect(result[4]).toEqual({ type: 'role', value: 'user' });
+        expect(result[5]).toEqual({ type: 'content', value: 'How are you?' });
+        expect(result[6]).toEqual({ type: 'role', value: 'assistant' });
+        expect(result[7]).toEqual({ type: 'content', value: "I'm good" });
+      });
+
+      it('should handle partial role matches', () => {
+        const text = `user: Hello
+user123: This should not be parsed as a role
+assistant: Hi there`;
+
+        expect(() => tokenizer.tokenize(text)).toThrow(
+          'Invalid role: user123. Valid roles are: user, assistant, human agent',
+        );
+      });
+
+      it('should handle empty content after role', () => {
+        const text = `user:
+assistant: Hi there
+user: `;
+
+        const result = tokenizer.tokenize(text);
+
+        expect(result).toHaveLength(6);
+        expect(result[0]).toEqual({ type: 'role', value: 'user' });
+        expect(result[1]).toEqual({ type: 'content', value: '' });
+        expect(result[2]).toEqual({ type: 'role', value: 'assistant' });
+        expect(result[3]).toEqual({ type: 'content', value: 'Hi there' });
+        expect(result[4]).toEqual({ type: 'role', value: 'user' });
+        expect(result[5]).toEqual({ type: 'content', value: '' });
+      });
+
+      it('should handle multiple consecutive empty lines', () => {
+        const text = `user: Hello
+
+
+assistant: Hi there
+
+
+user: How are you?`;
+
+        const result = tokenizer.tokenize(text);
+
+        expect(result).toHaveLength(6);
+        expect(result[0]).toEqual({ type: 'role', value: 'user' });
+        expect(result[1]).toEqual({ type: 'content', value: 'Hello' });
+        expect(result[2]).toEqual({ type: 'role', value: 'assistant' });
+        expect(result[3]).toEqual({ type: 'content', value: 'Hi there' });
+        expect(result[4]).toEqual({ type: 'role', value: 'user' });
+        expect(result[5]).toEqual({ type: 'content', value: 'How are you?' });
+      });
+
+      it('should handle tool usage with unusual whitespace', () => {
+        const text = `assistant: Let me check that
+tool use: search\targs: {"query": "test"}
+\t\ttool response: Found results`;
+
+        const result = tokenizer.tokenize(text);
+
+        expect(result).toHaveLength(4);
+        expect(result[0]).toEqual({ type: 'role', value: 'assistant' });
+        expect(result[1]).toEqual({
+          type: 'content',
+          value: 'Let me check that',
+        });
+        expect(result[2]).toEqual({
+          type: 'tool_use',
+          value: 'search\targs: {"query": "test"}',
+        });
+        expect(result[3]).toEqual({
+          type: 'tool_response',
+          value: 'Found results',
+        });
+      });
+
       it('should parse tool usage and responses', () => {
         const text = `assistant: Let me check that
 tool use: search args: {"query": "test"}
