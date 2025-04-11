@@ -2,7 +2,7 @@ import { TestCaseParser } from '../parser/tokenizer.js';
 import { Parser } from '../parser/parser.js';
 import { TestCaseLoader } from '../parser/loader.js';
 import { MessageRole } from '../core/types/message.types.js';
-import { ParseError } from '../parser/parser.js';
+import { ParseError } from '../parser/errors.js';
 import { writeFile, mkdir, readdir, unlink, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -363,10 +363,14 @@ assistant: It's rainy in New York, NY, today, with a temperature of 59°F, 80% p
 
       it('should throw ParseError for invalid tool args format', () => {
         const text = `assistant: Let me check
-tool use: search
-args: invalid json`;
+tool use: search args: invalid json
+tool response: some response`;
 
         expect(() => parser.parse(text, 'test-case')).toThrow(ParseError);
+        // Also verify the specific error message
+        expect(() => parser.parse(text, 'test-case')).toThrow(
+          'Tool args must be valid JSON',
+        );
       });
     });
   });
@@ -440,6 +444,42 @@ assistant: I'm good`,
         expect(result.testCases).toHaveLength(0);
         expect(result.errors).toHaveLength(1);
         expect(result.errors[0].filePath).toBe(nonExistentDir);
+      });
+
+      it('should handle errors according to stopOnError parameter', async () => {
+        // Create test files with one invalid file
+        const validFile1 = join(tempDir, 'a_valid1.txt');
+        const invalidFile = join(tempDir, 'b_invalid.txt');
+        const validFile2 = join(tempDir, 'c_valid2.txt');
+
+        await Promise.all([
+          writeFile(
+            validFile1,
+            `user: Hello
+assistant: Hi there`,
+          ),
+          writeFile(invalidFile, 'invalid: content'),
+          writeFile(
+            validFile2,
+            `user: How are you?
+assistant: I'm good`,
+          ),
+        ]);
+
+        // Test with stopOnError = true (default)
+        const resultWithStop = await loader.loadFromDirectory(tempDir);
+        expect(resultWithStop.testCases).toHaveLength(1); // Only first valid file processed
+        expect(resultWithStop.errors).toHaveLength(1);
+        expect(resultWithStop.errors[0].filePath).toBe(invalidFile);
+
+        // Test with stopOnError = false
+        const resultWithoutStop = await loader.loadFromDirectory(
+          tempDir,
+          false,
+        );
+        expect(resultWithoutStop.testCases).toHaveLength(2); // Both valid files processed
+        expect(resultWithoutStop.errors).toHaveLength(1);
+        expect(resultWithoutStop.errors[0].filePath).toBe(invalidFile);
       });
     });
   });

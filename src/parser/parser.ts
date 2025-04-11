@@ -5,19 +5,7 @@ import {
   TestCase,
 } from '../core/types/message.types';
 import { roleMapper } from '../core/utils/role-mapper';
-
-/**
- * Error thrown when parsing fails
- */
-export class ParseError extends Error {
-  constructor(
-    message: string,
-    public lineNumber?: number,
-  ) {
-    super(message);
-    this.name = 'ParseError';
-  }
-}
+import { ParseError } from './errors';
 
 /**
  * Parser for test case text files
@@ -92,6 +80,13 @@ export class Parser {
 
           const toolName = argsMatch[1].trim();
           const args = argsMatch[2].trim();
+
+          // Validate that args is valid JSON
+          try {
+            JSON.parse(args);
+          } catch {
+            throw new ParseError('Tool args must be valid JSON');
+          }
 
           if (!currentBlock.toolUsages) {
             currentBlock.toolUsages = [];

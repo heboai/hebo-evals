@@ -41,9 +41,13 @@ export class TestCaseLoader {
   /**
    * Loads test cases from a directory
    * @param directoryPath The path to the directory containing test case files
+   * @param stopOnError Whether to stop processing files after the first error (default: true)
    * @returns Promise that resolves with the load result
    */
-  public async loadFromDirectory(directoryPath: string): Promise<LoadResult> {
+  public async loadFromDirectory(
+    directoryPath: string,
+    stopOnError: boolean = true,
+  ): Promise<LoadResult> {
     const result: LoadResult = {
       testCases: [],
       errors: [],
@@ -57,13 +61,15 @@ export class TestCaseLoader {
           const testCase = await this.loadFile(file);
           result.testCases.push(testCase);
         } catch (error) {
-          // On any error, stop processing and return the error
           result.errors.push({
             filePath: file,
             message:
               error instanceof Error ? error.message : 'Unknown error occurred',
           });
-          return result;
+          if (stopOnError) {
+            return result;
+          }
+          // Continue processing remaining files if stopOnError is false
         }
       }
     } catch (error) {

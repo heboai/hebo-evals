@@ -1,3 +1,5 @@
+import { ParseError } from './errors';
+
 /**
  * Represents an element in the test case text
  */
@@ -25,8 +27,6 @@ interface PatternHandlerConfig {
   pattern: RegExp;
   handle: PatternHandler;
 }
-
-import { ParseError } from './parser';
 
 /**
  * Parser for test case text files
