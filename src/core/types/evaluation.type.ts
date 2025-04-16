@@ -17,6 +17,11 @@ export interface EvaluationResult {
   score: number;
   passed: boolean;
   error?: string;
+  metadata?: {
+    timestamp: string;
+    scoringMethod: ScoringMethod;
+    threshold: number;
+  };
 }
 
 /**
@@ -42,6 +47,8 @@ export interface EvaluationReport {
     passedTests: number;
     failedTests: number;
     passRate: number;
+    averageScore: number;
+    threshold: number;
   };
   results: EvaluationResult[];
   metadata: {
@@ -49,5 +56,7 @@ export interface EvaluationReport {
     threshold: number;
     scoringMethod: ScoringMethod;
     scoringConfig: ScoringConfig;
+    batchId?: string;
+    hasErrors?: boolean;
   };
 }

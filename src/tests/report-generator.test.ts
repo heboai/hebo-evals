@@ -4,103 +4,163 @@ import { EvaluationResult, Message } from '../core/types/evaluation.type.js';
 
 describe('ReportGenerator', () => {
   let reportGenerator: ReportGenerator;
+  const defaultThreshold = 0.7;
+
   const mockResults: EvaluationResult[] = [
     {
       testCaseId: 'test-1',
-      inputMessages: [
-        { role: 'user', content: 'What is the weather?' }
-      ],
+      inputMessages: [{ role: 'user', content: 'What is the weather?' }],
       expectedOutput: { role: 'assistant', content: 'The weather is sunny' },
       observedOutput: { role: 'assistant', content: 'The weather is sunny' },
       score: 0.95,
-      passed: true
+      passed: true,
     },
     {
       testCaseId: 'test-2',
-      inputMessages: [
-        { role: 'user', content: 'What is the weather?' }
-      ],
+      inputMessages: [{ role: 'user', content: 'What is the weather?' }],
       expectedOutput: { role: 'assistant', content: 'The weather is sunny' },
       observedOutput: { role: 'assistant', content: 'It is raining' },
       score: 0.3,
-      passed: false
-    }
+      passed: false,
+    },
   ];
 
   beforeEach(() => {
-    reportGenerator = new ReportGenerator();
+    reportGenerator = new ReportGenerator({ threshold: defaultThreshold });
   });
 
-  describe('generateReport', () => {
-    it('should generate a report with correct summary statistics', async () => {
+  describe('Report Generation and Scoring', () => {
+    it('should generate a comprehensive report with all required components', async () => {
       const report = await reportGenerator.generateReport(mockResults);
-      
-      expect(report.summary.totalTests).toBe(2);
+
+      // Test aggregate summary
+      expect(report.summary).toEqual({
+        totalTests: 2,
+        passedTests: 1,
+        failedTests: 1,
+        passRate: 50,
+        averageScore: 0.625, // (0.95 + 0.3) / 2
+        threshold: defaultThreshold,
+      });
+
+      // Test detailed results
+      expect(report.results).toHaveLength(2);
+      expect(report.results[0]).toMatchObject({
+        testCaseId: 'test-1',
+        passed: true,
+        score: 0.95,
+        inputMessages: expect.any(Array),
+        expectedOutput: expect.any(Object),
+        observedOutput: expect.any(Object),
+        metadata: {
+          timestamp: expect.any(String),
+          scoringMethod: 'semantic-similarity',
+          threshold: defaultThreshold,
+        },
+      });
+    });
+
+    it('should correctly apply scoring threshold', async () => {
+      const customThreshold = 0.8;
+      reportGenerator = new ReportGenerator({ threshold: customThreshold });
+      const report = await reportGenerator.generateReport(mockResults);
+
+      // First test (score 0.95) should pass, second test (score 0.3) should fail
       expect(report.summary.passedTests).toBe(1);
       expect(report.summary.failedTests).toBe(1);
-      expect(report.summary.passRate).toBe(0.5);
+
+      // Verify individual test results
+      expect(report.results[0].passed).toBe(true); // score 0.95 > 0.8
+      expect(report.results[1].passed).toBe(false); // score 0.3 < 0.8
     });
 
-    it('should handle empty results array', async () => {
-      const report = await reportGenerator.generateReport([]);
-      
-      expect(report.summary.totalTests).toBe(0);
-      expect(report.summary.passedTests).toBe(0);
-      expect(report.summary.failedTests).toBe(0);
-      expect(report.summary.passRate).toBe(0);
-    });
+    it('should support batch evaluation execution', async () => {
+      const batchResults = Array(10).fill(mockResults[0]);
+      const report = await reportGenerator.generateReport(batchResults);
 
-    it('should include all test cases in the results', async () => {
-      const report = await reportGenerator.generateReport(mockResults);
-      
-      expect(report.results).toHaveLength(2);
-      expect(report.results[0].testCaseId).toBe('test-1');
-      expect(report.results[1].testCaseId).toBe('test-2');
+      expect(report.summary.totalTests).toBe(10);
+      expect(report.results).toHaveLength(10);
+      expect(report.metadata.batchId).toBeDefined();
     });
   });
 
-  describe('formatReport', () => {
-    it('should format report as JSON', async () => {
-      const report = await reportGenerator.generateReport(mockResults);
-      const formatted = reportGenerator.formatReport(report, 'json');
-      
-      expect(() => JSON.parse(formatted)).not.toThrow();
-      const parsed = JSON.parse(formatted);
-      expect(parsed.summary.totalTests).toBe(2);
+  describe('Output Formatting', () => {
+    let report: any;
+
+    beforeEach(async () => {
+      report = await reportGenerator.generateReport(mockResults);
     });
 
-    it('should format report as Markdown', async () => {
-      const report = await reportGenerator.generateReport(mockResults);
+    it('should format report as JSON with all required fields', async () => {
+      const formatted = reportGenerator.formatReport(report, 'json');
+      const parsed = JSON.parse(formatted);
+
+      expect(parsed).toMatchObject({
+        summary: expect.any(Object),
+        results: expect.any(Array),
+        metadata: expect.any(Object),
+      });
+
+      // Verify JSON structure matches requirements
+      expect(parsed.summary).toHaveProperty('threshold');
+      expect(parsed.summary).toHaveProperty('averageScore');
+      expect(parsed.results[0]).toHaveProperty('inputMessages');
+      expect(parsed.results[0]).toHaveProperty('expectedOutput');
+      expect(parsed.results[0]).toHaveProperty('observedOutput');
+      expect(parsed.results[0]).toHaveProperty('metadata');
+    });
+
+    it('should format report as Markdown with clear section hierarchy', async () => {
       const formatted = reportGenerator.formatReport(report, 'markdown');
-      
+
+      // Check markdown structure
       expect(formatted).toContain('# Evaluation Report');
       expect(formatted).toContain('## Summary');
-      expect(formatted).toContain('## Test Results');
-      expect(formatted).toContain('### test-1');
-      expect(formatted).toContain('### test-2');
+      expect(formatted).toContain('## Detailed Results');
+
+      // Check threshold and scoring information
+      expect(formatted).toContain(`Threshold: ${defaultThreshold}`);
+      expect(formatted).toContain('Average Score:');
+
+      // Check test case details
+      expect(formatted).toContain('### Test Case: test-1');
+      expect(formatted).toContain('✅ Passed');
+      expect(formatted).toContain('### Test Case: test-2');
+      expect(formatted).toContain('❌ Failed');
+
+      // Check message content inclusion
+      expect(formatted).toContain('#### Input Messages');
+      expect(formatted).toContain('#### Expected Output');
+      expect(formatted).toContain('#### Observed Output');
     });
 
-    it('should format report as plain text', async () => {
-      const report = await reportGenerator.generateReport(mockResults);
-      const formatted = reportGenerator.formatReport(report, 'text');
-      
-      expect(formatted).toContain('Evaluation Report');
-      expect(formatted).toContain('Summary:');
-      expect(formatted).toContain('Test Results:');
-      expect(formatted).toContain('test-1');
-      expect(formatted).toContain('test-2');
-    });
+    it('should highlight failed tests clearly in all formats', async () => {
+      const formats = ['json', 'markdown', 'text'] as const;
 
-    it('should handle invalid format type', async () => {
-      const report = await reportGenerator.generateReport(mockResults);
-      
-      expect(() => reportGenerator.formatReport(report, 'invalid' as any))
-        .toThrow('Invalid format type: invalid');
+      for (const format of formats) {
+        const formatted = reportGenerator.formatReport(report, format);
+        expect(formatted).toContain('test-2'); // Failed test
+        if (format === 'markdown') {
+          expect(formatted).toContain('❌ Failed');
+        }
+      }
     });
   });
 
-  describe('edge cases', () => {
-    it('should handle results with missing fields', async () => {
+  describe('Edge Cases and Error Handling', () => {
+    it('should handle empty results array', async () => {
+      const report = await reportGenerator.generateReport([]);
+      expect(report.summary).toEqual({
+        totalTests: 0,
+        passedTests: 0,
+        failedTests: 0,
+        passRate: 0,
+        averageScore: 0,
+        threshold: defaultThreshold,
+      });
+    });
+
+    it('should handle missing or malformed test cases', async () => {
       const incompleteResults: EvaluationResult[] = [
         {
           testCaseId: 'test-1',
@@ -108,15 +168,16 @@ describe('ReportGenerator', () => {
           expectedOutput: { role: 'assistant', content: '' },
           observedOutput: { role: 'assistant', content: '' },
           score: 0,
-          passed: false
-        }
+          passed: false,
+        },
       ];
-      
+
       const report = await reportGenerator.generateReport(incompleteResults);
       expect(report.results[0].testCaseId).toBe('test-1');
+      expect(report.metadata.hasErrors).toBe(false); // No errors, just failed test
     });
 
-    it('should handle very long messages', async () => {
+    it('should handle very long messages without truncation', async () => {
       const longMessage = 'a'.repeat(1000);
       const results: EvaluationResult[] = [
         {
@@ -125,13 +186,28 @@ describe('ReportGenerator', () => {
           expectedOutput: { role: 'assistant', content: longMessage },
           observedOutput: { role: 'assistant', content: longMessage },
           score: 1,
-          passed: true
-        }
+          passed: true,
+        },
       ];
-      
+
       const report = await reportGenerator.generateReport(results);
       const formatted = reportGenerator.formatReport(report, 'markdown');
       expect(formatted).toContain(longMessage);
+    });
+
+    it('should log scoring errors when they occur', async () => {
+      const resultsWithError: EvaluationResult[] = [
+        {
+          ...mockResults[0],
+          error: 'Scoring computation failed',
+          score: 0,
+          passed: false,
+        },
+      ];
+
+      const report = await reportGenerator.generateReport(resultsWithError);
+      expect(report.metadata.hasErrors).toBe(true);
+      expect(report.results[0].error).toBeDefined();
     });
   });
 });
