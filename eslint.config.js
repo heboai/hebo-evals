@@ -1,10 +1,12 @@
-import { defineConfig } from 'eslint/config';
+import js from '@eslint/js';
 import typescriptParser from '@typescript-eslint/parser';
 import typescriptPlugin from '@typescript-eslint/eslint-plugin';
 import prettierPlugin from 'eslint-plugin-prettier';
 import prettierConfig from 'eslint-config-prettier';
+import globals from 'globals';
 
-export default defineConfig([
+export default [
+  js.configs.recommended,
   {
     ignores: ['dist/**', 'node_modules/**'],
   },
@@ -17,6 +19,10 @@ export default defineConfig([
         tsconfigRootDir: '.',
         ecmaVersion: 2020,
         sourceType: 'module',
+      },
+      globals: {
+        ...globals.node,
+        ...globals.es2021,
       },
     },
     plugins: {
@@ -33,10 +39,6 @@ export default defineConfig([
         { argsIgnorePattern: '^_' },
       ],
     },
-    settings: {
-      node: true,
-      jest: true,
-    },
   },
   // Additional config for test files
   {
@@ -49,6 +51,11 @@ export default defineConfig([
         ecmaVersion: 2020,
         sourceType: 'module',
       },
+      globals: {
+        ...globals.node,
+        ...globals.es2021,
+        ...globals.jest,
+      },
     },
     plugins: {
       '@typescript-eslint': typescriptPlugin,
@@ -60,4 +67,4 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-assignment': 'off',
     },
   },
-]);
+];

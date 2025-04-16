@@ -1,6 +1,8 @@
-import { jest } from '@jest/globals';
 import { ReportGenerator } from '../core/services/report-generator.js';
-import { EvaluationResult, Message } from '../core/types/evaluation.type.js';
+import {
+  EvaluationResult,
+  EvaluationReport,
+} from '../core/types/evaluation.type.js';
 
 describe('ReportGenerator', () => {
   let reportGenerator: ReportGenerator;
@@ -30,8 +32,8 @@ describe('ReportGenerator', () => {
   });
 
   describe('Report Generation and Scoring', () => {
-    it('should generate a comprehensive report with all required components', async () => {
-      const report = await reportGenerator.generateReport(mockResults);
+    it('should generate a comprehensive report with all required components', () => {
+      const report = reportGenerator.generateReport(mockResults);
 
       // Test aggregate summary
       expect(report.summary).toEqual({
@@ -60,10 +62,10 @@ describe('ReportGenerator', () => {
       });
     });
 
-    it('should correctly apply scoring threshold', async () => {
+    it('should correctly apply scoring threshold', () => {
       const customThreshold = 0.8;
       reportGenerator = new ReportGenerator({ threshold: customThreshold });
-      const report = await reportGenerator.generateReport(mockResults);
+      const report = reportGenerator.generateReport(mockResults);
 
       // First test (score 0.95) should pass, second test (score 0.3) should fail
       expect(report.summary.passedTests).toBe(1);
@@ -74,9 +76,9 @@ describe('ReportGenerator', () => {
       expect(report.results[1].passed).toBe(false); // score 0.3 < 0.8
     });
 
-    it('should support batch evaluation execution', async () => {
-      const batchResults = Array(10).fill(mockResults[0]);
-      const report = await reportGenerator.generateReport(batchResults);
+    it('should support batch evaluation execution', () => {
+      const batchResults: EvaluationResult[] = Array(10).fill(mockResults[0]);
+      const report = reportGenerator.generateReport(batchResults);
 
       expect(report.summary.totalTests).toBe(10);
       expect(report.results).toHaveLength(10);
@@ -85,13 +87,13 @@ describe('ReportGenerator', () => {
   });
 
   describe('Output Formatting', () => {
-    let report: any;
+    let report: EvaluationReport;
 
-    beforeEach(async () => {
-      report = await reportGenerator.generateReport(mockResults);
+    beforeEach(() => {
+      report = reportGenerator.generateReport(mockResults);
     });
 
-    it('should format report as JSON with all required fields', async () => {
+    it('should format report as JSON with all required fields', () => {
       const formatted = reportGenerator.formatReport(report, 'json');
       const parsed = JSON.parse(formatted);
 
@@ -110,7 +112,7 @@ describe('ReportGenerator', () => {
       expect(parsed.results[0]).toHaveProperty('metadata');
     });
 
-    it('should format report as Markdown with clear section hierarchy', async () => {
+    it('should format report as Markdown with clear section hierarchy', () => {
       const formatted = reportGenerator.formatReport(report, 'markdown');
 
       // Check markdown structure
@@ -134,7 +136,7 @@ describe('ReportGenerator', () => {
       expect(formatted).toContain('#### Observed Output');
     });
 
-    it('should highlight failed tests clearly in all formats', async () => {
+    it('should highlight failed tests clearly in all formats', () => {
       const formats = ['json', 'markdown', 'text'] as const;
 
       for (const format of formats) {
@@ -148,8 +150,8 @@ describe('ReportGenerator', () => {
   });
 
   describe('Edge Cases and Error Handling', () => {
-    it('should handle empty results array', async () => {
-      const report = await reportGenerator.generateReport([]);
+    it('should handle empty results array', () => {
+      const report = reportGenerator.generateReport([]);
       expect(report.summary).toEqual({
         totalTests: 0,
         passedTests: 0,
@@ -160,7 +162,7 @@ describe('ReportGenerator', () => {
       });
     });
 
-    it('should handle missing or malformed test cases', async () => {
+    it('should handle missing or malformed test cases', () => {
       const incompleteResults: EvaluationResult[] = [
         {
           testCaseId: 'test-1',
@@ -172,12 +174,12 @@ describe('ReportGenerator', () => {
         },
       ];
 
-      const report = await reportGenerator.generateReport(incompleteResults);
+      const report = reportGenerator.generateReport(incompleteResults);
       expect(report.results[0].testCaseId).toBe('test-1');
       expect(report.metadata.hasErrors).toBe(false); // No errors, just failed test
     });
 
-    it('should handle very long messages without truncation', async () => {
+    it('should handle very long messages without truncation', () => {
       const longMessage = 'a'.repeat(1000);
       const results: EvaluationResult[] = [
         {
@@ -190,12 +192,12 @@ describe('ReportGenerator', () => {
         },
       ];
 
-      const report = await reportGenerator.generateReport(results);
+      const report = reportGenerator.generateReport(results);
       const formatted = reportGenerator.formatReport(report, 'markdown');
       expect(formatted).toContain(longMessage);
     });
 
-    it('should log scoring errors when they occur', async () => {
+    it('should log scoring errors when they occur', () => {
       const resultsWithError: EvaluationResult[] = [
         {
           ...mockResults[0],
@@ -205,7 +207,7 @@ describe('ReportGenerator', () => {
         },
       ];
 
-      const report = await reportGenerator.generateReport(resultsWithError);
+      const report = reportGenerator.generateReport(resultsWithError);
       expect(report.metadata.hasErrors).toBe(true);
       expect(report.results[0].error).toBeDefined();
     });

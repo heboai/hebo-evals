@@ -1,9 +1,7 @@
 import {
   EvaluationResult,
   EvaluationReport,
-  Message,
   ScoringMethod,
-  ScoringConfig,
 } from '../types/evaluation.type';
 
 /**
@@ -25,11 +23,24 @@ export class ReportGenerator {
   }
 
   /**
+   * Safely converts any value to a string for use in template literals
+   * @param value - The value to convert to a string
+   * @returns A string representation of the value
+   */
+  private safeString(value: unknown): string {
+    try {
+      return value === null || value === undefined ? 'Unknown' : String(value);
+    } catch {
+      return 'Unknown';
+    }
+  }
+
+  /**
    * Generates a complete evaluation report from individual results
    * @param results - Array of evaluation results
    * @returns A promise that resolves to the complete evaluation report
    */
-  async generateReport(results: EvaluationResult[]): Promise<EvaluationReport> {
+  generateReport(results: EvaluationResult[]): EvaluationReport {
     // Process results with threshold-based pass/fail determination
     const processedResults = results.map((result) => ({
       ...result,
@@ -75,7 +86,7 @@ export class ReportGenerator {
           threshold: this.threshold,
           caseSensitive: false,
         },
-        batchId: `batch-${Date.now()}`,
+        batchId: `batch-${String(Date.now())}`,
         hasErrors,
       },
     };
@@ -99,7 +110,7 @@ export class ReportGenerator {
       case 'text':
         return this.formatText(report);
       default:
-        throw new Error(`Unsupported format: ${format}`);
+        throw new Error(`Unsupported format: ${String(format)}`);
     }
   }
 
@@ -117,35 +128,41 @@ export class ReportGenerator {
 
     markdown += `## Detailed Results\n\n`;
     results.forEach((result) => {
-      markdown += `### Test Case: ${result.testCaseId}\n\n`;
+      const testCaseId: string = this.safeString(result.testCaseId);
+      markdown += '### Test Case: ' + testCaseId + '\n\n';
       markdown += `- Status: ${result.passed ? '✅ Passed' : '❌ Failed'}\n`;
       markdown += `- Score: ${result.score.toFixed(2)}\n\n`;
 
       if (result.inputMessages?.length) {
         markdown += `#### Input Messages\n`;
         result.inputMessages.forEach((msg) => {
-          markdown += `- ${msg.role}: ${msg.content}\n`;
+          const role = this.safeString(msg.role);
+          const content = this.safeString(msg.content);
+          markdown += `- ${role}: ${content}\n`;
         });
         markdown += '\n';
       }
 
       if (result.expectedOutput) {
-        markdown += `#### Expected Output\n${result.expectedOutput.content}\n\n`;
+        const content = this.safeString(result.expectedOutput.content);
+        markdown += `#### Expected Output\n${content}\n\n`;
       }
 
       if (result.observedOutput) {
-        markdown += `#### Observed Output\n${result.observedOutput.content}\n\n`;
+        const content = this.safeString(result.observedOutput.content);
+        markdown += `#### Observed Output\n${content}\n\n`;
       }
 
       if (result.error) {
-        markdown += `#### Error\n\`\`\`\n${result.error}\n\`\`\`\n\n`;
+        const error = this.safeString(result.error);
+        markdown += `#### Error\n\`\`\`\n${error}\n\`\`\`\n\n`;
       }
     });
 
     markdown += `## Metadata\n\n`;
-    markdown += `- Timestamp: ${metadata.timestamp}\n`;
+    markdown += `- Timestamp: ${this.safeString(metadata.timestamp)}\n`;
     markdown += `- Threshold: ${metadata.threshold}\n`;
-    markdown += `- Scoring Method: ${metadata.scoringMethod}\n`;
+    markdown += `- Scoring Method: ${this.safeString(metadata.scoringMethod)}\n`;
 
     return markdown;
   }
@@ -164,35 +181,35 @@ export class ReportGenerator {
 
     text += 'DETAILED RESULTS\n\n';
     results.forEach((result) => {
-      text += `Test Case: ${result.testCaseId}\n`;
+      text += `Test Case: ${this.safeString(result.testCaseId)}\n`;
       text += `Status: ${result.passed ? 'PASSED' : 'FAILED'}\n`;
       text += `Score: ${result.score.toFixed(2)}\n\n`;
 
       if (result.inputMessages?.length) {
         text += `Input Messages:\n`;
         result.inputMessages.forEach((msg) => {
-          text += `${msg.role}: ${msg.content}\n`;
+          text += `${this.safeString(msg.role)}: ${this.safeString(msg.content)}\n`;
         });
         text += '\n';
       }
 
       if (result.expectedOutput) {
-        text += `Expected Output:\n${result.expectedOutput.content}\n\n`;
+        text += `Expected Output:\n${this.safeString(result.expectedOutput.content)}\n\n`;
       }
 
       if (result.observedOutput) {
-        text += `Observed Output:\n${result.observedOutput.content}\n\n`;
+        text += `Observed Output:\n${this.safeString(result.observedOutput.content)}\n\n`;
       }
 
       if (result.error) {
-        text += `Error:\n${result.error}\n\n`;
+        text += `Error:\n${this.safeString(result.error)}\n\n`;
       }
     });
 
     text += 'METADATA\n';
-    text += `Timestamp: ${metadata.timestamp}\n`;
+    text += `Timestamp: ${this.safeString(metadata.timestamp)}\n`;
     text += `Threshold: ${metadata.threshold}\n`;
-    text += `Scoring Method: ${metadata.scoringMethod}\n`;
+    text += `Scoring Method: ${this.safeString(metadata.scoringMethod)}\n`;
 
     return text;
   }

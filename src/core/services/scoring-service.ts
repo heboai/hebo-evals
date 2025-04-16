@@ -1,9 +1,9 @@
 import { Embeddings } from '@langchain/core/embeddings';
 import { cosineSimilarity } from '@langchain/core/utils/math';
-import { Message, ScoringConfig, ScoringMethod } from '../types/evaluation.type';
+import { Message, ScoringConfig } from '../types/evaluation.type';
 
 /**
- * Service responsible for scoring evaluation results
+ * Service responsible for scoring test cases
  */
 export class ScoringService {
   private config: ScoringConfig;
@@ -17,7 +17,9 @@ export class ScoringService {
   constructor(config: ScoringConfig, embeddings?: Embeddings) {
     this.config = config;
     if (config.method === 'semantic-similarity' && !embeddings) {
-      throw new Error('Embeddings model is required for semantic similarity scoring');
+      throw new Error(
+        'Embeddings model is required for semantic similarity scoring',
+      );
     }
     this.embeddings = embeddings;
   }
@@ -28,7 +30,9 @@ export class ScoringService {
    */
   setConfig(config: ScoringConfig): void {
     if (config.method === 'semantic-similarity' && !this.embeddings) {
-      throw new Error('Embeddings model is required for semantic similarity scoring');
+      throw new Error(
+        'Embeddings model is required for semantic similarity scoring',
+      );
     }
     this.config = config;
   }
@@ -72,7 +76,10 @@ export class ScoringService {
    * @param expected - The expected text
    * @returns The cosine similarity score
    */
-  private async semanticSimilarity(observed: string, expected: string): Promise<number> {
+  private async semanticSimilarity(
+    observed: string,
+    expected: string,
+  ): Promise<number> {
     if (!this.embeddings) {
       throw new Error('Embeddings model not initialized');
     }
