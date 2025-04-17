@@ -35,6 +35,11 @@ describe('EvaluationService', () => {
       expect(report).toContain('Total Tests: 2');
       expect(report).toContain('test-1');
       expect(report).toContain('test-2');
+      expect(report).toContain('What is 2+2?');
+      expect(report).toContain('What is 3+3?');
+      expect(report).toContain('Expected Output');
+      expect(report).toContain('Observed Output');
+      expect(report).toContain('Pass Rate:');
     });
 
     it('should include duration in the report', async () => {
