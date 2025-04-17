@@ -65,7 +65,7 @@ describe('ReportGenerator', () => {
       const report = jsonGenerator.generateReport(sampleReport);
 
       expect(() => JSON.parse(report)).not.toThrow();
-      const parsed = JSON.parse(report) as unknown;
+      const parsed = JSON.parse(report) as Partial<EvaluationReport>;
       expect(parsed).toMatchObject({
         totalTests: 2,
         passedTests: 1,
