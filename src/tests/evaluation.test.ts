@@ -46,7 +46,7 @@ describe('EvaluationService', () => {
       // Mock the private executeTest method
       const mockExecuteTest = jest
         .spyOn(
-          EvaluationService.prototype as {
+          EvaluationService.prototype as unknown as {
             executeTest(input: string): Promise<string>;
           },
           'executeTest',

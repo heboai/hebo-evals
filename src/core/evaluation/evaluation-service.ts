@@ -16,7 +16,7 @@ export class EvaluationService {
 
   constructor(
     private config: EvaluationConfig,
-    embeddings: Embeddings | undefined,
+    private embeddings?: Embeddings,
   ) {
     this.scoringService = new ScoringService(config, embeddings);
     this.reportGenerator = new ReportGenerator(config);
@@ -78,8 +78,14 @@ export class EvaluationService {
    * Executes a single test case
    */
   private async executeTest(input: string): Promise<string> {
-    // TODO: Implement actual agent execution
-    // This is a placeholder that should be replaced with the actual agent execution logic
-    return await Promise.resolve(input);
+    try {
+      // TODO: Implement actual agent execution
+      // This is a placeholder that should be replaced with the actual agent execution logic
+      return await Promise.resolve(input);
+    } catch (error) {
+      throw new Error(
+        `Test execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
   }
 }

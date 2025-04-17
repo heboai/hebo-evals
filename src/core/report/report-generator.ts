@@ -21,12 +21,10 @@ export class ReportGenerator {
         return this.generateMarkdownReport(results);
       case 'text':
         return this.generateTextReport(results);
-      default:
-      default:
-        {
-          const format = this.config.outputFormat as string;
-          throw new Error(`Unsupported output format: ${format}`);
-        }
+      default: {
+        const format = this.config.outputFormat as string;
+        throw new Error(`Unsupported output format: ${format}`);
+      }
     }
   }
 
