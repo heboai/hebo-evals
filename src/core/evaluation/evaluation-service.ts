@@ -5,6 +5,7 @@ import {
   EvaluationReport,
   EvaluationConfig,
 } from '../types/evaluation';
+import { Embeddings } from 'langchain/embeddings/base';
 
 /**
  * Service for running evaluations and generating reports
@@ -15,7 +16,7 @@ export class EvaluationService {
 
   constructor(
     private config: EvaluationConfig,
-    embeddings?: any, // Replace with proper type from langchain
+    embeddings: Embeddings | undefined,
   ) {
     this.scoringService = new ScoringService(config, embeddings);
     this.reportGenerator = new ReportGenerator(config);
@@ -79,6 +80,6 @@ export class EvaluationService {
   private async executeTest(input: string): Promise<string> {
     // TODO: Implement actual agent execution
     // This is a placeholder that should be replaced with the actual agent execution logic
-    return input;
+    return await Promise.resolve(input);
   }
 }

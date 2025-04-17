@@ -65,7 +65,7 @@ describe('ReportGenerator', () => {
       const report = jsonGenerator.generateReport(sampleReport);
 
       expect(() => JSON.parse(report)).not.toThrow();
-      const parsed = JSON.parse(report);
+      const parsed = JSON.parse(report) as EvaluationReport;
       expect(parsed.totalTests).toBe(2);
       expect(parsed.passedTests).toBe(1);
       expect(parsed.failedTests).toBe(1);
@@ -89,7 +89,7 @@ describe('ReportGenerator', () => {
     it('should throw error for unsupported format', () => {
       const invalidConfig: EvaluationConfig = {
         ...defaultConfig,
-        outputFormat: 'invalid' as any,
+        outputFormat: 'invalid' as 'json' | 'markdown' | 'text',
       };
       const invalidGenerator = new ReportGenerator(invalidConfig);
 
