@@ -22,8 +22,11 @@ export class ReportGenerator {
       case 'text':
         return this.generateTextReport(results);
       default:
-        const format = this.config.outputFormat as string;
-        throw new Error(`Unsupported output format: ${format}`);
+      default:
+        {
+          const format = this.config.outputFormat as string;
+          throw new Error(`Unsupported output format: ${format}`);
+        }
     }
   }
 
