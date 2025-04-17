@@ -24,7 +24,7 @@ describe('EvaluationService', () => {
   ];
 
   beforeEach(() => {
-    evaluationService = new EvaluationService(defaultConfig);
+    evaluationService = new EvaluationService(defaultConfig, undefined);
   });
 
   describe('evaluate', () => {
