@@ -48,7 +48,7 @@ describe('ReportGenerator', () => {
 
   describe('generateReport', () => {
     it('should generate markdown report by default', () => {
-      const report = reportGenerator.generateReport(sampleReport);
+      const report: string = reportGenerator.generateReport(sampleReport); // Specify the type explicitly
       expect(report).toContain('# Evaluation Report');
       expect(report).toContain('## Summary');
       expect(report).toContain('## Detailed Results');
@@ -64,8 +64,10 @@ describe('ReportGenerator', () => {
       const jsonGenerator = new ReportGenerator(jsonConfig);
       const report = jsonGenerator.generateReport(sampleReport);
 
-      expect(() => JSON.parse(report)).not.toThrow();
-      const parsed = JSON.parse(report) as Partial<EvaluationReport>;
+      expect(() => {
+        JSON.parse(report); // now not returning anything explicitly
+      }).not.toThrow();
+      const parsed = JSON.parse(report) as unknown as Partial<EvaluationReport>;
       expect(parsed).toMatchObject({
         totalTests: 2,
         passedTests: 1,
@@ -103,7 +105,7 @@ describe('ReportGenerator', () => {
 
   describe('report content', () => {
     it('should include all test cases in the report', () => {
-      const report = reportGenerator.generateReport(sampleReport);
+      const report: string = reportGenerator.generateReport(sampleReport);
       expect(report).toContain('test-1');
       expect(report).toContain('test-2');
     });
