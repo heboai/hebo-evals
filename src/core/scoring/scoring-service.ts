@@ -1,4 +1,4 @@
-import { Embeddings } from 'langchain/embeddings/base';
+import { Embeddings } from '@langchain/core/embeddings';
 import { EvaluationConfig } from '../types/evaluation';
 
 /**
