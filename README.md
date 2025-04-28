@@ -91,5 +91,3 @@ npm run build
 ## License
 
 MIT
-
-Test
