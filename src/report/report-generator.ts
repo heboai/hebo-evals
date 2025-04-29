@@ -1,8 +1,8 @@
 import {
-  EvaluationReport,
   EvaluationConfig,
+  EvaluationReport,
   EvaluationResult,
-} from '../types/evaluation';
+} from './evaluationTypes';
 
 /**
  * Service for generating evaluation reports in various formats

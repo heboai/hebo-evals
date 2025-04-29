@@ -4,10 +4,10 @@
  */
 
 import { HeboEval } from './core/index.js';
-import { EvaluationConfig } from './core/types/evaluation.js';
+import { EvaluationConfig } from './report/evaluationTypes.js';
 
 export { HeboEval, EvaluationConfig };
 export type {
   EvaluationResult,
   EvaluationReport,
-} from './core/types/evaluation';
+} from './report/evaluationTypes.js';
