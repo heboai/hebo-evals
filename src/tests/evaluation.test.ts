@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import {
   EvaluationExecutor,
   EvaluationResult,
@@ -11,7 +12,6 @@ import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { rm } from 'fs/promises';
-import { AgentConfig } from '../agents/types/agent.types';
 
 jest.mock('../evaluation/test-case-loader');
 jest.mock('../evaluation/test-isolation-service');
@@ -135,14 +135,24 @@ assistant: Hi
 
     beforeEach(() => {
       mockAgent = {
-        getConfig: jest.fn().mockReturnValue({}),
-        initialize: jest.fn().mockResolvedValue(undefined),
-        authenticate: jest.fn().mockResolvedValue(undefined),
-        sendInput: jest.fn(),
-        validateConfig: jest.fn().mockResolvedValue(true),
-        reset: jest.fn().mockResolvedValue(undefined),
-        clearMemory: jest.fn().mockResolvedValue(undefined),
-        cleanup: jest.fn().mockResolvedValue(undefined),
+        getConfig: jest.fn<IAgent['getConfig']>().mockReturnValue({
+          model: 'test-model',
+        }),
+        initialize: jest
+          .fn<IAgent['initialize']>()
+          .mockResolvedValue(undefined),
+        authenticate: jest
+          .fn<IAgent['authenticate']>()
+          .mockResolvedValue(undefined),
+        sendInput: jest.fn<IAgent['sendInput']>(),
+        validateConfig: jest
+          .fn<IAgent['validateConfig']>()
+          .mockResolvedValue(true),
+        reset: jest.fn<IAgent['reset']>().mockResolvedValue(undefined),
+        clearMemory: jest
+          .fn<IAgent['clearMemory']>()
+          .mockResolvedValue(undefined),
+        cleanup: jest.fn<IAgent['cleanup']>().mockResolvedValue(undefined),
       } as jest.Mocked<IAgent>;
 
       service = new TestIsolationService(mockAgent);
@@ -210,31 +220,41 @@ assistant: Hi
     };
 
     beforeEach(() => {
-      const mockConfig: AgentConfig = {
-        model: 'test-model',
-      };
-
       mockAgent = {
-        config: mockConfig,
+        config: { model: 'test-model' },
         isInitialized: true,
         isAuthenticated: true,
-        getConfig: jest.fn().mockReturnValue(mockConfig),
-        initialize: jest.fn().mockResolvedValue(undefined),
-        authenticate: jest.fn().mockResolvedValue(undefined),
-        sendInput: jest
-          .fn()
-          .mockResolvedValue({ response: 'Goodbye', error: undefined }),
-        validateConfig: jest.fn().mockResolvedValue(true),
-        reset: jest.fn().mockResolvedValue(undefined),
-        clearMemory: jest.fn().mockResolvedValue(undefined),
-        cleanup: jest.fn().mockResolvedValue(undefined),
+        getConfig: jest
+          .fn<IAgent['getConfig']>()
+          .mockReturnValue({ model: 'test-model' }),
+        initialize: jest
+          .fn<IAgent['initialize']>()
+          .mockResolvedValue(undefined),
+        authenticate: jest
+          .fn<IAgent['authenticate']>()
+          .mockResolvedValue(undefined),
+        sendInput: jest.fn<IAgent['sendInput']>().mockResolvedValue({
+          response: 'Goodbye',
+          metadata: {},
+          error: undefined,
+        }),
+        validateConfig: jest
+          .fn<IAgent['validateConfig']>()
+          .mockResolvedValue(true),
+        reset: jest.fn<IAgent['reset']>().mockResolvedValue(undefined),
+        clearMemory: jest
+          .fn<IAgent['clearMemory']>()
+          .mockResolvedValue(undefined),
+        cleanup: jest.fn<IAgent['cleanup']>().mockResolvedValue(undefined),
         getAuthHeaders: jest
           .fn()
           .mockReturnValue({ Authorization: 'Bearer test' }),
-        processInput: jest
-          .fn()
-          .mockResolvedValue({ response: 'Goodbye', error: undefined }),
-      } as unknown as jest.Mocked<IAgent>;
+        processInput: jest.fn<IAgent['sendInput']>().mockResolvedValue({
+          response: 'Goodbye',
+          metadata: {},
+          error: undefined,
+        }),
+      } as jest.Mocked<IAgent>;
 
       mockTestCaseLoader = new TestCaseLoader() as jest.Mocked<TestCaseLoader>;
       mockTestIsolationService = new TestIsolationService(
@@ -253,11 +273,12 @@ assistant: Hi
 
     describe('executeTestCase', () => {
       it('should execute a test case successfully', async () => {
-        const result = await executor.executeTestCase(mockAgent, mockTestCase);
+        const executeTestCase = executor.executeTestCase.bind(executor);
+        const result = await executeTestCase(mockAgent, mockTestCase);
 
         expect(result.success).toBe(true);
         expect(result.error).toBeUndefined();
-        expect(result.score).toBe(0); // Score is calculated by scoring service
+        expect(result.score).toBe(0);
         expect(result.executionTime).toBeDefined();
         expect(mockAgent.sendInput).toHaveBeenCalledWith({
           messages: mockTestCase.messages,
@@ -265,9 +286,10 @@ assistant: Hi
       });
 
       it('should handle agent errors gracefully', async () => {
+        const executeTestCase = executor.executeTestCase.bind(executor);
         mockAgent.sendInput.mockRejectedValueOnce(new Error('Agent error'));
 
-        const result = await executor.executeTestCase(mockAgent, mockTestCase);
+        const result = await executeTestCase(mockAgent, mockTestCase);
 
         expect(result.success).toBe(false);
         expect(result.error).toBe('Agent error');
@@ -276,12 +298,14 @@ assistant: Hi
       });
 
       it('should handle response mismatch', async () => {
+        const executeTestCase = executor.executeTestCase.bind(executor);
         mockAgent.sendInput.mockResolvedValueOnce({
           response: 'Different response',
+          metadata: {},
           error: undefined,
         });
 
-        const result = await executor.executeTestCase(mockAgent, mockTestCase);
+        const result = await executeTestCase(mockAgent, mockTestCase);
 
         expect(result.success).toBe(false);
         expect(result.error).toBeUndefined();
