@@ -108,7 +108,8 @@ export class EvaluationExecutor {
     maxConcurrency: number = 5,
   ): Promise<EvaluationResult[]> {
     // If no test cases provided, load from examples directory
-    if (testCases.length === 0 && examplesDir) {
+    // If no test cases provided, try to load from examples directory
+    if (testCases.length === 0) {
       const defaultExamplesDir = examplesDir || join(process.cwd(), 'examples');
       const loadedTestCases =
         await this.testCaseLoader.loadFromExamplesDir(defaultExamplesDir);
