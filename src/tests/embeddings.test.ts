@@ -76,6 +76,21 @@ describe('Embedding System', () => {
       );
     });
 
+    it('should throw error for missing OpenAI API key', () => {
+      const config: EmbeddingSystemConfig = {
+        defaultProvider: 'openai',
+        openai: {
+          model: 'test-model',
+          apiKey: '',
+          baseUrl: 'http://test-url',
+        },
+      };
+
+      expect(() => EmbeddingProviderFactory.createProvider(config)).toThrow(
+        'OpenAI API key is required',
+      );
+    });
+
     it('should load configuration from environment variables', () => {
       process.env.EMBEDDING_PROVIDER = 'litellm';
       process.env.LITELLM_EMBEDDING_MODEL = 'test-model';
@@ -149,6 +164,20 @@ describe('Embedding System', () => {
       await expect(provider.generateEmbedding('test text')).rejects.toThrow(
         'HTTP error! status: 500',
       );
+    });
+
+    it('should validate model presence', async () => {
+      const provider = new LiteLLMEmbeddingProvider({
+        provider: 'litellm',
+        model: '',
+      });
+
+      await expect(
+        provider.initialize({
+          provider: 'litellm',
+          model: '',
+        }),
+      ).rejects.toThrow('Model is required for LiteLLM embedding provider');
     });
   });
 
@@ -232,6 +261,62 @@ describe('Embedding System', () => {
           model: 'test-model',
         }),
       ).rejects.toThrow('API key is required for OpenAI embedding provider');
+    });
+  });
+
+  describe('BaseEmbeddingProvider', () => {
+    it('should throw error when initializing an already initialized provider', async () => {
+      const provider = new LiteLLMEmbeddingProvider({
+        provider: 'litellm',
+        model: 'test-model',
+      });
+
+      await provider.initialize({
+        provider: 'litellm',
+        model: 'test-model',
+      });
+
+      await expect(
+        provider.initialize({
+          provider: 'litellm',
+          model: 'test-model',
+        }),
+      ).rejects.toThrow('Embedding provider is already initialized');
+    });
+
+    it('should throw error when generating embeddings before initialization', async () => {
+      const provider = new LiteLLMEmbeddingProvider({
+        provider: 'litellm',
+        model: 'test-model',
+      });
+
+      await expect(provider.generateEmbedding('test')).rejects.toThrow(
+        'Embedding provider must be initialized before generating embeddings',
+      );
+    });
+
+    it('should allow reinitialization after cleanup', async () => {
+      const provider = new LiteLLMEmbeddingProvider({
+        provider: 'litellm',
+        model: 'test-model',
+      });
+
+      await provider.initialize({
+        provider: 'litellm',
+        model: 'test-model',
+      });
+
+      await provider.cleanup();
+
+      // Should not throw
+      await expect(
+        provider.initialize({
+          provider: 'litellm',
+          model: 'updated-model',
+        }),
+      ).resolves.not.toThrow();
+
+      expect(provider.getConfig().model).toBe('updated-model');
     });
   });
 });
