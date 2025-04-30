@@ -13,8 +13,17 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { rm } from 'fs/promises';
 
-jest.mock('../evaluation/test-case-loader');
-jest.mock('../evaluation/test-isolation-service');
+jest.mock('../evaluation/test-case-loader', () => ({
+  TestCaseLoader: jest.fn().mockImplementation(() => ({
+    loadFromFile: jest.fn(),
+  })),
+}));
+
+jest.mock('../evaluation/test-isolation-service', () => ({
+  TestIsolationService: jest.fn().mockImplementation(() => ({
+    prepareTestEnvironment: jest.fn(),
+  })),
+}));
 
 describe('Evaluation System', () => {
   // Test Case Loader Tests
@@ -208,8 +217,6 @@ assistant: Hi
   describe('EvaluationExecutor', () => {
     let executor: EvaluationExecutor;
     let mockAgent: jest.Mocked<IAgent>;
-    let mockTestCaseLoader: jest.Mocked<TestCaseLoader>;
-    let mockTestIsolationService: jest.Mocked<TestIsolationService>;
 
     const mockTestCase: TestCase = {
       messages: [
@@ -256,18 +263,6 @@ assistant: Hi
         }),
       } as jest.Mocked<IAgent>;
 
-      mockTestCaseLoader = new TestCaseLoader() as jest.Mocked<TestCaseLoader>;
-      mockTestIsolationService = new TestIsolationService(
-        mockAgent,
-      ) as jest.Mocked<TestIsolationService>;
-
-      (TestCaseLoader as jest.Mock).mockImplementation(
-        () => mockTestCaseLoader,
-      );
-      (TestIsolationService as jest.Mock).mockImplementation(
-        () => mockTestIsolationService,
-      );
-
       executor = new EvaluationExecutor(mockAgent);
     });
 
@@ -280,6 +275,7 @@ assistant: Hi
         expect(result.error).toBeUndefined();
         expect(result.score).toBe(0);
         expect(result.executionTime).toBeDefined();
+        // eslint-disable-next-line
         expect(mockAgent.sendInput).toHaveBeenCalledWith({
           messages: mockTestCase.messages,
         });
@@ -324,6 +320,7 @@ assistant: Hi
 
         expect(results).toHaveLength(2);
         expect(results.every((r) => r.success)).toBe(true);
+        // eslint-disable-next-line
         expect(mockAgent.sendInput).toHaveBeenCalledTimes(2);
       });
     });
@@ -341,6 +338,7 @@ assistant: Hi
         expect(
           results.every((r: EvaluationResult) => r.executionTime !== undefined),
         ).toBe(true);
+        // eslint-disable-next-line
         expect(mockAgent.sendInput).toHaveBeenCalledTimes(2);
       });
 
@@ -365,6 +363,7 @@ assistant: Hi
     describe('cleanup', () => {
       it('should cleanup agent resources', async () => {
         await executor.cleanup();
+        // eslint-disable-next-line
         expect(mockAgent.cleanup).toHaveBeenCalledTimes(1);
       });
 
