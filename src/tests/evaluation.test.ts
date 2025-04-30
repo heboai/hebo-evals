@@ -1,13 +1,17 @@
-import { EvaluationExecutor } from '../evaluation/evaluation-executor';
+import {
+  EvaluationExecutor,
+  EvaluationResult,
+} from '../evaluation/evaluation-executor';
 import { IAgent } from '../agents/interfaces/agent.interface';
-import { AgentInput, AgentOutput } from '../agents/types/agent.types';
-import { BaseMessage, MessageRole } from '../core/types/message.types';
+import { MessageRole } from '../core/types/message.types';
 import { TestCaseLoader } from '../evaluation/test-case-loader';
 import { TestIsolationService } from '../evaluation/test-isolation-service';
 import { TestCase } from '../evaluation/types/evaluation.types';
-import { readFile, mkdir, writeFile } from 'fs/promises';
+import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { rm } from 'fs/promises';
+import { AgentConfig } from '../agents/types/agent.types';
 
 jest.mock('../evaluation/test-case-loader');
 jest.mock('../evaluation/test-isolation-service');
@@ -25,8 +29,11 @@ describe('Evaluation System', () => {
 
     afterEach(async () => {
       try {
-        await require('fs/promises').rm(tempDir, { recursive: true, force: true });
-      } catch (error) {
+        await rm(tempDir, {
+          recursive: true,
+          force: true,
+        });
+      } catch {
         // Ignore cleanup errors
       }
     });
@@ -34,69 +41,80 @@ describe('Evaluation System', () => {
     it('should load a valid test case file', async () => {
       const testFile = join(tempDir, 'test.txt');
       await mkdir(tempDir, { recursive: true });
-      await writeFile(testFile, `
+      await writeFile(
+        testFile,
+        `
 user: Hello
 assistant: Hi there
 user: How are you?
 assistant: I'm good, thanks!
-      `.trim());
+      `.trim(),
+      );
 
       const result = await loader.loadFromFile(testFile);
 
       expect(result.messages).toHaveLength(3);
       expect(result.messages[0]).toEqual({
         role: MessageRole.USER,
-        content: 'Hello'
+        content: 'Hello',
       });
       expect(result.messages[1]).toEqual({
         role: MessageRole.ASSISTANT,
-        content: 'Hi there'
+        content: 'Hi there',
       });
       expect(result.messages[2]).toEqual({
         role: MessageRole.USER,
-        content: 'How are you?'
+        content: 'How are you?',
       });
       expect(result.expectedOutput).toEqual({
         role: MessageRole.ASSISTANT,
-        content: 'I\'m good, thanks!'
+        content: "I'm good, thanks!",
       });
     });
 
     it('should handle tool messages', async () => {
       const testFile = join(tempDir, 'test-tool.txt');
       await mkdir(tempDir, { recursive: true });
-      await writeFile(testFile, `
+      await writeFile(
+        testFile,
+        `
 user: Use a tool
 tool: tool_name
 assistant: Tool result
-      `.trim());
+      `.trim(),
+      );
 
       const result = await loader.loadFromFile(testFile);
 
       expect(result.messages).toHaveLength(2);
       expect(result.messages[0]).toEqual({
         role: MessageRole.USER,
-        content: 'Use a tool'
+        content: 'Use a tool',
       });
       expect(result.messages[1]).toEqual({
         role: MessageRole.TOOL,
-        content: 'tool_name'
+        content: 'tool_name',
       });
       expect(result.expectedOutput).toEqual({
         role: MessageRole.ASSISTANT,
-        content: 'Tool result'
+        content: 'Tool result',
       });
     });
 
     it('should throw error for invalid message role', async () => {
       const testFile = join(tempDir, 'invalid-role.txt');
       await mkdir(tempDir, { recursive: true });
-      await writeFile(testFile, `
+      await writeFile(
+        testFile,
+        `
 invalid: Hello
 assistant: Hi
-      `.trim());
+      `.trim(),
+      );
 
-      await expect(loader.loadFromFile(testFile)).rejects.toThrow('Invalid message role');
+      await expect(loader.loadFromFile(testFile)).rejects.toThrow(
+        'Invalid message role',
+      );
     });
 
     it('should throw error for insufficient messages', async () => {
@@ -104,7 +122,9 @@ assistant: Hi
       await mkdir(tempDir, { recursive: true });
       await writeFile(testFile, 'user: Hello');
 
-      await expect(loader.loadFromFile(testFile)).rejects.toThrow('Test case file must contain at least two messages');
+      await expect(loader.loadFromFile(testFile)).rejects.toThrow(
+        'Test case file must contain at least two messages',
+      );
     });
   });
 
@@ -164,11 +184,13 @@ assistant: Hi
     it('should handle errors gracefully', async () => {
       mockAgent.reset.mockRejectedValueOnce(new Error('Reset failed'));
 
-      await expect(service.prepareTestEnvironment({
-        resetAgentState: true,
-        clearMemory: false,
-        timeoutMs: 1000,
-      })).rejects.toThrow('Reset failed');
+      await expect(
+        service.prepareTestEnvironment({
+          resetAgentState: true,
+          clearMemory: false,
+          timeoutMs: 1000,
+        }),
+      ).rejects.toThrow('Reset failed');
     });
   });
 
@@ -188,97 +210,131 @@ assistant: Hi
     };
 
     beforeEach(() => {
+      const mockConfig: AgentConfig = {
+        model: 'test-model',
+      };
+
       mockAgent = {
-        getConfig: jest.fn().mockReturnValue({}),
+        config: mockConfig,
+        isInitialized: true,
+        isAuthenticated: true,
+        getConfig: jest.fn().mockReturnValue(mockConfig),
         initialize: jest.fn().mockResolvedValue(undefined),
         authenticate: jest.fn().mockResolvedValue(undefined),
-        sendInput: jest.fn().mockResolvedValue({ response: 'Goodbye', error: undefined }),
+        sendInput: jest
+          .fn()
+          .mockResolvedValue({ response: 'Goodbye', error: undefined }),
         validateConfig: jest.fn().mockResolvedValue(true),
         reset: jest.fn().mockResolvedValue(undefined),
         clearMemory: jest.fn().mockResolvedValue(undefined),
         cleanup: jest.fn().mockResolvedValue(undefined),
-      } as jest.Mocked<IAgent>;
+        getAuthHeaders: jest
+          .fn()
+          .mockReturnValue({ Authorization: 'Bearer test' }),
+        processInput: jest
+          .fn()
+          .mockResolvedValue({ response: 'Goodbye', error: undefined }),
+      } as unknown as jest.Mocked<IAgent>;
 
       mockTestCaseLoader = new TestCaseLoader() as jest.Mocked<TestCaseLoader>;
-      mockTestIsolationService = new TestIsolationService(mockAgent) as jest.Mocked<TestIsolationService>;
+      mockTestIsolationService = new TestIsolationService(
+        mockAgent,
+      ) as jest.Mocked<TestIsolationService>;
 
-      (TestCaseLoader as jest.Mock).mockImplementation(() => mockTestCaseLoader);
-      (TestIsolationService as jest.Mock).mockImplementation(() => mockTestIsolationService);
+      (TestCaseLoader as jest.Mock).mockImplementation(
+        () => mockTestCaseLoader,
+      );
+      (TestIsolationService as jest.Mock).mockImplementation(
+        () => mockTestIsolationService,
+      );
 
       executor = new EvaluationExecutor(mockAgent);
     });
 
     describe('executeTestCase', () => {
       it('should execute a test case successfully', async () => {
-        const result = await executor.executeTestCase(mockTestCase);
+        const result = await executor.executeTestCase(mockAgent, mockTestCase);
 
         expect(result.success).toBe(true);
         expect(result.error).toBeUndefined();
-        expect(result.score).toBe(1.0);
+        expect(result.score).toBe(0); // Score is calculated by scoring service
         expect(result.executionTime).toBeDefined();
         expect(mockAgent.sendInput).toHaveBeenCalledWith({
-          messages: [mockTestCase.messages[0], mockTestCase.messages[1]],
+          messages: mockTestCase.messages,
         });
       });
 
       it('should handle agent errors gracefully', async () => {
         mockAgent.sendInput.mockRejectedValueOnce(new Error('Agent error'));
 
-        const result = await executor.executeTestCase(mockTestCase);
+        const result = await executor.executeTestCase(mockAgent, mockTestCase);
 
         expect(result.success).toBe(false);
         expect(result.error).toBe('Agent error');
-        expect(result.score).toBe(0.0);
+        expect(result.score).toBe(0);
         expect(result.executionTime).toBeDefined();
       });
 
-      it('should handle test isolation errors gracefully', async () => {
-        mockTestIsolationService.prepareTestEnvironment.mockRejectedValueOnce(
-          new Error('Isolation error'),
-        );
+      it('should handle response mismatch', async () => {
+        mockAgent.sendInput.mockResolvedValueOnce({
+          response: 'Different response',
+          error: undefined,
+        });
 
-        const result = await executor.executeTestCase(mockTestCase);
+        const result = await executor.executeTestCase(mockAgent, mockTestCase);
 
         expect(result.success).toBe(false);
-        expect(result.error).toBe('Isolation error');
-        expect(result.score).toBe(0.0);
+        expect(result.error).toBeUndefined();
+        expect(result.score).toBe(0);
         expect(result.executionTime).toBeDefined();
       });
     });
 
-    describe('executeTestCases', () => {
+    describe('executeTestCasesSequential', () => {
+      it('should execute multiple test cases sequentially', async () => {
+        const testCases = [mockTestCase, mockTestCase];
+        const results = await executor.executeTestCasesSequential(
+          mockAgent,
+          testCases,
+        );
+
+        expect(results).toHaveLength(2);
+        expect(results.every((r) => r.success)).toBe(true);
+        expect(mockAgent.sendInput).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe('executeTestCasesParallel', () => {
       it('should execute multiple test cases in parallel', async () => {
-        const testCases = [mockTestCase, mockTestCase, mockTestCase];
-        mockTestCaseLoader.loadFromExamplesDir.mockResolvedValue(testCases);
+        const testCases = [mockTestCase, mockTestCase];
+        const results = await executor.executeTestCasesParallel(
+          mockAgent,
+          testCases,
+        );
 
-        const results = await executor.executeTestCases(undefined, undefined, 2);
-
-        expect(results).toHaveLength(3);
-        expect(results.every(r => r.success)).toBe(true);
-        expect(mockAgent.sendInput).toHaveBeenCalledTimes(3);
+        expect(results).toHaveLength(2);
+        expect(results.every((r: EvaluationResult) => r.success)).toBe(true);
+        expect(
+          results.every((r: EvaluationResult) => r.executionTime !== undefined),
+        ).toBe(true);
+        expect(mockAgent.sendInput).toHaveBeenCalledTimes(2);
       });
 
       it('should handle errors in parallel execution', async () => {
-        const testCases = [mockTestCase, mockTestCase, mockTestCase];
-        mockTestCaseLoader.loadFromExamplesDir.mockResolvedValue(testCases);
+        const testCases = [mockTestCase, mockTestCase];
         mockAgent.sendInput
           .mockResolvedValueOnce({ response: 'Goodbye', error: undefined })
-          .mockRejectedValueOnce(new Error('Agent error'))
-          .mockResolvedValueOnce({ response: 'Goodbye', error: undefined });
+          .mockRejectedValueOnce(new Error('Parallel execution error'));
 
-        const results = await executor.executeTestCases(undefined, undefined, 2);
-
-        expect(results).toHaveLength(3);
-        expect(results.filter(r => r.success)).toHaveLength(2);
-        expect(results.filter(r => !r.success)).toHaveLength(1);
-      });
-
-      it('should handle empty test case list', async () => {
-        mockTestCaseLoader.loadFromExamplesDir.mockResolvedValue([]);
-
-        await expect(executor.executeTestCases()).rejects.toThrow(
-          'No test cases provided and no default test cases found in examples directory',
+        const results = await executor.executeTestCasesParallel(
+          mockAgent,
+          testCases,
         );
+
+        expect(results).toHaveLength(2);
+        expect(results[0].success).toBe(true);
+        expect(results[1].success).toBe(false);
+        expect(results[1].error).toBe('Parallel execution error');
       });
     });
 
@@ -294,4 +350,4 @@ assistant: Hi
       });
     });
   });
-}); 
+});

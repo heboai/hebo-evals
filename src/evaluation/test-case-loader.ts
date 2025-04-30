@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'fs/promises';
 import { join } from 'path';
 import { BaseMessage, MessageRole } from '../core/types/message.types';
-import { TestCase } from './evaluation-executor';
+import { TestCase } from './types/evaluation.types';
 import { Logger } from '../utils/logger';
 
 export class TestCaseLoader {
@@ -28,7 +28,7 @@ export class TestCaseLoader {
       for (let i = 0; i < lines.length; i += 2) {
         const roleStr = lines[i].split(':')[0].trim();
         const content = lines[i].split(':').slice(1).join(':').trim();
-        
+
         if (!Object.values(MessageRole).includes(roleStr as MessageRole)) {
           throw new Error(`Invalid message role: ${roleStr}`);
         }
@@ -49,9 +49,9 @@ export class TestCaseLoader {
       // The last message is the expected output
       const expectedOutput = messages.pop()!;
 
-      this.logger.info('Successfully loaded test case', { 
+      this.logger.info('Successfully loaded test case', {
         messageCount: messages.length,
-        expectedOutput: expectedOutput.content 
+        expectedOutput: expectedOutput.content,
       });
 
       return {
@@ -59,11 +59,13 @@ export class TestCaseLoader {
         expectedOutput,
       };
     } catch (error) {
-      this.logger.error('Failed to load test case from file', { 
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
+      this.logger.error('Failed to load test case from file', {
         filePath,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        error: errorMessage,
       });
-      throw error;
+      throw new Error(errorMessage);
     }
   }
 
@@ -77,7 +79,9 @@ export class TestCaseLoader {
       const files = await this.getExampleFiles(examplesDir);
 
       if (files.length === 0) {
-        this.logger.warn('No test case files found in directory', { examplesDir });
+        this.logger.warn('No test case files found in directory', {
+          examplesDir,
+        });
         return [];
       }
 
@@ -86,26 +90,30 @@ export class TestCaseLoader {
           const testCase = await this.loadFromFile(join(examplesDir, file));
           testCases.push(testCase);
         } catch (error) {
-          this.logger.error('Failed to load test case', { 
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error occurred';
+          this.logger.error('Failed to load test case', {
             file,
-            error: error instanceof Error ? error.message : 'Unknown error occurred'
+            error: errorMessage,
           });
           // Continue with other files even if one fails
         }
       }
 
-      this.logger.info('Successfully loaded test cases', { 
+      this.logger.info('Successfully loaded test cases', {
         totalTestCases: testCases.length,
-        directory: examplesDir 
+        directory: examplesDir,
       });
 
       return testCases;
     } catch (error) {
-      this.logger.error('Failed to load test cases from directory', { 
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
+      this.logger.error('Failed to load test cases from directory', {
         examplesDir,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        error: errorMessage,
       });
-      throw error;
+      throw new Error(errorMessage);
     }
   }
 
@@ -117,9 +125,11 @@ export class TestCaseLoader {
       const files = await readdir(examplesDir);
       return files.filter((file) => file.endsWith('.txt'));
     } catch (error) {
-      this.logger.error('Failed to read examples directory', { 
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
+      this.logger.error('Failed to read examples directory', {
         examplesDir,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        error: errorMessage,
       });
       return [];
     }

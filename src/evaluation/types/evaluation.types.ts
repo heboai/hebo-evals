@@ -1,4 +1,4 @@
-import { BaseMessage, MessageRole } from '../../core/types/message.types';
+import { BaseMessage } from '../../core/types/message.types';
 
 /**
  * Represents a test case for agent evaluation.
@@ -38,4 +38,4 @@ export interface TestCaseResult {
    * Time taken to execute the test case in milliseconds.
    */
   executionTime: number;
-} 
+}

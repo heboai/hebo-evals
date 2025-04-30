@@ -17,7 +17,9 @@ export class TestIsolationService {
   /**
    * Prepares the environment for a test case
    */
-  public async prepareTestEnvironment(config: TestIsolationConfig): Promise<void> {
+  public async prepareTestEnvironment(
+    config: TestIsolationConfig,
+  ): Promise<void> {
     try {
       this.logger.info('Preparing test environment', { config });
 
@@ -31,8 +33,9 @@ export class TestIsolationService {
 
       this.logger.info('Test environment prepared successfully');
     } catch (error) {
-      this.logger.error('Failed to prepare test environment', { 
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      this.logger.error('Failed to prepare test environment', {
+        error:
+          error instanceof Error ? error.message : 'Unknown error occurred',
       });
       throw error;
     }
@@ -41,7 +44,9 @@ export class TestIsolationService {
   /**
    * Cleans up after a test case
    */
-  public async cleanupTestEnvironment(config: TestIsolationConfig): Promise<void> {
+  public async cleanupTestEnvironment(
+    config: TestIsolationConfig,
+  ): Promise<void> {
     try {
       this.logger.info('Cleaning up test environment', { config });
 
@@ -55,8 +60,9 @@ export class TestIsolationService {
 
       this.logger.info('Test environment cleaned up successfully');
     } catch (error) {
-      this.logger.error('Failed to clean up test environment', { 
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      this.logger.error('Failed to clean up test environment', {
+        error:
+          error instanceof Error ? error.message : 'Unknown error occurred',
       });
       throw error;
     }
@@ -71,8 +77,9 @@ export class TestIsolationService {
       await this.agent.reset();
       this.logger.debug('Agent state reset successfully');
     } catch (error) {
-      this.logger.error('Failed to reset agent state', { 
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      this.logger.error('Failed to reset agent state', {
+        error:
+          error instanceof Error ? error.message : 'Unknown error occurred',
       });
       throw error;
     }
@@ -87,10 +94,11 @@ export class TestIsolationService {
       await this.agent.clearMemory();
       this.logger.debug('Agent memory cleared successfully');
     } catch (error) {
-      this.logger.error('Failed to clear agent memory', { 
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      this.logger.error('Failed to clear agent memory', {
+        error:
+          error instanceof Error ? error.message : 'Unknown error occurred',
       });
       throw error;
     }
   }
-} 
+}

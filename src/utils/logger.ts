@@ -1,59 +1,77 @@
-import { createLogger, format, transports, Logger as WinstonLogger } from 'winston';
+import {
+  createLogger,
+  format,
+  transports,
+  Logger as WinstonLogger,
+} from 'winston';
 
-export enum LogLevel {
-  ERROR = 'error',
-  WARN = 'warn',
-  INFO = 'info',
-  DEBUG = 'debug',
-}
+/**
+ * Singleton logger instance
+ */
+let instance: Logger | null = null;
 
-interface LogMeta {
-  [key: string]: any;
-}
-
+/**
+ * Logger class that wraps Winston logger
+ */
 export class Logger {
-  private static instance: Logger;
   private logger: WinstonLogger;
 
   private constructor() {
     this.logger = createLogger({
-      level: process.env.LOG_LEVEL || LogLevel.INFO,
+      level: process.env.LOG_LEVEL || 'info',
       format: format.combine(
         format.timestamp(),
-        format.json(),
-        format.errors({ stack: true }),
+        format.colorize(),
+        format.simple(),
       ),
-      transports: [
-        new transports.Console({
-          format: format.combine(
-            format.colorize(),
-            format.simple(),
-          ),
-        }),
-      ],
+      transports: [new transports.Console()],
     });
   }
 
+  /**
+   * Gets the singleton instance of the logger
+   * @returns The logger instance
+   */
   public static getInstance(): Logger {
-    if (!Logger.instance) {
-      Logger.instance = new Logger();
+    if (!instance) {
+      instance = new Logger();
     }
-    return Logger.instance;
+    return instance;
   }
 
-  public error(message: string, meta?: LogMeta): void {
+  /**
+   * Logs an error message
+   * @param message The error message
+   * @param meta Additional metadata
+   */
+  error(message: string, meta?: Record<string, unknown>): void {
     this.logger.error(message, meta);
   }
 
-  public warn(message: string, meta?: LogMeta): void {
+  /**
+   * Logs a warning message
+   * @param message The warning message
+   * @param meta Additional metadata
+   */
+  warn(message: string, meta?: Record<string, unknown>): void {
     this.logger.warn(message, meta);
   }
 
-  public info(message: string, meta?: LogMeta): void {
+  /**
+   * Logs an info message
+   * @param message The info message
+   * @param meta Additional metadata
+   */
+  info(message: string, meta?: Record<string, unknown>): void {
     this.logger.info(message, meta);
   }
 
-  public debug(message: string, meta?: LogMeta): void {
+  /**
+   * Logs a debug message
+   * @param message The debug message
+   * @param meta Additional metadata
+   */
+  debug(message: string, meta?: Record<string, unknown>): void {
     this.logger.debug(message, meta);
   }
-} 
+}

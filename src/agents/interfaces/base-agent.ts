@@ -94,6 +94,26 @@ export abstract class BaseAgent implements IAgent {
   }
 
   /**
+   * Resets the agent's state to its initial configuration
+   * @returns Promise that resolves when reset is complete
+   */
+  reset(): Promise<void> {
+    this.isInitialized = false;
+    this.isAuthenticated = false;
+    this.authConfig = undefined;
+    return Promise.resolve();
+  }
+
+  /**
+   * Clears the agent's memory and conversation history
+   * @returns Promise that resolves when memory is cleared
+   */
+  clearMemory(): Promise<void> {
+    // Base implementation does nothing as memory management is agent-specific
+    return Promise.resolve();
+  }
+
+  /**
    * Cleans up any resources used by the agent
    * @returns Promise that resolves when cleanup is complete
    */

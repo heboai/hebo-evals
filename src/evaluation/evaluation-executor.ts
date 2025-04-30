@@ -1,15 +1,13 @@
-import { IAgent } from '../agents/interfaces/agent.interface';
-import { AgentInput, AgentOutput } from '../agents/types/agent.types';
-import { BaseMessage } from '../core/types/message.types';
 import { TestCaseLoader } from './test-case-loader';
-import { TestIsolationService, TestIsolationConfig } from './test-isolation-service';
+import {
+  TestIsolationService,
+  TestIsolationConfig,
+} from './test-isolation-service';
 import { join } from 'path';
 import { Logger } from '../utils/logger';
-
-export interface TestCase {
-  messages: BaseMessage[];
-  expectedOutput: BaseMessage;
-}
+import { IAgent } from '../agents/interfaces/agent.interface';
+import { TestCase, TestCaseResult } from './types/evaluation.types';
+import { AgentOutput } from '../agents/types/agent.types';
 
 export interface EvaluationResult {
   testCase: TestCase;
@@ -20,6 +18,9 @@ export interface EvaluationResult {
   score?: number;
 }
 
+/**
+ * Service for executing test cases against an agent
+ */
 export class EvaluationExecutor {
   private testCaseLoader: TestCaseLoader;
   private testIsolationService: TestIsolationService;
@@ -30,124 +31,101 @@ export class EvaluationExecutor {
     timeoutMs: 30000,
   };
 
-  constructor(
-    private agent: IAgent,
-    isolationConfig?: Partial<TestIsolationConfig>,
-  ) {
+  constructor(agent: IAgent) {
     this.testCaseLoader = new TestCaseLoader();
     this.testIsolationService = new TestIsolationService(agent);
     this.logger = Logger.getInstance();
-    this.defaultIsolationConfig = {
-      ...this.defaultIsolationConfig,
-      ...isolationConfig,
-    };
   }
 
   /**
-   * Executes a single test case and returns the evaluation result
+   * Executes a single test case against the agent
+   * @param agent The agent to test
+   * @param testCase The test case to execute
+   * @returns The test case result
    */
-  public async executeTestCase(testCase: TestCase): Promise<EvaluationResult> {
+  async executeTestCase(
+    agent: IAgent,
+    testCase: TestCase,
+  ): Promise<TestCaseResult> {
     const startTime = Date.now();
+    let result: TestCaseResult;
+
     try {
-      this.logger.info('Executing test case', { 
-        messageCount: testCase.messages.length - 1,
-        expectedOutput: testCase.expectedOutput.content 
+      const agentResponse = await agent.sendInput({
+        messages: testCase.messages,
       });
-
-      // Prepare test environment
-      await this.testIsolationService.prepareTestEnvironment(this.defaultIsolationConfig);
-
-      // Extract all messages except the last one (expected output)
-      const inputMessages = testCase.messages.slice(0, -1);
-
-      // Prepare input for the agent
-      const input: AgentInput = {
-        messages: inputMessages,
-      };
-
-      // Send input to agent and get response
-      const agentOutput = await this.agent.sendInput(input);
-
-      // Placeholder scoring - will be replaced with proper scoring service in a future PR
-      const success = !agentOutput.error && agentOutput.response !== '';
-      const score = success ? 1.0 : 0.0;
-
       const executionTime = Date.now() - startTime;
-      this.logger.info('Test case completed', { 
-        success, 
-        score,
-        executionTime,
-        error: agentOutput.error?.message 
-      });
 
-      // Clean up test environment
-      await this.testIsolationService.cleanupTestEnvironment(this.defaultIsolationConfig);
-
-      return {
-        testCase,
-        agentOutput,
-        success,
-        error: agentOutput.error?.message,
+      result = {
+        success:
+          !agentResponse.error &&
+          agentResponse.response === testCase.expectedOutput.content,
+        error: agentResponse.error?.message,
+        score: 0,
         executionTime,
-        score,
       };
-    } catch (error) {
-      const executionTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      this.logger.error('Test case failed', { 
-        error: errorMessage,
-        executionTime 
-      });
-
-      // Ensure cleanup even on error
-      try {
-        await this.testIsolationService.cleanupTestEnvironment(this.defaultIsolationConfig);
-      } catch (cleanupError) {
-        this.logger.error('Failed to clean up after test case failure', {
-          error: cleanupError instanceof Error ? cleanupError.message : 'Unknown error occurred'
-        });
-      }
-
-      return {
-        testCase,
-        agentOutput: {
-          response: '',
-          error: {
-            message: errorMessage,
-            details: error,
-          },
-        },
+    } catch (err) {
+      const error = err instanceof Error ? err.message : 'Unknown error';
+      result = {
         success: false,
-        error: errorMessage,
-        executionTime,
-        score: 0.0,
+        error,
+        score: 0,
+        executionTime: Date.now() - startTime,
       };
     }
+
+    this.logger.debug('Test case executed', { result });
+    return result;
+  }
+
+  /**
+   * Executes multiple test cases against the agent
+   * @param agent The agent to test
+   * @param testCases The test cases to execute
+   * @returns The test case results
+   */
+  async executeTestCasesSequential(
+    agent: IAgent,
+    testCases: TestCase[],
+  ): Promise<TestCaseResult[]> {
+    const results: TestCaseResult[] = [];
+
+    for (const testCase of testCases) {
+      const result = await this.executeTestCase(agent, testCase);
+      results.push(result);
+    }
+
+    return results;
   }
 
   /**
    * Executes multiple test cases in parallel and returns their evaluation results
    */
-  public async executeTestCases(
-    testCases?: TestCase[],
+  async executeTestCasesParallel(
+    agent: IAgent,
+    testCases: TestCase[] = [],
     examplesDir?: string,
     maxConcurrency: number = 5,
   ): Promise<EvaluationResult[]> {
     // If no test cases provided, load from examples directory
-    if (!testCases) {
+    if (testCases.length === 0 && examplesDir) {
       const defaultExamplesDir = examplesDir || join(process.cwd(), 'examples');
-      testCases = await this.testCaseLoader.loadFromExamplesDir(defaultExamplesDir);
+      const loadedTestCases =
+        await this.testCaseLoader.loadFromExamplesDir(defaultExamplesDir);
 
-      if (testCases.length === 0) {
+      if (loadedTestCases.length === 0) {
         throw new Error(
           'No test cases provided and no default test cases found in examples directory',
         );
       }
+
+      // Type assertion since we know the loader returns TestCase[]
+      testCases = loadedTestCases;
     }
 
-    this.logger.info('Starting batch execution', { 
+    this.logger.info('Starting batch execution', {
       testCaseCount: testCases.length,
-      maxConcurrency 
+      maxConcurrency,
     });
 
     const results: EvaluationResult[] = [];
@@ -163,20 +141,34 @@ export class EvaluationExecutor {
       const chunkResults = await Promise.all(
         chunk.map(async (testCase) => {
           try {
-            return await this.executeTestCase(testCase);
+            await this.testIsolationService.prepareTestEnvironment(
+              this.defaultIsolationConfig,
+            );
+            const result = await this.executeTestCase(agent, testCase);
+            return {
+              testCase,
+              agentOutput: { response: '', error: undefined },
+              ...result,
+            };
           } catch (error) {
             return {
               testCase,
               agentOutput: {
                 response: '',
                 error: {
-                  message: error instanceof Error ? error.message : 'Unknown error occurred',
+                  message:
+                    error instanceof Error
+                      ? error.message
+                      : 'Unknown error occurred',
                   details: error,
                 },
               },
               success: false,
-              error: error instanceof Error ? error.message : 'Unknown error occurred',
-              score: 0.0,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Unknown error occurred',
+              score: 0,
             };
           }
         }),
@@ -185,10 +177,10 @@ export class EvaluationExecutor {
       results.push(...chunkResults);
     }
 
-    this.logger.info('Batch execution completed', { 
+    this.logger.info('Batch execution completed', {
       totalTestCases: results.length,
-      successfulTests: results.filter(r => r.success).length,
-      failedTests: results.filter(r => !r.success).length 
+      successfulTests: results.filter((r) => r.success).length,
+      failedTests: results.filter((r) => !r.success).length,
     });
 
     return results;
@@ -197,8 +189,10 @@ export class EvaluationExecutor {
   /**
    * Cleans up resources after evaluation
    */
-  public async cleanup(): Promise<void> {
+  async cleanup(): Promise<void> {
     this.logger.info('Cleaning up evaluation resources');
-    await this.agent.cleanup();
+    await this.testIsolationService.cleanupTestEnvironment(
+      this.defaultIsolationConfig,
+    );
   }
 }
