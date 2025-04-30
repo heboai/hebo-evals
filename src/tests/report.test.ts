@@ -1,5 +1,5 @@
 import { ReportGenerator } from '../report/report-generator';
-import { EvaluationConfig, EvaluationReport } from '../report/evaluationTypes';
+import { EvaluationConfig, EvaluationReport } from '../report/evaluation-types';
 
 describe('ReportGenerator', () => {
   let reportGenerator: ReportGenerator;
