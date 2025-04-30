@@ -1,6 +1,8 @@
 import { IAgent } from '../agents/interfaces/agent.interface';
 import { AgentInput, AgentOutput } from '../agents/types/agent.types';
 import { BaseMessage } from '../core/types/message.types';
+import { TestCaseLoader } from './test-case-loader';
+import { join } from 'path';
 
 export interface TestCase {
   messages: BaseMessage[];
@@ -15,7 +17,11 @@ export interface EvaluationResult {
 }
 
 export class EvaluationExecutor {
-  constructor(private agent: IAgent) {}
+  private testCaseLoader: TestCaseLoader;
+
+  constructor(private agent: IAgent) {
+    this.testCaseLoader = new TestCaseLoader();
+  }
 
   /**
    * Executes a single test case and returns the evaluation result
@@ -49,9 +55,7 @@ export class EvaluationExecutor {
           response: '',
           error: {
             message:
-              error instanceof Error
-                ? error.message
-                : 'Unknown error occurred',
+              error instanceof Error ? error.message : 'Unknown error occurred',
             details: error,
           },
         },
@@ -66,8 +70,21 @@ export class EvaluationExecutor {
    * Executes multiple test cases and returns their evaluation results
    */
   public async executeTestCases(
-    testCases: TestCase[],
+    testCases?: TestCase[],
+    examplesDir?: string,
   ): Promise<EvaluationResult[]> {
+    // If no test cases provided, load from examples directory
+    if (!testCases) {
+      const defaultExamplesDir = examplesDir || join(process.cwd(), 'examples');
+      testCases =
+        await this.testCaseLoader.loadFromExamplesDir(defaultExamplesDir);
+
+      if (testCases.length === 0) {
+        throw new Error(
+          'No test cases provided and no default test cases found in examples directory',
+        );
+      }
+    }
     const results: EvaluationResult[] = [];
 
     for (const testCase of testCases) {
@@ -82,15 +99,16 @@ export class EvaluationExecutor {
           agentOutput: {
             response: '',
             error: {
-              message: error instanceof Error ? error.message : 'Unknown error occurred',
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'Unknown error occurred',
               details: error,
             },
           },
           success: false,
           error:
-            error instanceof Error
-              ? error.message
-              : 'Unknown error occurred',
+            error instanceof Error ? error.message : 'Unknown error occurred',
         });
       }
     }
