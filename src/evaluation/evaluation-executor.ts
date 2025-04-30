@@ -108,8 +108,7 @@ export class EvaluationExecutor {
     maxConcurrency: number = 5,
   ): Promise<EvaluationResult[]> {
     // If no test cases provided, load from examples directory
-    // If no test cases provided, try to load from examples directory
-    if (testCases.length === 0) {
+    if (testCases.length === 0 && examplesDir) {
       const defaultExamplesDir = examplesDir || join(process.cwd(), 'examples');
       const loadedTestCases =
         await this.testCaseLoader.loadFromExamplesDir(defaultExamplesDir);
@@ -120,7 +119,6 @@ export class EvaluationExecutor {
         );
       }
 
-      // Type assertion since we know the loader returns TestCase[]
       testCases = loadedTestCases;
     }
 
