@@ -1,59 +1,112 @@
-import { readFile } from 'fs/promises';
+import { readFile, readdir } from 'fs/promises';
 import { join } from 'path';
 import { BaseMessage, MessageRole } from '../core/types/message.types';
 import { TestCase } from './evaluation-executor';
+import { Logger } from '../utils/logger';
 
 export class TestCaseLoader {
+  private logger: Logger;
+
+  constructor() {
+    this.logger = Logger.getInstance();
+  }
+
   /**
    * Loads test cases from a file
    */
   public async loadFromFile(filePath: string): Promise<TestCase> {
-    const content = await readFile(filePath, 'utf-8');
-    const messages: BaseMessage[] = [];
-    const lines = content.split('\n').filter((line) => line.trim() !== '');
+    try {
+      this.logger.info('Loading test case from file', { filePath });
+      const content = await readFile(filePath, 'utf-8');
+      const messages: BaseMessage[] = [];
+      const lines = content.split('\n').filter((line) => line.trim() !== '');
 
-    for (let i = 0; i < lines.length; i += 2) {
-      const roleStr = lines[i].split(':')[0].trim();
-      const content = lines[i].split(':').slice(1).join(':').trim();
-      messages.push({ role: roleStr as MessageRole, content });
-
-      // If there's a next line and it starts with 'tool', add it and its response
-      if (i + 1 < lines.length && lines[i + 1].startsWith('tool')) {
-        messages.push({
-          role: MessageRole.TOOL,
-          content: lines[i + 1].trim(),
-        });
-        // Skip the tool response line as it's part of the tool message
-        i++;
+      if (lines.length < 2) {
+        throw new Error('Test case file must contain at least two messages');
       }
+
+      for (let i = 0; i < lines.length; i += 2) {
+        const roleStr = lines[i].split(':')[0].trim();
+        const content = lines[i].split(':').slice(1).join(':').trim();
+        
+        if (!Object.values(MessageRole).includes(roleStr as MessageRole)) {
+          throw new Error(`Invalid message role: ${roleStr}`);
+        }
+
+        messages.push({ role: roleStr as MessageRole, content });
+
+        // If there's a next line and it starts with 'tool', add it and its response
+        if (i + 1 < lines.length && lines[i + 1].startsWith('tool')) {
+          messages.push({
+            role: MessageRole.TOOL,
+            content: lines[i + 1].trim(),
+          });
+          // Skip the tool response line as it's part of the tool message
+          i++;
+        }
+      }
+
+      // The last message is the expected output
+      const expectedOutput = messages.pop()!;
+
+      this.logger.info('Successfully loaded test case', { 
+        messageCount: messages.length,
+        expectedOutput: expectedOutput.content 
+      });
+
+      return {
+        messages,
+        expectedOutput,
+      };
+    } catch (error) {
+      this.logger.error('Failed to load test case from file', { 
+        filePath,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
+      throw error;
     }
-
-    // The last message is the expected output
-    const expectedOutput = messages.pop()!;
-
-    return {
-      messages,
-      expectedOutput,
-    };
   }
 
   /**
    * Loads all test cases from the examples directory
    */
   public async loadFromExamplesDir(examplesDir: string): Promise<TestCase[]> {
-    const testCases: TestCase[] = [];
-    const files = await this.getExampleFiles(examplesDir);
+    try {
+      this.logger.info('Loading test cases from directory', { examplesDir });
+      const testCases: TestCase[] = [];
+      const files = await this.getExampleFiles(examplesDir);
 
-    for (const file of files) {
-      try {
-        const testCase = await this.loadFromFile(join(examplesDir, file));
-        testCases.push(testCase);
-      } catch (error) {
-        console.error(`Error loading test case from ${file}:`, error);
+      if (files.length === 0) {
+        this.logger.warn('No test case files found in directory', { examplesDir });
+        return [];
       }
-    }
 
-    return testCases;
+      for (const file of files) {
+        try {
+          const testCase = await this.loadFromFile(join(examplesDir, file));
+          testCases.push(testCase);
+        } catch (error) {
+          this.logger.error('Failed to load test case', { 
+            file,
+            error: error instanceof Error ? error.message : 'Unknown error occurred'
+          });
+          // Continue with other files even if one fails
+        }
+      }
+
+      this.logger.info('Successfully loaded test cases', { 
+        totalTestCases: testCases.length,
+        directory: examplesDir 
+      });
+
+      return testCases;
+    } catch (error) {
+      this.logger.error('Failed to load test cases from directory', { 
+        examplesDir,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
+      throw error;
+    }
   }
 
   /**
@@ -61,11 +114,13 @@ export class TestCaseLoader {
    */
   private async getExampleFiles(examplesDir: string): Promise<string[]> {
     try {
-      const { readdir } = await import('fs/promises');
       const files = await readdir(examplesDir);
       return files.filter((file) => file.endsWith('.txt'));
     } catch (error) {
-      console.error('Error reading examples directory:', error);
+      this.logger.error('Failed to read examples directory', { 
+        examplesDir,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
       return [];
     }
   }
