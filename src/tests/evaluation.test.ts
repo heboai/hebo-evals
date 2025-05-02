@@ -14,7 +14,7 @@ import { MessageRole } from '../core/types/message.types';
 import { TestCaseLoader } from '../evaluation/test-case-loader';
 import { TestIsolationService } from '../evaluation/test-isolation-service';
 import { TestCase } from '../evaluation/types/evaluation.types';
-import { writeFile, mkdir, readdir, rm, mkdtemp, readFile } from 'fs/promises';
+import { writeFile, mkdir, rm, mkdtemp, readFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
