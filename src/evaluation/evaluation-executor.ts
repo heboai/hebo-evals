@@ -25,6 +25,7 @@ export class EvaluationExecutor {
   private testCaseLoader: TestCaseLoader;
   private testIsolationService: TestIsolationService;
   private logger: Logger;
+  private agent: IAgent;
   private defaultIsolationConfig: TestIsolationConfig = {
     resetAgentState: true,
     clearMemory: true,
@@ -35,6 +36,7 @@ export class EvaluationExecutor {
     this.testCaseLoader = new TestCaseLoader();
     this.testIsolationService = new TestIsolationService(agent);
     this.logger = Logger.getInstance();
+    this.agent = agent;
   }
 
   /**
@@ -193,5 +195,6 @@ export class EvaluationExecutor {
     await this.testIsolationService.cleanupTestEnvironment(
       this.defaultIsolationConfig,
     );
+    await this.agent.cleanup();
   }
 }

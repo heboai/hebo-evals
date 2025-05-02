@@ -25,25 +25,16 @@ export class TestCaseLoader {
         throw new Error('Test case file must contain at least two messages');
       }
 
-      for (let i = 0; i < lines.length; i += 2) {
-        const roleStr = lines[i].split(':')[0].trim();
-        const content = lines[i].split(':').slice(1).join(':').trim();
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        const [roleStr, ...contentParts] = line.split(':');
+        const content = contentParts.join(':').trim();
 
         if (!Object.values(MessageRole).includes(roleStr as MessageRole)) {
           throw new Error(`Invalid message role: ${roleStr}`);
         }
 
         messages.push({ role: roleStr as MessageRole, content });
-
-        // If there's a next line and it starts with 'tool', add it and its response
-        if (i + 1 < lines.length && lines[i + 1].startsWith('tool')) {
-          messages.push({
-            role: MessageRole.TOOL,
-            content: lines[i + 1].trim(),
-          });
-          // Skip the tool response line as it's part of the tool message
-          i++;
-        }
       }
 
       // The last message is the expected output

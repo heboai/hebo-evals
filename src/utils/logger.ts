@@ -1,9 +1,4 @@
-import {
-  createLogger,
-  format,
-  transports,
-  Logger as WinstonLogger,
-} from 'winston';
+import pino, { Logger as PinoLogger } from 'pino';
 
 /**
  * Singleton logger instance
@@ -11,20 +6,22 @@ import {
 let instance: Logger | null = null;
 
 /**
- * Logger class that wraps Winston logger
+ * Logger class that wraps Pino logger
  */
 export class Logger {
-  private logger: WinstonLogger;
+  private logger: PinoLogger;
 
   private constructor() {
-    this.logger = createLogger({
+    this.logger = pino({
       level: process.env.LOG_LEVEL || 'info',
-      format: format.combine(
-        format.timestamp(),
-        format.colorize(),
-        format.simple(),
-      ),
-      transports: [new transports.Console()],
+      transport: {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'SYS:standard',
+          ignore: 'pid,hostname',
+        },
+      },
     });
   }
 
@@ -45,7 +42,7 @@ export class Logger {
    * @param meta Additional metadata
    */
   error(message: string, meta?: Record<string, unknown>): void {
-    this.logger.error(message, meta);
+    this.logger.error(meta || {}, message);
   }
 
   /**
@@ -54,7 +51,7 @@ export class Logger {
    * @param meta Additional metadata
    */
   warn(message: string, meta?: Record<string, unknown>): void {
-    this.logger.warn(message, meta);
+    this.logger.warn(meta || {}, message);
   }
 
   /**
@@ -63,7 +60,7 @@ export class Logger {
    * @param meta Additional metadata
    */
   info(message: string, meta?: Record<string, unknown>): void {
-    this.logger.info(message, meta);
+    this.logger.info(meta || {}, message);
   }
 
   /**
@@ -72,6 +69,6 @@ export class Logger {
    * @param meta Additional metadata
    */
   debug(message: string, meta?: Record<string, unknown>): void {
-    this.logger.debug(message, meta);
+    this.logger.debug(meta || {}, message);
   }
 }

@@ -4,24 +4,79 @@ import {
   EvaluationResult,
 } from '../evaluation/evaluation-executor';
 import { IAgent } from '../agents/interfaces/agent.interface';
+import {
+  AgentConfig,
+  AgentInput,
+  AgentOutput,
+  AgentAuthConfig,
+} from '../agents/types/agent.types';
 import { MessageRole } from '../core/types/message.types';
 import { TestCaseLoader } from '../evaluation/test-case-loader';
 import { TestIsolationService } from '../evaluation/test-isolation-service';
 import { TestCase } from '../evaluation/types/evaluation.types';
-import { mkdir, writeFile } from 'fs/promises';
+import { mkdir, writeFile, readFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { rm } from 'fs/promises';
 
+// Mock the logger to prevent console output during tests
+jest.mock('../utils/logger', () => ({
+  Logger: {
+    getInstance: jest.fn().mockReturnValue({
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+    }),
+  },
+}));
+
+// Mock the test case loader
+const mockLoadFromFile = jest
+  .fn<(filePath: string) => Promise<TestCase>>()
+  .mockImplementation(async (filePath: string) => {
+    const content = await readFile(filePath, 'utf-8');
+    const lines = content.split('\n').filter((line) => line.trim() !== '');
+    const messages: { role: MessageRole; content: string }[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const roleStr = lines[i].split(':')[0].trim();
+      const content = lines[i].split(':').slice(1).join(':').trim();
+
+      if (!Object.values(MessageRole).includes(roleStr as MessageRole)) {
+        throw new Error(`Invalid message role: ${roleStr}`);
+      }
+
+      messages.push({ role: roleStr as MessageRole, content });
+    }
+
+    // The last message is the expected output
+    const expectedOutput = messages.pop()!;
+
+    return {
+      messages,
+      expectedOutput,
+    };
+  });
+
 jest.mock('../evaluation/test-case-loader', () => ({
   TestCaseLoader: jest.fn().mockImplementation(() => ({
-    loadFromFile: jest.fn(),
+    loadFromFile: mockLoadFromFile,
   })),
 }));
 
+// Mock the test isolation service
+const mockPrepareTestEnvironment = jest
+  .fn<() => Promise<void>>()
+  .mockResolvedValue(undefined);
+const mockCleanupTestEnvironment = jest
+  .fn<() => Promise<void>>()
+  .mockResolvedValue(undefined);
+
 jest.mock('../evaluation/test-isolation-service', () => ({
   TestIsolationService: jest.fn().mockImplementation(() => ({
-    prepareTestEnvironment: jest.fn(),
+    prepareTestEnvironment: mockPrepareTestEnvironment,
+    cleanupTestEnvironment: mockCleanupTestEnvironment,
   })),
 }));
 
@@ -144,25 +199,44 @@ assistant: Hi
 
     beforeEach(() => {
       mockAgent = {
-        getConfig: jest.fn<IAgent['getConfig']>().mockReturnValue({
-          model: 'test-model',
-        }),
+        config: { model: 'test-model' },
+        isInitialized: true,
+        isAuthenticated: true,
+        getConfig: jest
+          .fn<() => AgentConfig>()
+          .mockReturnValue({ model: 'test-model' }),
         initialize: jest
-          .fn<IAgent['initialize']>()
+          .fn<(config: AgentConfig) => Promise<void>>()
           .mockResolvedValue(undefined),
         authenticate: jest
-          .fn<IAgent['authenticate']>()
+          .fn<(authConfig: AgentAuthConfig) => Promise<void>>()
           .mockResolvedValue(undefined),
-        sendInput: jest.fn<IAgent['sendInput']>(),
+        sendInput: jest
+          .fn<(input: AgentInput) => Promise<AgentOutput>>()
+          .mockResolvedValue({
+            response: 'Goodbye',
+            metadata: {},
+            error: undefined,
+          }),
         validateConfig: jest
-          .fn<IAgent['validateConfig']>()
+          .fn<() => Promise<boolean>>()
           .mockResolvedValue(true),
-        reset: jest.fn<IAgent['reset']>().mockResolvedValue(undefined),
+        reset: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
         clearMemory: jest
-          .fn<IAgent['clearMemory']>()
+          .fn<() => Promise<void>>()
           .mockResolvedValue(undefined),
-        cleanup: jest.fn<IAgent['cleanup']>().mockResolvedValue(undefined),
+        cleanup: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
       } as jest.Mocked<IAgent>;
+
+      // Bind the mock methods to ensure proper this context
+      mockAgent.sendInput = mockAgent.sendInput.bind(mockAgent);
+      mockAgent.getConfig = mockAgent.getConfig.bind(mockAgent);
+      mockAgent.initialize = mockAgent.initialize.bind(mockAgent);
+      mockAgent.authenticate = mockAgent.authenticate.bind(mockAgent);
+      mockAgent.validateConfig = mockAgent.validateConfig.bind(mockAgent);
+      mockAgent.reset = mockAgent.reset.bind(mockAgent);
+      mockAgent.clearMemory = mockAgent.clearMemory.bind(mockAgent);
+      mockAgent.cleanup = mockAgent.cleanup.bind(mockAgent);
 
       service = new TestIsolationService(mockAgent);
     });
@@ -174,7 +248,9 @@ assistant: Hi
         timeoutMs: 1000,
       });
 
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockAgent.reset).toHaveBeenCalledTimes(1);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockAgent.clearMemory).not.toHaveBeenCalled();
     });
 
@@ -185,7 +261,9 @@ assistant: Hi
         timeoutMs: 1000,
       });
 
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockAgent.clearMemory).toHaveBeenCalledTimes(1);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockAgent.reset).not.toHaveBeenCalled();
     });
 
@@ -196,7 +274,9 @@ assistant: Hi
         timeoutMs: 1000,
       });
 
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockAgent.reset).toHaveBeenCalledTimes(1);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockAgent.clearMemory).toHaveBeenCalledTimes(1);
     });
 
@@ -232,35 +312,29 @@ assistant: Hi
         isInitialized: true,
         isAuthenticated: true,
         getConfig: jest
-          .fn<IAgent['getConfig']>()
+          .fn<() => AgentConfig>()
           .mockReturnValue({ model: 'test-model' }),
         initialize: jest
-          .fn<IAgent['initialize']>()
+          .fn<(config: AgentConfig) => Promise<void>>()
           .mockResolvedValue(undefined),
         authenticate: jest
-          .fn<IAgent['authenticate']>()
+          .fn<(authConfig: AgentAuthConfig) => Promise<void>>()
           .mockResolvedValue(undefined),
-        sendInput: jest.fn<IAgent['sendInput']>().mockResolvedValue({
-          response: 'Goodbye',
-          metadata: {},
-          error: undefined,
-        }),
+        sendInput: jest
+          .fn<(input: AgentInput) => Promise<AgentOutput>>()
+          .mockResolvedValue({
+            response: 'Goodbye',
+            metadata: {},
+            error: undefined,
+          }),
         validateConfig: jest
-          .fn<IAgent['validateConfig']>()
+          .fn<() => Promise<boolean>>()
           .mockResolvedValue(true),
-        reset: jest.fn<IAgent['reset']>().mockResolvedValue(undefined),
+        reset: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
         clearMemory: jest
-          .fn<IAgent['clearMemory']>()
+          .fn<() => Promise<void>>()
           .mockResolvedValue(undefined),
-        cleanup: jest.fn<IAgent['cleanup']>().mockResolvedValue(undefined),
-        getAuthHeaders: jest
-          .fn()
-          .mockReturnValue({ Authorization: 'Bearer test' }),
-        processInput: jest.fn<IAgent['sendInput']>().mockResolvedValue({
-          response: 'Goodbye',
-          metadata: {},
-          error: undefined,
-        }),
+        cleanup: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
       } as jest.Mocked<IAgent>;
 
       executor = new EvaluationExecutor(mockAgent);
@@ -268,24 +342,22 @@ assistant: Hi
 
     describe('executeTestCase', () => {
       it('should execute a test case successfully', async () => {
-        const executeTestCase = executor.executeTestCase.bind(executor);
-        const result = await executeTestCase(mockAgent, mockTestCase);
+        const result = await executor.executeTestCase(mockAgent, mockTestCase);
 
         expect(result.success).toBe(true);
         expect(result.error).toBeUndefined();
         expect(result.score).toBe(0);
         expect(result.executionTime).toBeDefined();
-        // eslint-disable-next-line
+        // eslint-disable-next-line @typescript-eslint/unbound-method
         expect(mockAgent.sendInput).toHaveBeenCalledWith({
           messages: mockTestCase.messages,
         });
       });
 
       it('should handle agent errors gracefully', async () => {
-        const executeTestCase = executor.executeTestCase.bind(executor);
         mockAgent.sendInput.mockRejectedValueOnce(new Error('Agent error'));
 
-        const result = await executeTestCase(mockAgent, mockTestCase);
+        const result = await executor.executeTestCase(mockAgent, mockTestCase);
 
         expect(result.success).toBe(false);
         expect(result.error).toBe('Agent error');
@@ -294,14 +366,13 @@ assistant: Hi
       });
 
       it('should handle response mismatch', async () => {
-        const executeTestCase = executor.executeTestCase.bind(executor);
         mockAgent.sendInput.mockResolvedValueOnce({
           response: 'Different response',
           metadata: {},
           error: undefined,
         });
 
-        const result = await executeTestCase(mockAgent, mockTestCase);
+        const result = await executor.executeTestCase(mockAgent, mockTestCase);
 
         expect(result.success).toBe(false);
         expect(result.error).toBeUndefined();
@@ -313,6 +384,15 @@ assistant: Hi
     describe('executeTestCasesSequential', () => {
       it('should execute multiple test cases sequentially', async () => {
         const testCases = [mockTestCase, mockTestCase];
+        const mockedSendInput = jest
+          .fn<(input: AgentInput) => Promise<AgentOutput>>()
+          .mockResolvedValue({
+            response: 'Goodbye',
+            metadata: {},
+            error: undefined,
+          });
+        mockAgent.sendInput = mockedSendInput;
+
         const results = await executor.executeTestCasesSequential(
           mockAgent,
           testCases,
@@ -320,14 +400,22 @@ assistant: Hi
 
         expect(results).toHaveLength(2);
         expect(results.every((r) => r.success)).toBe(true);
-        // eslint-disable-next-line
-        expect(mockAgent.sendInput).toHaveBeenCalledTimes(2);
+        expect(mockedSendInput).toHaveBeenCalledTimes(2);
       });
     });
 
     describe('executeTestCasesParallel', () => {
       it('should execute multiple test cases in parallel', async () => {
         const testCases = [mockTestCase, mockTestCase];
+        const mockedSendInput = jest
+          .fn<(input: AgentInput) => Promise<AgentOutput>>()
+          .mockResolvedValue({
+            response: 'Goodbye',
+            metadata: {},
+            error: undefined,
+          });
+        mockAgent.sendInput = mockedSendInput;
+
         const results = await executor.executeTestCasesParallel(
           mockAgent,
           testCases,
@@ -338,15 +426,16 @@ assistant: Hi
         expect(
           results.every((r: EvaluationResult) => r.executionTime !== undefined),
         ).toBe(true);
-        // eslint-disable-next-line
-        expect(mockAgent.sendInput).toHaveBeenCalledTimes(2);
+        expect(mockedSendInput).toHaveBeenCalledTimes(2);
       });
 
       it('should handle errors in parallel execution', async () => {
         const testCases = [mockTestCase, mockTestCase];
-        mockAgent.sendInput
+        const mockedSendInput = jest
+          .fn<(input: AgentInput) => Promise<AgentOutput>>()
           .mockResolvedValueOnce({ response: 'Goodbye', error: undefined })
           .mockRejectedValueOnce(new Error('Parallel execution error'));
+        mockAgent.sendInput = mockedSendInput;
 
         const results = await executor.executeTestCasesParallel(
           mockAgent,
@@ -362,13 +451,21 @@ assistant: Hi
 
     describe('cleanup', () => {
       it('should cleanup agent resources', async () => {
+        const mockedCleanup = jest
+          .fn<() => Promise<void>>()
+          .mockResolvedValue(undefined);
+        mockAgent.cleanup = mockedCleanup;
+
         await executor.cleanup();
-        // eslint-disable-next-line
-        expect(mockAgent.cleanup).toHaveBeenCalledTimes(1);
+        expect(mockedCleanup).toHaveBeenCalledTimes(1);
       });
 
       it('should handle cleanup errors gracefully', async () => {
-        mockAgent.cleanup.mockRejectedValueOnce(new Error('Cleanup failed'));
+        const mockedCleanup = jest
+          .fn<() => Promise<void>>()
+          .mockRejectedValue(new Error('Cleanup failed'));
+        mockAgent.cleanup = mockedCleanup;
+
         await expect(executor.cleanup()).rejects.toThrow('Cleanup failed');
       });
     });
