@@ -86,17 +86,21 @@ describe('Evaluation System', () => {
     let loader: TestCaseLoader;
     let tempDir: string;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       loader = new TestCaseLoader();
       tempDir = join(tmpdir(), 'hebo-eval-tests');
+      // Ensure the directory exists and is empty
+      try {
+        await rm(tempDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+      await mkdir(tempDir, { recursive: true });
     });
 
     afterEach(async () => {
       try {
-        await rm(tempDir, {
-          recursive: true,
-          force: true,
-        });
+        await rm(tempDir, { recursive: true, force: true });
       } catch {
         // Ignore cleanup errors
       }
@@ -104,16 +108,14 @@ describe('Evaluation System', () => {
 
     it('should load a valid test case file', async () => {
       const testFile = join(tempDir, 'test.txt');
-      await mkdir(tempDir, { recursive: true });
-      await writeFile(
-        testFile,
-        `
+      const testContent = `
 user: Hello
 assistant: Hi there
 user: How are you?
 assistant: I'm good, thanks!
-      `.trim(),
-      );
+      `.trim();
+
+      await writeFile(testFile, testContent, 'utf-8');
 
       const result = await loader.loadFromFile(testFile);
 
@@ -242,46 +244,70 @@ assistant: Hi
     });
 
     it('should reset agent state when configured', async () => {
+      const mockedReset = jest
+        .fn<() => Promise<void>>()
+        .mockResolvedValue(undefined);
+      const mockedClearMemory = jest
+        .fn<() => Promise<void>>()
+        .mockResolvedValue(undefined);
+      mockAgent.reset = mockedReset;
+      mockAgent.clearMemory = mockedClearMemory;
+
       await service.prepareTestEnvironment({
         resetAgentState: true,
         clearMemory: false,
         timeoutMs: 1000,
       });
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(mockAgent.reset).toHaveBeenCalledTimes(1);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(mockAgent.clearMemory).not.toHaveBeenCalled();
+      expect(mockedReset).toHaveBeenCalledTimes(1);
+      expect(mockedClearMemory).not.toHaveBeenCalled();
     });
 
     it('should clear agent memory when configured', async () => {
+      const mockedReset = jest
+        .fn<() => Promise<void>>()
+        .mockResolvedValue(undefined);
+      const mockedClearMemory = jest
+        .fn<() => Promise<void>>()
+        .mockResolvedValue(undefined);
+      mockAgent.reset = mockedReset;
+      mockAgent.clearMemory = mockedClearMemory;
+
       await service.prepareTestEnvironment({
         resetAgentState: false,
         clearMemory: true,
         timeoutMs: 1000,
       });
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(mockAgent.clearMemory).toHaveBeenCalledTimes(1);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(mockAgent.reset).not.toHaveBeenCalled();
+      expect(mockedClearMemory).toHaveBeenCalledTimes(1);
+      expect(mockedReset).not.toHaveBeenCalled();
     });
 
     it('should handle both reset and clear memory', async () => {
+      const mockedReset = jest
+        .fn<() => Promise<void>>()
+        .mockResolvedValue(undefined);
+      const mockedClearMemory = jest
+        .fn<() => Promise<void>>()
+        .mockResolvedValue(undefined);
+      mockAgent.reset = mockedReset;
+      mockAgent.clearMemory = mockedClearMemory;
+
       await service.prepareTestEnvironment({
         resetAgentState: true,
         clearMemory: true,
         timeoutMs: 1000,
       });
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(mockAgent.reset).toHaveBeenCalledTimes(1);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(mockAgent.clearMemory).toHaveBeenCalledTimes(1);
+      expect(mockedReset).toHaveBeenCalledTimes(1);
+      expect(mockedClearMemory).toHaveBeenCalledTimes(1);
     });
 
     it('should handle errors gracefully', async () => {
-      mockAgent.reset.mockRejectedValueOnce(new Error('Reset failed'));
+      const mockedReset = jest
+        .fn<() => Promise<void>>()
+        .mockRejectedValue(new Error('Reset failed'));
+      mockAgent.reset = mockedReset;
 
       await expect(
         service.prepareTestEnvironment({
