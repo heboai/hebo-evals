@@ -3,7 +3,7 @@ import { Parser } from '../parser/parser.js';
 import { TestCaseLoader } from '../parser/loader.js';
 import { MessageRole } from '../core/types/message.types.js';
 import { ParseError } from '../parser/errors.js';
-import { writeFile, mkdir, readdir, unlink, rmdir, rm } from 'fs/promises';
+import { writeFile, mkdir, readdir, unlink, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -383,18 +383,15 @@ tool response: some response`;
       loader = new TestCaseLoader();
       tempDir = join(tmpdir(), 'hebo-eval-tests');
       // Ensure clean directory for each test
-      try {
-        await rm(tempDir, { recursive: true, force: true });
-      } catch {
-        // Ignore if directory doesn't exist
-      }
       await mkdir(tempDir, { recursive: true });
     });
 
     afterEach(async () => {
       // Cleanup temp files
       try {
-        await rm(tempDir, { recursive: true, force: true });
+        const files = await readdir(tempDir);
+        await Promise.all(files.map((file) => unlink(join(tempDir, file))));
+        await rmdir(tempDir);
       } catch (error) {
         console.error('Cleanup error:', error);
       }
@@ -406,25 +403,19 @@ tool response: some response`;
         const testFile1 = join(tempDir, 'test1.txt');
         const testFile2 = join(tempDir, 'test2.txt');
 
-        // Create files with proper content
+        // Create files and wait for them to be written
         await Promise.all([
           writeFile(
             testFile1,
             `user: Hello
 assistant: Hi there`,
-            'utf-8',
           ),
           writeFile(
             testFile2,
             `user: How are you?
 assistant: I'm good`,
-            'utf-8',
           ),
         ]);
-
-        // Verify files exist before running test
-        const files = await readdir(tempDir);
-        expect(files).toHaveLength(2);
 
         const result = await loader.loadFromDirectory(tempDir);
 
