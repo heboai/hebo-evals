@@ -3,7 +3,7 @@ import { Parser } from '../parser/parser.js';
 import { TestCaseLoader } from '../parser/loader.js';
 import { MessageRole } from '../core/types/message.types.js';
 import { ParseError } from '../parser/errors.js';
-import { writeFile, mkdir, readdir, unlink, rmdir } from 'fs/promises';
+import { writeFile, mkdir, readdir, unlink, rmdir, mkdtemp } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -381,7 +381,7 @@ tool response: some response`;
 
     beforeEach(async () => {
       loader = new TestCaseLoader();
-      tempDir = join(tmpdir(), 'hebo-eval-tests');
+      tempDir = await mkdtemp(join(tmpdir(), 'hebo-eval-tests-'));
       // Ensure clean directory for each test
       await mkdir(tempDir, { recursive: true });
     });
@@ -480,6 +480,36 @@ assistant: I'm good`,
         expect(resultWithoutStop.testCases).toHaveLength(2); // Both valid files processed
         expect(resultWithoutStop.errors).toHaveLength(1);
         expect(resultWithoutStop.errors[0].filePath).toBe(invalidFile);
+      });
+
+      it('should handle directory content', async () => {
+        // Create test files
+        const testFile1 = join(tempDir, 'test1.txt');
+        const testFile2 = join(tempDir, 'test2.txt');
+
+        // Create files and wait for them to be written
+        await Promise.all([
+          writeFile(
+            testFile1,
+            `user: Hello
+assistant: Hi there`,
+          ),
+          writeFile(
+            testFile2,
+            `user: How are you?
+assistant: I'm good`,
+          ),
+        ]);
+
+        const result = await loader.loadFromDirectory(tempDir);
+
+        expect(result.testCases).toHaveLength(2);
+        expect(result.errors).toHaveLength(0);
+        expect(result.testCases[0].name).toBe('test1');
+        expect(result.testCases[1].name).toBe('test2');
+
+        const files = await readdir(tempDir);
+        expect(files.sort()).toEqual(['test1.txt', 'test2.txt'].sort());
       });
     });
   });

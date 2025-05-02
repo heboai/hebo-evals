@@ -14,10 +14,9 @@ import { MessageRole } from '../core/types/message.types';
 import { TestCaseLoader } from '../evaluation/test-case-loader';
 import { TestIsolationService } from '../evaluation/test-isolation-service';
 import { TestCase } from '../evaluation/types/evaluation.types';
-import { mkdir, writeFile, readFile } from 'fs/promises';
+import { writeFile, mkdir, readdir, rm, mkdtemp, readFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { rm } from 'fs/promises';
 
 // Mock the logger to prevent console output during tests
 jest.mock('../utils/logger', () => ({
@@ -36,7 +35,9 @@ const mockLoadFromFile = jest
   .fn<(filePath: string) => Promise<TestCase>>()
   .mockImplementation(async (filePath: string) => {
     const content = await readFile(filePath, 'utf-8');
-    const lines = content.split('\n').filter((line) => line.trim() !== '');
+    const lines = content
+      .split('\n')
+      .filter((line: string) => line.trim() !== '');
     const messages: { role: MessageRole; content: string }[] = [];
 
     for (let i = 0; i < lines.length; i++) {
@@ -88,14 +89,7 @@ describe('Evaluation System', () => {
 
     beforeEach(async () => {
       loader = new TestCaseLoader();
-      tempDir = join(tmpdir(), 'hebo-eval-tests');
-      // Ensure the directory exists and is empty
-      try {
-        await rm(tempDir, { recursive: true, force: true });
-      } catch {
-        // Ignore cleanup errors
-      }
-      await mkdir(tempDir, { recursive: true });
+      tempDir = await mkdtemp(join(tmpdir(), 'hebo-eval-tests-'));
     });
 
     afterEach(async () => {
