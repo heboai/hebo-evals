@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import {
-  EvaluationExecutor,
-  EvaluationResult,
-} from '../evaluation/evaluation-executor';
+import { EvaluationExecutor } from '../evaluation/evaluation-executor';
 import { IAgent } from '../agents/interfaces/agent.interface';
 import {
   AgentConfig,
@@ -11,10 +8,9 @@ import {
   AgentAuthConfig,
 } from '../agents/types/agent.types';
 import { MessageRole } from '../core/types/message.types';
-import { TestCaseLoader } from '../evaluation/test-case-loader';
+import { Parser, ParsedTestCase } from '../parser/parser';
 import { TestIsolationService } from '../evaluation/test-isolation-service';
-import { TestCase } from '../evaluation/types/evaluation.types';
-import { writeFile, mkdir, rm, mkdtemp, readFile } from 'fs/promises';
+import { writeFile, rm, mkdtemp } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -30,65 +26,14 @@ jest.mock('../utils/logger', () => ({
   },
 }));
 
-// Mock the test case loader
-const mockLoadFromFile = jest
-  .fn<(filePath: string) => Promise<TestCase>>()
-  .mockImplementation(async (filePath: string) => {
-    const content = await readFile(filePath, 'utf-8');
-    const lines = content
-      .split('\n')
-      .filter((line: string) => line.trim() !== '');
-    const messages: { role: MessageRole; content: string }[] = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const roleStr = lines[i].split(':')[0].trim();
-      const content = lines[i].split(':').slice(1).join(':').trim();
-
-      if (!Object.values(MessageRole).includes(roleStr as MessageRole)) {
-        throw new Error(`Invalid message role: ${roleStr}`);
-      }
-
-      messages.push({ role: roleStr as MessageRole, content });
-    }
-
-    // The last message is the expected output
-    const expectedOutput = messages.pop()!;
-
-    return {
-      messages,
-      expectedOutput,
-    };
-  });
-
-jest.mock('../evaluation/test-case-loader', () => ({
-  TestCaseLoader: jest.fn().mockImplementation(() => ({
-    loadFromFile: mockLoadFromFile,
-  })),
-}));
-
-// Mock the test isolation service
-const mockPrepareTestEnvironment = jest
-  .fn<() => Promise<void>>()
-  .mockResolvedValue(undefined);
-const mockCleanupTestEnvironment = jest
-  .fn<() => Promise<void>>()
-  .mockResolvedValue(undefined);
-
-jest.mock('../evaluation/test-isolation-service', () => ({
-  TestIsolationService: jest.fn().mockImplementation(() => ({
-    prepareTestEnvironment: mockPrepareTestEnvironment,
-    cleanupTestEnvironment: mockCleanupTestEnvironment,
-  })),
-}));
-
 describe('Evaluation System', () => {
-  // Test Case Loader Tests
-  describe('TestCaseLoader', () => {
-    let loader: TestCaseLoader;
+  // Parser Tests
+  describe('Parser', () => {
+    let parser: Parser;
     let tempDir: string;
 
     beforeEach(async () => {
-      loader = new TestCaseLoader();
+      parser = new Parser();
       tempDir = await mkdtemp(join(tmpdir(), 'hebo-eval-tests-'));
     });
 
@@ -111,59 +56,67 @@ assistant: I'm good, thanks!
 
       await writeFile(testFile, testContent, 'utf-8');
 
-      const result = await loader.loadFromFile(testFile);
+      const result = await parser.loadFromFile(testFile);
 
-      expect(result.messages).toHaveLength(3);
-      expect(result.messages[0]).toEqual({
+      expect(result.messageBlocks).toHaveLength(4);
+      expect(result.messageBlocks[0]).toEqual({
         role: MessageRole.USER,
         content: 'Hello',
+        toolUsages: [],
+        toolResponses: [],
       });
-      expect(result.messages[1]).toEqual({
+      expect(result.messageBlocks[1]).toEqual({
         role: MessageRole.ASSISTANT,
         content: 'Hi there',
+        toolUsages: [],
+        toolResponses: [],
       });
-      expect(result.messages[2]).toEqual({
+      expect(result.messageBlocks[2]).toEqual({
         role: MessageRole.USER,
         content: 'How are you?',
+        toolUsages: [],
+        toolResponses: [],
       });
-      expect(result.expectedOutput).toEqual({
+      expect(result.messageBlocks[3]).toEqual({
         role: MessageRole.ASSISTANT,
         content: "I'm good, thanks!",
+        toolUsages: [],
+        toolResponses: [],
       });
     });
 
     it('should handle tool messages', async () => {
       const testFile = join(tempDir, 'test-tool.txt');
-      await mkdir(tempDir, { recursive: true });
       await writeFile(
         testFile,
         `
-user: Use a tool
-tool: tool_name
-assistant: Tool result
-      `.trim(),
+user: Request tool usage
+assistant: Let me help you with that
+tool use: search args: {"query": "test"}
+tool response: Found results
+assistant: Final response
+    `.trim(),
       );
 
-      const result = await loader.loadFromFile(testFile);
+      const result = await parser.loadFromFile(testFile);
 
-      expect(result.messages).toHaveLength(2);
-      expect(result.messages[0]).toEqual({
-        role: MessageRole.USER,
-        content: 'Use a tool',
-      });
-      expect(result.messages[1]).toEqual({
-        role: MessageRole.TOOL,
-        content: 'tool_name',
-      });
-      expect(result.expectedOutput).toEqual({
+      expect(result.messageBlocks).toHaveLength(3);
+      expect(result.messageBlocks[1]).toEqual({
         role: MessageRole.ASSISTANT,
-        content: 'Tool result',
+        content: 'Let me help you with that',
+        toolUsages: [{ name: 'search', args: '{"query": "test"}' }],
+        toolResponses: [{ content: 'Found results' }],
+      });
+      expect(result.messageBlocks[2]).toEqual({
+        role: MessageRole.ASSISTANT,
+        content: 'Final response',
+        toolUsages: [],
+        toolResponses: [],
       });
     });
 
     it('should throw error for invalid message role', async () => {
       const testFile = join(tempDir, 'invalid-role.txt');
-      await mkdir(tempDir, { recursive: true });
       await writeFile(
         testFile,
         `
@@ -172,18 +125,17 @@ assistant: Hi
       `.trim(),
       );
 
-      await expect(loader.loadFromFile(testFile)).rejects.toThrow(
+      await expect(parser.loadFromFile(testFile)).rejects.toThrow(
         'Invalid message role',
       );
     });
 
     it('should throw error for insufficient messages', async () => {
       const testFile = join(tempDir, 'insufficient.txt');
-      await mkdir(tempDir, { recursive: true });
       await writeFile(testFile, 'user: Hello');
 
-      await expect(loader.loadFromFile(testFile)).rejects.toThrow(
-        'Test case file must contain at least two messages',
+      await expect(parser.loadFromFile(testFile)).rejects.toThrow(
+        'Test case must contain at least two messages', // Match parser's message
       );
     });
   });
@@ -198,9 +150,7 @@ assistant: Hi
         config: { model: 'test-model' },
         isInitialized: true,
         isAuthenticated: true,
-        getConfig: jest
-          .fn<() => AgentConfig>()
-          .mockReturnValue({ model: 'test-model' }),
+        getConfig: jest.fn(() => ({ model: 'test-model' })),
         initialize: jest
           .fn<(config: AgentConfig) => Promise<void>>()
           .mockResolvedValue(undefined),
@@ -223,16 +173,6 @@ assistant: Hi
           .mockResolvedValue(undefined),
         cleanup: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
       } as jest.Mocked<IAgent>;
-
-      // Bind the mock methods to ensure proper this context
-      mockAgent.sendInput = mockAgent.sendInput.bind(mockAgent);
-      mockAgent.getConfig = mockAgent.getConfig.bind(mockAgent);
-      mockAgent.initialize = mockAgent.initialize.bind(mockAgent);
-      mockAgent.authenticate = mockAgent.authenticate.bind(mockAgent);
-      mockAgent.validateConfig = mockAgent.validateConfig.bind(mockAgent);
-      mockAgent.reset = mockAgent.reset.bind(mockAgent);
-      mockAgent.clearMemory = mockAgent.clearMemory.bind(mockAgent);
-      mockAgent.cleanup = mockAgent.cleanup.bind(mockAgent);
 
       service = new TestIsolationService(mockAgent);
     });
@@ -318,22 +258,34 @@ assistant: Hi
     let executor: EvaluationExecutor;
     let mockAgent: jest.Mocked<IAgent>;
 
-    const mockTestCase: TestCase = {
-      messages: [
-        { role: MessageRole.USER, content: 'Hello' },
-        { role: MessageRole.ASSISTANT, content: 'Hi there' },
+    const mockTestCase: ParsedTestCase = {
+      name: 'test',
+      messageBlocks: [
+        {
+          role: MessageRole.USER,
+          content: 'Hello',
+          toolUsages: [],
+          toolResponses: [],
+        },
+        {
+          role: MessageRole.ASSISTANT,
+          content: 'Hi there',
+          toolUsages: [],
+          toolResponses: [],
+        },
       ],
-      expectedOutput: { role: MessageRole.ASSISTANT, content: 'Goodbye' },
     };
 
     beforeEach(() => {
+      const mockConfig: AgentConfig = { model: 'test-model' };
+      const mockOutput: AgentOutput = {
+        response: 'Hi there', // Match the expected response
+        metadata: {},
+        error: undefined,
+      };
+
       mockAgent = {
-        config: { model: 'test-model' },
-        isInitialized: true,
-        isAuthenticated: true,
-        getConfig: jest
-          .fn<() => AgentConfig>()
-          .mockReturnValue({ model: 'test-model' }),
+        getConfig: jest.fn<() => AgentConfig>().mockReturnValue(mockConfig),
         initialize: jest
           .fn<(config: AgentConfig) => Promise<void>>()
           .mockResolvedValue(undefined),
@@ -342,11 +294,7 @@ assistant: Hi
           .mockResolvedValue(undefined),
         sendInput: jest
           .fn<(input: AgentInput) => Promise<AgentOutput>>()
-          .mockResolvedValue({
-            response: 'Goodbye',
-            metadata: {},
-            error: undefined,
-          }),
+          .mockResolvedValue(mockOutput),
         validateConfig: jest
           .fn<() => Promise<boolean>>()
           .mockResolvedValue(true),
@@ -357,7 +305,13 @@ assistant: Hi
         cleanup: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
       } as jest.Mocked<IAgent>;
 
-      executor = new EvaluationExecutor(mockAgent);
+      Object.defineProperties(mockAgent, {
+        config: { value: mockConfig, writable: true },
+        isInitialized: { value: true, writable: true },
+        isAuthenticated: { value: true, writable: true },
+      });
+
+      executor = new EvaluationExecutor();
     });
 
     describe('executeTestCase', () => {
@@ -366,11 +320,10 @@ assistant: Hi
 
         expect(result.success).toBe(true);
         expect(result.error).toBeUndefined();
-        expect(result.score).toBe(0);
+        expect(result.score).toBe(1);
         expect(result.executionTime).toBeDefined();
-        // eslint-disable-next-line @typescript-eslint/unbound-method
         expect(mockAgent.sendInput).toHaveBeenCalledWith({
-          messages: mockTestCase.messages,
+          messages: [{ role: MessageRole.USER, content: 'Hello' }],
         });
       });
 
@@ -395,7 +348,7 @@ assistant: Hi
         const result = await executor.executeTestCase(mockAgent, mockTestCase);
 
         expect(result.success).toBe(false);
-        expect(result.error).toBeUndefined();
+        expect(result.error).toBe('Response mismatch');
         expect(result.score).toBe(0);
         expect(result.executionTime).toBeDefined();
       });
@@ -404,15 +357,6 @@ assistant: Hi
     describe('executeTestCasesSequential', () => {
       it('should execute multiple test cases sequentially', async () => {
         const testCases = [mockTestCase, mockTestCase];
-        const mockedSendInput = jest
-          .fn<(input: AgentInput) => Promise<AgentOutput>>()
-          .mockResolvedValue({
-            response: 'Goodbye',
-            metadata: {},
-            error: undefined,
-          });
-        mockAgent.sendInput = mockedSendInput;
-
         const results = await executor.executeTestCasesSequential(
           mockAgent,
           testCases,
@@ -420,42 +364,34 @@ assistant: Hi
 
         expect(results).toHaveLength(2);
         expect(results.every((r) => r.success)).toBe(true);
-        expect(mockedSendInput).toHaveBeenCalledTimes(2);
+        expect(results.every((r) => r.score === 1)).toBe(true);
+        expect(mockAgent.sendInput).toHaveBeenCalledTimes(2);
       });
     });
 
     describe('executeTestCasesParallel', () => {
       it('should execute multiple test cases in parallel', async () => {
         const testCases = [mockTestCase, mockTestCase];
-        const mockedSendInput = jest
-          .fn<(input: AgentInput) => Promise<AgentOutput>>()
-          .mockResolvedValue({
-            response: 'Goodbye',
-            metadata: {},
-            error: undefined,
-          });
-        mockAgent.sendInput = mockedSendInput;
-
         const results = await executor.executeTestCasesParallel(
           mockAgent,
           testCases,
         );
 
         expect(results).toHaveLength(2);
-        expect(results.every((r: EvaluationResult) => r.success)).toBe(true);
-        expect(
-          results.every((r: EvaluationResult) => r.executionTime !== undefined),
-        ).toBe(true);
-        expect(mockedSendInput).toHaveBeenCalledTimes(2);
+        expect(results.every((r) => r.success)).toBe(true);
+        expect(results.every((r) => r.score === 1)).toBe(true);
+        expect(mockAgent.sendInput).toHaveBeenCalledTimes(2);
       });
 
       it('should handle errors in parallel execution', async () => {
         const testCases = [mockTestCase, mockTestCase];
-        const mockedSendInput = jest
-          .fn<(input: AgentInput) => Promise<AgentOutput>>()
-          .mockResolvedValueOnce({ response: 'Goodbye', error: undefined })
+        mockAgent.sendInput
+          .mockResolvedValueOnce({
+            response: 'Hi there',
+            metadata: {},
+            error: undefined,
+          })
           .mockRejectedValueOnce(new Error('Parallel execution error'));
-        mockAgent.sendInput = mockedSendInput;
 
         const results = await executor.executeTestCasesParallel(
           mockAgent,
@@ -464,29 +400,10 @@ assistant: Hi
 
         expect(results).toHaveLength(2);
         expect(results[0].success).toBe(true);
+        expect(results[0].score).toBe(1);
         expect(results[1].success).toBe(false);
         expect(results[1].error).toBe('Parallel execution error');
-      });
-    });
-
-    describe('cleanup', () => {
-      it('should cleanup agent resources', async () => {
-        const mockedCleanup = jest
-          .fn<() => Promise<void>>()
-          .mockResolvedValue(undefined);
-        mockAgent.cleanup = mockedCleanup;
-
-        await executor.cleanup();
-        expect(mockedCleanup).toHaveBeenCalledTimes(1);
-      });
-
-      it('should handle cleanup errors gracefully', async () => {
-        const mockedCleanup = jest
-          .fn<() => Promise<void>>()
-          .mockRejectedValue(new Error('Cleanup failed'));
-        mockAgent.cleanup = mockedCleanup;
-
-        await expect(executor.cleanup()).rejects.toThrow('Cleanup failed');
+        expect(results[1].score).toBe(0);
       });
     });
   });

@@ -1,42 +1,25 @@
-import { TestCaseLoader } from './test-case-loader';
-import {
-  TestIsolationService,
-  TestIsolationConfig,
-} from './test-isolation-service';
-import { join } from 'path';
-import { Logger } from '../utils/logger';
 import { IAgent } from '../agents/interfaces/agent.interface';
-import { TestCase, TestCaseResult } from './types/evaluation.types';
-import { AgentOutput } from '../agents/types/agent.types';
+import { AgentInput } from '../agents/types/agent.types';
+import { ParsedTestCase, Parser } from '../parser/parser';
+import { Logger } from '../utils/logger';
 
 export interface EvaluationResult {
-  testCase: TestCase;
-  agentOutput: AgentOutput;
   success: boolean;
   error?: string;
-  executionTime?: number;
-  score?: number;
+  score: number;
+  executionTime: number;
 }
 
 /**
  * Service for executing test cases against an agent
  */
 export class EvaluationExecutor {
-  private testCaseLoader: TestCaseLoader;
-  private testIsolationService: TestIsolationService;
+  private parser: Parser;
   private logger: Logger;
-  private agent: IAgent;
-  private defaultIsolationConfig: TestIsolationConfig = {
-    resetAgentState: true,
-    clearMemory: true,
-    timeoutMs: 30000,
-  };
 
-  constructor(agent: IAgent) {
-    this.testCaseLoader = new TestCaseLoader();
-    this.testIsolationService = new TestIsolationService(agent);
+  constructor() {
+    this.parser = new Parser();
     this.logger = Logger.getInstance();
-    this.agent = agent;
   }
 
   /**
@@ -45,39 +28,46 @@ export class EvaluationExecutor {
    * @param testCase The test case to execute
    * @returns The test case result
    */
-  async executeTestCase(
+  public async executeTestCase(
     agent: IAgent,
-    testCase: TestCase,
-  ): Promise<TestCaseResult> {
+    testCase: ParsedTestCase,
+  ): Promise<EvaluationResult> {
     const startTime = Date.now();
-    let result: TestCaseResult;
-
     try {
-      const agentResponse = await agent.sendInput({
-        messages: testCase.messages,
-      });
+      const input: AgentInput = {
+        messages: testCase.messageBlocks.slice(0, -1).map((block) => ({
+          role: block.role,
+          content: block.content,
+        })),
+      };
+
+      // Get the expected response from the last message block
+      const expectedResponse =
+        testCase.messageBlocks[testCase.messageBlocks.length - 1];
+
+      // Execute the test
+      const response = await agent.sendInput(input);
       const executionTime = Date.now() - startTime;
 
-      result = {
-        success:
-          !agentResponse.error &&
-          agentResponse.response === testCase.expectedOutput.content,
-        error: agentResponse.error?.message,
+      // Validate response
+      const isMatch =
+        response.response.trim() === expectedResponse.content.trim();
+
+      return {
+        success: isMatch,
+        error: isMatch ? undefined : 'Response mismatch',
+        score: isMatch ? 1 : 0,
+        executionTime,
+      };
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
         score: 0,
         executionTime,
       };
-    } catch (err) {
-      const error = err instanceof Error ? err.message : 'Unknown error';
-      result = {
-        success: false,
-        error,
-        score: 0,
-        executionTime: Date.now() - startTime,
-      };
     }
-
-    this.logger.debug('Test case executed', { result });
-    return result;
   }
 
   /**
@@ -86,115 +76,37 @@ export class EvaluationExecutor {
    * @param testCases The test cases to execute
    * @returns The test case results
    */
-  async executeTestCasesSequential(
+  public async executeTestCasesSequential(
     agent: IAgent,
-    testCases: TestCase[],
-  ): Promise<TestCaseResult[]> {
-    const results: TestCaseResult[] = [];
-
+    testCases: ParsedTestCase[],
+  ): Promise<EvaluationResult[]> {
+    const results: EvaluationResult[] = [];
     for (const testCase of testCases) {
-      const result = await this.executeTestCase(agent, testCase);
-      results.push(result);
+      results.push(await this.executeTestCase(agent, testCase));
     }
-
     return results;
   }
 
   /**
    * Executes multiple test cases in parallel and returns their evaluation results
    */
-  async executeTestCasesParallel(
+  public async executeTestCasesParallel(
     agent: IAgent,
-    testCases: TestCase[] = [],
-    examplesDir?: string,
-    maxConcurrency: number = 5,
+    testCases: ParsedTestCase[],
+    maxConcurrency = 5,
   ): Promise<EvaluationResult[]> {
-    // If no test cases provided, load from examples directory
-    if (testCases.length === 0 && examplesDir) {
-      const defaultExamplesDir = examplesDir || join(process.cwd(), 'examples');
-      const loadedTestCases =
-        await this.testCaseLoader.loadFromExamplesDir(defaultExamplesDir);
-
-      if (loadedTestCases.length === 0) {
-        throw new Error(
-          'No test cases provided and no default test cases found in examples directory',
-        );
-      }
-
-      testCases = loadedTestCases;
-    }
-
-    this.logger.info('Starting batch execution', {
-      testCaseCount: testCases.length,
-      maxConcurrency,
-    });
-
-    const results: EvaluationResult[] = [];
-    const chunks: TestCase[][] = [];
-
-    // Split test cases into chunks for controlled parallel execution
+    const chunks: ParsedTestCase[][] = [];
     for (let i = 0; i < testCases.length; i += maxConcurrency) {
       chunks.push(testCases.slice(i, i + maxConcurrency));
     }
 
-    // Execute chunks sequentially, but test cases within each chunk in parallel
+    const results: EvaluationResult[] = [];
     for (const chunk of chunks) {
       const chunkResults = await Promise.all(
-        chunk.map(async (testCase) => {
-          try {
-            await this.testIsolationService.prepareTestEnvironment(
-              this.defaultIsolationConfig,
-            );
-            const result = await this.executeTestCase(agent, testCase);
-            return {
-              testCase,
-              agentOutput: { response: '', error: undefined },
-              ...result,
-            };
-          } catch (error) {
-            return {
-              testCase,
-              agentOutput: {
-                response: '',
-                error: {
-                  message:
-                    error instanceof Error
-                      ? error.message
-                      : 'Unknown error occurred',
-                  details: error,
-                },
-              },
-              success: false,
-              error:
-                error instanceof Error
-                  ? error.message
-                  : 'Unknown error occurred',
-              score: 0,
-            };
-          }
-        }),
+        chunk.map((testCase) => this.executeTestCase(agent, testCase)),
       );
-
       results.push(...chunkResults);
     }
-
-    this.logger.info('Batch execution completed', {
-      totalTestCases: results.length,
-      successfulTests: results.filter((r) => r.success).length,
-      failedTests: results.filter((r) => !r.success).length,
-    });
-
     return results;
-  }
-
-  /**
-   * Cleans up resources after evaluation
-   */
-  async cleanup(): Promise<void> {
-    this.logger.info('Cleaning up evaluation resources');
-    await this.testIsolationService.cleanupTestEnvironment(
-      this.defaultIsolationConfig,
-    );
-    await this.agent.cleanup();
   }
 }

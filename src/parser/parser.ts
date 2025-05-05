@@ -1,15 +1,36 @@
 import { TestCaseParser } from './tokenizer';
-import {
-  MessageRole,
-  BaseMessage,
-  TestCase,
-} from '../core/types/message.types';
+import { MessageRole, BaseMessage } from '../core/types/message.types';
 import { roleMapper } from '../core/utils/role-mapper';
 import { ParseError } from './errors';
+import { readFile, readdir } from 'fs/promises';
+import { join } from 'path';
 
 /**
  * Parser for test case text files
  */
+export interface ParsedTestCase {
+  name: string;
+  messageBlocks: Array<{
+    role: MessageRole;
+    content: string;
+    toolUsages: Array<{
+      name: string;
+      args: string;
+    }>;
+    toolResponses: Array<{
+      content: string;
+    }>;
+  }>;
+}
+
+export interface LoadResult {
+  testCases: ParsedTestCase[];
+  errors: Array<{
+    filePath: string;
+    error: string;
+  }>;
+}
+
 export class Parser {
   private parser: TestCaseParser;
 
@@ -24,7 +45,7 @@ export class Parser {
    * @returns The parsed test case
    * @throws ParseError if parsing fails
    */
-  public parse(text: string, name: string): TestCase {
+  public parse(text: string, name: string): ParsedTestCase {
     const elements = this.parser.tokenize(text);
     const messageBlocks: BaseMessage[] = [];
     let currentBlock: BaseMessage | null = null;
@@ -116,13 +137,22 @@ export class Parser {
     if (currentBlock) {
       messageBlocks.push(currentBlock);
     }
+    // Must have at least two messages
+    if (messageBlocks.length < 2) {
+      throw new ParseError('Test case must contain at least two messages');
+    }
 
     // Validate the test case structure
     this.validateTestCase(messageBlocks);
 
     return {
       name,
-      messageBlocks,
+      messageBlocks: messageBlocks.map((block) => ({
+        role: block.role,
+        content: block.content,
+        toolUsages: block.toolUsages || [],
+        toolResponses: block.toolResponses || [],
+      })),
     };
   }
 
@@ -169,5 +199,46 @@ export class Parser {
         }
       }
     }
+  }
+
+  public async loadFromFile(filePath: string): Promise<ParsedTestCase> {
+    const content = await readFile(filePath, 'utf-8');
+    const name = filePath.split('/').pop()?.replace('.txt', '') || 'unnamed';
+    return this.parse(content, name);
+  }
+
+  public async loadFromDirectory(
+    directoryPath: string,
+    stopOnError = true,
+  ): Promise<LoadResult> {
+    const result: LoadResult = {
+      testCases: [],
+      errors: [],
+    };
+
+    try {
+      const files = await readdir(directoryPath);
+      for (const file of files) {
+        if (!file.endsWith('.txt')) continue;
+
+        try {
+          const testCase = await this.loadFromFile(join(directoryPath, file));
+          result.testCases.push(testCase);
+        } catch (error) {
+          result.errors.push({
+            filePath: join(directoryPath, file),
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+          if (stopOnError) break;
+        }
+      }
+    } catch (error) {
+      result.errors.push({
+        filePath: directoryPath,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
+    return result;
   }
 }

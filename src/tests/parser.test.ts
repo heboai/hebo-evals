@@ -1,6 +1,5 @@
 import { TestCaseParser } from '../parser/tokenizer.js';
 import { Parser } from '../parser/parser.js';
-import { TestCaseLoader } from '../parser/loader.js';
 import { MessageRole } from '../core/types/message.types.js';
 import { ParseError } from '../parser/errors.js';
 import { writeFile, mkdir, readdir, unlink, rmdir, mkdtemp } from 'fs/promises';
@@ -105,7 +104,7 @@ user123: This should not be parsed as a role
 assistant: Hi there`;
 
         expect(() => tokenizer.tokenize(text)).toThrow(
-          'Invalid role: user123. Valid roles are: user, assistant, human agent',
+          'Invalid message role: user123. Valid roles are: user, assistant, human agent',
         );
       });
 
@@ -375,19 +374,17 @@ tool response: some response`;
     });
   });
 
-  describe('TestCaseLoader', () => {
-    let loader: TestCaseLoader;
+  describe('Parser.loadFromDirectory', () => {
+    let parser: Parser;
     let tempDir: string;
 
     beforeEach(async () => {
-      loader = new TestCaseLoader();
+      parser = new Parser();
       tempDir = await mkdtemp(join(tmpdir(), 'hebo-eval-tests-'));
-      // Ensure clean directory for each test
       await mkdir(tempDir, { recursive: true });
     });
 
     afterEach(async () => {
-      // Cleanup temp files
       try {
         const files = await readdir(tempDir);
         await Promise.all(files.map((file) => unlink(join(tempDir, file))));
@@ -397,120 +394,153 @@ tool response: some response`;
       }
     });
 
-    describe('loadFromDirectory', () => {
-      it('should load test cases from a directory', async () => {
-        // Create test files
-        const testFile1 = join(tempDir, 'test1.txt');
-        const testFile2 = join(tempDir, 'test2.txt');
+    it('should load test cases from a directory', async () => {
+      const testFile1 = join(tempDir, 'test1.txt');
+      const testFile2 = join(tempDir, 'test2.txt');
 
-        // Create files and wait for them to be written
-        await Promise.all([
-          writeFile(
-            testFile1,
-            `user: Hello
+      await Promise.all([
+        writeFile(
+          testFile1,
+          `user: Hello
 assistant: Hi there`,
-          ),
-          writeFile(
-            testFile2,
-            `user: How are you?
+        ),
+        writeFile(
+          testFile2,
+          `user: How are you?
 assistant: I'm good`,
-          ),
-        ]);
+        ),
+      ]);
 
-        const result = await loader.loadFromDirectory(tempDir);
+      const result = await parser.loadFromDirectory(tempDir);
 
-        expect(result.testCases).toHaveLength(2);
-        expect(result.errors).toHaveLength(0);
-        expect(result.testCases[0].name).toBe('test1');
-        expect(result.testCases[1].name).toBe('test2');
-      });
+      expect(result.testCases).toHaveLength(2);
+      expect(result.errors).toHaveLength(0);
+      expect(result.testCases[0].name).toBe('test1');
+      expect(result.testCases[1].name).toBe('test2');
+    });
 
-      it('should handle invalid test files', async () => {
-        // Create an invalid test file
-        const invalidFile = join(tempDir, 'invalid.txt');
-        await writeFile(invalidFile, 'invalid: content');
+    it('should handle invalid test files', async () => {
+      const invalidFile = join(tempDir, 'invalid.txt');
+      await writeFile(invalidFile, 'invalid: content');
 
-        const result = await loader.loadFromDirectory(tempDir);
+      const result = await parser.loadFromDirectory(tempDir);
 
-        expect(result.testCases).toHaveLength(0);
-        expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].filePath).toBe(invalidFile);
-      });
+      expect(result.testCases).toHaveLength(0);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].filePath).toBe(invalidFile);
+    });
 
-      it('should handle non-existent directory', async () => {
-        const nonExistentDir = join(tempDir, 'non-existent');
-        const result = await loader.loadFromDirectory(nonExistentDir);
+    it('should handle non-existent directory', async () => {
+      const nonExistentDir = join(tempDir, 'non-existent');
+      const result = await parser.loadFromDirectory(nonExistentDir);
 
-        expect(result.testCases).toHaveLength(0);
-        expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].filePath).toBe(nonExistentDir);
-      });
+      expect(result.testCases).toHaveLength(0);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].filePath).toBe(nonExistentDir);
+    });
 
-      it('should handle errors according to stopOnError parameter', async () => {
-        // Create test files with one invalid file
-        const validFile1 = join(tempDir, 'a_valid1.txt');
-        const invalidFile = join(tempDir, 'b_invalid.txt');
-        const validFile2 = join(tempDir, 'c_valid2.txt');
+    it('should handle errors according to stopOnError parameter', async () => {
+      const validFile1 = join(tempDir, 'a_valid1.txt');
+      const invalidFile = join(tempDir, 'b_invalid.txt');
+      const validFile2 = join(tempDir, 'c_valid2.txt');
 
-        await Promise.all([
-          writeFile(
-            validFile1,
-            `user: Hello
+      await Promise.all([
+        writeFile(
+          validFile1,
+          `user: Hello
 assistant: Hi there`,
-          ),
-          writeFile(invalidFile, 'invalid: content'),
-          writeFile(
-            validFile2,
-            `user: How are you?
+        ),
+        writeFile(invalidFile, 'invalid: content'),
+        writeFile(
+          validFile2,
+          `user: How are you?
 assistant: I'm good`,
-          ),
-        ]);
+        ),
+      ]);
 
-        // Test with stopOnError = true (default)
-        const resultWithStop = await loader.loadFromDirectory(tempDir);
-        expect(resultWithStop.testCases).toHaveLength(1); // Only first valid file processed
-        expect(resultWithStop.errors).toHaveLength(1);
-        expect(resultWithStop.errors[0].filePath).toBe(invalidFile);
+      const resultWithStop = await parser.loadFromDirectory(tempDir);
+      expect(resultWithStop.testCases).toHaveLength(1);
+      expect(resultWithStop.errors).toHaveLength(1);
+      expect(resultWithStop.errors[0].filePath).toBe(invalidFile);
 
-        // Test with stopOnError = false
-        const resultWithoutStop = await loader.loadFromDirectory(
-          tempDir,
-          false,
-        );
-        expect(resultWithoutStop.testCases).toHaveLength(2); // Both valid files processed
-        expect(resultWithoutStop.errors).toHaveLength(1);
-        expect(resultWithoutStop.errors[0].filePath).toBe(invalidFile);
-      });
+      const resultWithoutStop = await parser.loadFromDirectory(tempDir, false);
+      expect(resultWithoutStop.testCases).toHaveLength(2);
+      expect(resultWithoutStop.errors).toHaveLength(1);
+      expect(resultWithoutStop.errors[0].filePath).toBe(invalidFile);
+    });
 
-      it('should handle directory content', async () => {
-        // Create test files
-        const testFile1 = join(tempDir, 'test1.txt');
-        const testFile2 = join(tempDir, 'test2.txt');
+    it('should handle directory content', async () => {
+      const testFile1 = join(tempDir, 'test1.txt');
+      const testFile2 = join(tempDir, 'test2.txt');
 
-        // Create files and wait for them to be written
-        await Promise.all([
-          writeFile(
-            testFile1,
-            `user: Hello
+      await Promise.all([
+        writeFile(
+          testFile1,
+          `user: Hello
 assistant: Hi there`,
-          ),
-          writeFile(
-            testFile2,
-            `user: How are you?
+        ),
+        writeFile(
+          testFile2,
+          `user: How are you?
 assistant: I'm good`,
-          ),
-        ]);
+        ),
+      ]);
 
-        const result = await loader.loadFromDirectory(tempDir);
+      const result = await parser.loadFromDirectory(tempDir);
 
-        expect(result.testCases).toHaveLength(2);
-        expect(result.errors).toHaveLength(0);
-        expect(result.testCases[0].name).toBe('test1');
-        expect(result.testCases[1].name).toBe('test2');
+      expect(result.testCases).toHaveLength(2);
+      expect(result.errors).toHaveLength(0);
+      expect(result.testCases[0].name).toBe('test1');
+      expect(result.testCases[1].name).toBe('test2');
 
+      const files = await readdir(tempDir);
+      expect(files.sort()).toEqual(['test1.txt', 'test2.txt'].sort());
+    });
+  });
+
+  describe('Parser.loadFromFile', () => {
+    let parser: Parser;
+    let tempDir: string;
+
+    beforeEach(async () => {
+      parser = new Parser();
+      tempDir = await mkdtemp(join(tmpdir(), 'hebo-eval-tests-'));
+      await mkdir(tempDir, { recursive: true });
+    });
+
+    afterEach(async () => {
+      try {
         const files = await readdir(tempDir);
-        expect(files.sort()).toEqual(['test1.txt', 'test2.txt'].sort());
-      });
+        await Promise.all(files.map((file) => unlink(join(tempDir, file))));
+        await rmdir(tempDir);
+      } catch (error) {
+        console.error('Cleanup error:', error);
+      }
+    });
+
+    it('should load a valid test case file', async () => {
+      const testFile = join(tempDir, 'test.txt');
+      await writeFile(
+        testFile,
+        `user: Hello
+assistant: Hi there`,
+      );
+
+      const result = await parser.loadFromFile(testFile);
+
+      expect(result.name).toBe('test');
+      expect(result.messageBlocks).toHaveLength(2);
+      expect(result.messageBlocks[0].role).toBe('user');
+      expect(result.messageBlocks[0].content).toBe('Hello');
+      expect(result.messageBlocks[1].role).toBe('assistant');
+      expect(result.messageBlocks[1].content).toBe('Hi there');
+    });
+
+    it('should handle invalid test file', async () => {
+      const invalidFile = join(tempDir, 'invalid.txt');
+      await writeFile(invalidFile, 'invalid: content');
+
+      await expect(parser.loadFromFile(invalidFile)).rejects.toThrow();
     });
   });
 });

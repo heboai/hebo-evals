@@ -96,7 +96,9 @@ export class TestCaseParser {
 
         if (!TestCaseParser.VALID_ROLES.has(normalizedRole)) {
           throw new ParseError(
-            `Invalid role: ${role}. Valid roles are: ${Array.from(TestCaseParser.VALID_ROLES).join(', ')}`,
+            `Invalid message role: ${role}. Valid roles are: ${Array.from(
+              TestCaseParser.VALID_ROLES,
+            ).join(', ')}`,
           );
         }
 
