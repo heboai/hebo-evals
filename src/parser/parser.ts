@@ -3,7 +3,7 @@ import { MessageRole, BaseMessage } from '../core/types/message.types';
 import { roleMapper } from '../core/utils/role-mapper';
 import { ParseError } from './errors';
 import { readFile, readdir } from 'fs/promises';
-import { join } from 'path';
+import { join, basename } from 'path';
 
 /**
  * Parser for test case text files
@@ -203,7 +203,7 @@ export class Parser {
 
   public async loadFromFile(filePath: string): Promise<ParsedTestCase> {
     const content = await readFile(filePath, 'utf-8');
-    const name = filePath.split('/').pop()?.replace('.txt', '') || 'unnamed';
+    const name = basename(filePath, '.txt');
     return this.parse(content, name);
   }
 
