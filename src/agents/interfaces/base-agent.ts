@@ -126,10 +126,14 @@ export abstract class BaseAgent implements IAgent {
       throw new Error('Authentication configuration not found');
     }
 
-    const { apiKey } = this.authConfig;
+    const {
+      apiKey,
+      headerName = 'Authorization',
+      headerFormat = 'Bearer {apiKey}',
+    } = this.authConfig;
 
     return {
-      Authorization: `Bearer ${apiKey}`,
+      [headerName]: headerFormat.replace('{apiKey}', apiKey),
     };
   }
 
