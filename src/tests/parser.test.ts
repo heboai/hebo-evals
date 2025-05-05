@@ -386,8 +386,22 @@ tool response: some response`;
 
     afterEach(async () => {
       try {
-        const files = await readdir(tempDir);
-        await Promise.all(files.map((file) => unlink(join(tempDir, file))));
+        // Recursively remove the temp directory and all its contents
+        const rmrf = async (dir: string) => {
+          const entries = await readdir(dir, { withFileTypes: true });
+          await Promise.all(
+            entries.map(async (entry) => {
+              const fullPath = join(dir, entry.name);
+              if (entry.isDirectory()) {
+                await rmrf(fullPath);
+                await rmdir(fullPath);
+              } else {
+                await unlink(fullPath);
+              }
+            }),
+          );
+        };
+        await rmrf(tempDir);
         await rmdir(tempDir);
       } catch (error) {
         console.error('Cleanup error:', error);
@@ -417,6 +431,99 @@ assistant: I'm good`,
       expect(result.errors).toHaveLength(0);
       expect(result.testCases[0].name).toBe('test1');
       expect(result.testCases[1].name).toBe('test2');
+    });
+
+    it('should recursively load test cases from subdirectories', async () => {
+      // Create subdirectories
+      const subDir1 = join(tempDir, 'subdir1');
+      const subDir2 = join(tempDir, 'subdir2');
+      const nestedDir = join(subDir1, 'nested');
+
+      // Create directories sequentially to ensure parent directories exist
+      await mkdir(subDir1);
+      await mkdir(subDir2);
+      await mkdir(nestedDir);
+
+      // Create test files in various directories
+      const files = [
+        join(tempDir, 'root.txt'),
+        join(subDir1, 'sub1.txt'),
+        join(subDir2, 'sub2.txt'),
+        join(nestedDir, 'nested.txt'),
+      ];
+
+      await Promise.all(
+        files.map((file) =>
+          writeFile(
+            file,
+            `user: Hello
+assistant: Hi there`,
+          ),
+        ),
+      );
+
+      const result = await parser.loadFromDirectory(tempDir);
+
+      expect(result.testCases).toHaveLength(4);
+      expect(result.errors).toHaveLength(0);
+      expect(result.testCases.map((tc) => tc.name).sort()).toEqual(
+        ['root', 'sub1', 'sub2', 'nested'].sort(),
+      );
+    });
+
+    it('should process files in parallel when stopOnError is false', async () => {
+      // Create test files including an invalid one
+      const files = [
+        {
+          path: join(tempDir, 'valid1.txt'),
+          content: 'user: Hello\nassistant: Hi',
+        },
+        { path: join(tempDir, 'invalid.txt'), content: 'invalid content' },
+        {
+          path: join(tempDir, 'valid2.txt'),
+          content: 'user: Test\nassistant: Response',
+        },
+      ];
+
+      await Promise.all(
+        files.map((file) => writeFile(file.path, file.content)),
+      );
+
+      const result = await parser.loadFromDirectory(tempDir, false);
+
+      expect(result.testCases).toHaveLength(2);
+      expect(result.errors).toHaveLength(1);
+      expect(result.testCases.map((tc) => tc.name).sort()).toEqual(
+        ['valid1', 'valid2'].sort(),
+      );
+      expect(result.errors[0].filePath).toContain('invalid.txt');
+    });
+
+    it('should stop processing on first error when stopOnError is true', async () => {
+      // Create test files in a specific order using numeric prefixes
+      const files = [
+        {
+          path: join(tempDir, '1_valid1.txt'),
+          content: 'user: Hello\nassistant: Hi',
+        },
+        { path: join(tempDir, '2_invalid.txt'), content: 'invalid content' },
+        {
+          path: join(tempDir, '3_valid2.txt'),
+          content: 'user: Test\nassistant: Response',
+        },
+      ];
+
+      // Create files sequentially to ensure consistent order
+      for (const file of files) {
+        await writeFile(file.path, file.content);
+      }
+
+      const result = await parser.loadFromDirectory(tempDir, true);
+
+      expect(result.testCases).toHaveLength(1);
+      expect(result.errors).toHaveLength(1);
+      expect(result.testCases[0].name).toBe('1_valid1');
+      expect(result.errors[0].filePath).toContain('2_invalid.txt');
     });
 
     it('should handle invalid test files', async () => {

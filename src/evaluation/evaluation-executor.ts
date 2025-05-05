@@ -8,6 +8,7 @@ export interface EvaluationResult {
   error?: string;
   score: number;
   executionTime: number;
+  response?: string;
 }
 
 /**
@@ -58,6 +59,7 @@ export class EvaluationExecutor {
         error: isMatch ? undefined : 'Response mismatch',
         score: isMatch ? 1 : 0,
         executionTime,
+        response: response.response,
       };
     } catch (error) {
       const executionTime = Date.now() - startTime;
@@ -66,6 +68,7 @@ export class EvaluationExecutor {
         error: error instanceof Error ? error.message : 'Unknown error',
         score: 0,
         executionTime,
+        response: '',
       };
     }
   }

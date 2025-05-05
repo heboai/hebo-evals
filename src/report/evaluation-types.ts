@@ -9,11 +9,11 @@ export const EvaluationResultSchema = z.object({
     input: z.string(),
     expected: z.string(),
   }),
-  observed: z.string(),
   score: z.number().min(0).max(1),
   passed: z.boolean(),
   error: z.string().optional(),
   timestamp: z.date(),
+  response: z.string(),
 });
 
 export type EvaluationResult = z.infer<typeof EvaluationResultSchema>;

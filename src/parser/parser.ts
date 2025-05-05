@@ -207,6 +207,12 @@ export class Parser {
     return this.parse(content, name);
   }
 
+  /**
+   * Loads test cases from a directory and its subdirectories
+   * @param directoryPath The path to the directory containing test cases
+   * @param stopOnError Whether to stop processing on first error (default: true)
+   * @returns Promise that resolves with the loaded test cases and any errors
+   */
   public async loadFromDirectory(
     directoryPath: string,
     stopOnError = true,
@@ -217,19 +223,78 @@ export class Parser {
     };
 
     try {
-      const files = await readdir(directoryPath);
-      for (const file of files) {
-        if (!file.endsWith('.txt')) continue;
+      const entries = await readdir(directoryPath, { withFileTypes: true });
 
-        try {
-          const testCase = await this.loadFromFile(join(directoryPath, file));
-          result.testCases.push(testCase);
-        } catch (error) {
-          result.errors.push({
-            filePath: join(directoryPath, file),
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
-          if (stopOnError) break;
+      if (stopOnError) {
+        // Process files sequentially if we need to stop on error
+        for (const entry of entries) {
+          const fullPath = join(directoryPath, entry.name);
+
+          if (entry.isDirectory()) {
+            const subResult = await this.loadFromDirectory(
+              fullPath,
+              stopOnError,
+            );
+            result.testCases.push(...subResult.testCases);
+            result.errors.push(...subResult.errors);
+            if (subResult.errors.length > 0) return result;
+            continue;
+          }
+
+          if (!entry.name.endsWith('.txt')) continue;
+
+          try {
+            const testCase = await this.loadFromFile(fullPath);
+            result.testCases.push(testCase);
+          } catch (error) {
+            result.errors.push({
+              filePath: fullPath,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+            return result;
+          }
+        }
+      } else {
+        // Process files in parallel if we don't need to stop on error
+        const processPromises = entries.map(async (entry) => {
+          const fullPath = join(directoryPath, entry.name);
+
+          if (entry.isDirectory()) {
+            return this.loadFromDirectory(fullPath, stopOnError);
+          }
+
+          if (!entry.name.endsWith('.txt')) {
+            return {
+              testCases: [],
+              errors: [],
+            };
+          }
+
+          try {
+            const testCase = await this.loadFromFile(fullPath);
+            return {
+              testCases: [testCase],
+              errors: [],
+            };
+          } catch (error) {
+            return {
+              testCases: [],
+              errors: [
+                {
+                  filePath: fullPath,
+                  error:
+                    error instanceof Error ? error.message : 'Unknown error',
+                },
+              ],
+            };
+          }
+        });
+
+        const results = await Promise.all(processPromises);
+
+        for (const subResult of results) {
+          result.testCases.push(...subResult.testCases);
+          result.errors.push(...subResult.errors);
         }
       }
     } catch (error) {

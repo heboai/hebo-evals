@@ -94,26 +94,6 @@ export abstract class BaseAgent implements IAgent {
   }
 
   /**
-   * Resets the agent's state to its initial configuration
-   * @returns Promise that resolves when reset is complete
-   */
-  reset(): Promise<void> {
-    this.isInitialized = false;
-    this.isAuthenticated = false;
-    this.authConfig = undefined;
-    return Promise.resolve();
-  }
-
-  /**
-   * Clears the agent's memory and conversation history
-   * @returns Promise that resolves when memory is cleared
-   */
-  clearMemory(): Promise<void> {
-    // Base implementation does nothing as memory management is agent-specific
-    return Promise.resolve();
-  }
-
-  /**
    * Cleans up any resources used by the agent
    * @returns Promise that resolves when cleanup is complete
    */
@@ -122,33 +102,6 @@ export abstract class BaseAgent implements IAgent {
     this.isAuthenticated = false;
     this.authConfig = undefined;
     return Promise.resolve();
-  }
-
-  /**
-   * Gets the authentication headers for the request
-   * @returns Record containing the authentication headers
-   * @throws Error if authentication configuration is invalid or headerFormat is missing the {apiKey} placeholder
-   */
-  protected getAuthHeaders(): Record<string, string> {
-    if (!this.authConfig) {
-      throw new Error('Authentication configuration not found');
-    }
-
-    const {
-      apiKey,
-      headerName = 'Authorization',
-      headerFormat = 'Bearer {apiKey}',
-    } = this.authConfig;
-
-    if (!headerFormat.includes('{apiKey}')) {
-      throw new Error('headerFormat must contain the {apiKey} placeholder');
-    }
-
-    const headerValue = headerFormat.replace('{apiKey}', apiKey);
-
-    return {
-      [headerName]: headerValue,
-    };
   }
 
   /**
@@ -161,6 +114,23 @@ export abstract class BaseAgent implements IAgent {
       throw new Error('API key is required for authentication');
     }
     return Promise.resolve();
+  }
+
+  /**
+   * Gets the authentication headers for API requests
+   * @returns Record containing the authentication headers
+   * @throws Error if authentication configuration is invalid
+   */
+  protected getAuthHeaders(): Record<string, string> {
+    if (!this.authConfig) {
+      throw new Error('Authentication configuration not found');
+    }
+
+    const { apiKey } = this.authConfig;
+
+    return {
+      Authorization: `Bearer ${apiKey}`,
+    };
   }
 
   /**

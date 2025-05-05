@@ -47,16 +47,6 @@ export interface IAgent {
   validateConfig: () => Promise<boolean>;
 
   /**
-   * Resets the agent's state to its initial configuration
-   */
-  reset: () => Promise<void>;
-
-  /**
-   * Clears the agent's memory and conversation history
-   */
-  clearMemory: () => Promise<void>;
-
-  /**
    * Cleans up any resources used by the agent
    * @returns Promise that resolves when cleanup is complete
    */
