@@ -1,74 +1,37 @@
-import pino, { Logger as PinoLogger } from 'pino';
-
 /**
- * Singleton logger instance
- */
-let instance: Logger | null = null;
-
-/**
- * Logger class that wraps Pino logger
+ * Simple logger utility for CLI output
  */
 export class Logger {
-  private logger: PinoLogger;
+  private static instance: Logger | null = null;
 
-  private constructor() {
-    this.logger = pino({
-      level: process.env.LOG_LEVEL || 'info',
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'SYS:standard',
-          ignore: 'pid,hostname',
-        },
-      },
-    });
-  }
+  private constructor() {}
 
-  /**
-   * Gets the singleton instance of the logger
-   * @returns The logger instance
-   */
   public static getInstance(): Logger {
-    if (!instance) {
-      instance = new Logger();
+    if (!this.instance) {
+      this.instance = new Logger();
     }
-    return instance;
+    return this.instance;
   }
 
-  /**
-   * Logs an error message
-   * @param message The error message
-   * @param meta Additional metadata
-   */
   error(message: string, meta?: Record<string, unknown>): void {
-    this.logger.error(meta || {}, message);
+    console.error('\x1b[31m%s\x1b[0m', 'ERROR:', message);
+    if (meta) console.error(meta);
   }
 
-  /**
-   * Logs a warning message
-   * @param message The warning message
-   * @param meta Additional metadata
-   */
   warn(message: string, meta?: Record<string, unknown>): void {
-    this.logger.warn(meta || {}, message);
+    console.warn('\x1b[33m%s\x1b[0m', 'WARN:', message);
+    if (meta) console.warn(meta);
   }
 
-  /**
-   * Logs an info message
-   * @param message The info message
-   * @param meta Additional metadata
-   */
   info(message: string, meta?: Record<string, unknown>): void {
-    this.logger.info(meta || {}, message);
+    console.info('\x1b[36m%s\x1b[0m', 'INFO:', message);
+    if (meta) console.info(meta);
   }
 
-  /**
-   * Logs a debug message
-   * @param message The debug message
-   * @param meta Additional metadata
-   */
   debug(message: string, meta?: Record<string, unknown>): void {
-    this.logger.debug(meta || {}, message);
+    if (process.env.DEBUG) {
+      console.debug('\x1b[35m%s\x1b[0m', 'DEBUG:', message);
+      if (meta) console.debug(meta);
+    }
   }
 }
