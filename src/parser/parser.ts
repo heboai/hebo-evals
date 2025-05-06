@@ -1,36 +1,15 @@
 import { TestCaseParser } from './tokenizer';
-import { MessageRole, BaseMessage } from '../core/types/message.types';
+import {
+  MessageRole,
+  BaseMessage,
+  TestCase,
+} from '../core/types/message.types';
 import { roleMapper } from '../core/utils/role-mapper';
 import { ParseError } from './errors';
-import { readFile, readdir } from 'fs/promises';
-import { join, basename } from 'path';
 
 /**
  * Parser for test case text files
  */
-export interface ParsedTestCase {
-  name: string;
-  messageBlocks: Array<{
-    role: MessageRole;
-    content: string;
-    toolUsages: Array<{
-      name: string;
-      args: string;
-    }>;
-    toolResponses: Array<{
-      content: string;
-    }>;
-  }>;
-}
-
-export interface LoadResult {
-  testCases: ParsedTestCase[];
-  errors: Array<{
-    filePath: string;
-    error: string;
-  }>;
-}
-
 export class Parser {
   private parser: TestCaseParser;
 
@@ -45,7 +24,7 @@ export class Parser {
    * @returns The parsed test case
    * @throws ParseError if parsing fails
    */
-  public parse(text: string, name: string): ParsedTestCase {
+  public parse(text: string, name: string): TestCase {
     const elements = this.parser.tokenize(text);
     const messageBlocks: BaseMessage[] = [];
     let currentBlock: BaseMessage | null = null;
@@ -137,22 +116,13 @@ export class Parser {
     if (currentBlock) {
       messageBlocks.push(currentBlock);
     }
-    // Must have at least two messages
-    if (messageBlocks.length < 2) {
-      throw new ParseError('Test case must contain at least two messages');
-    }
 
     // Validate the test case structure
     this.validateTestCase(messageBlocks);
 
     return {
       name,
-      messageBlocks: messageBlocks.map((block) => ({
-        role: block.role,
-        content: block.content,
-        toolUsages: block.toolUsages || [],
-        toolResponses: block.toolResponses || [],
-      })),
+      messageBlocks,
     };
   }
 
@@ -199,111 +169,5 @@ export class Parser {
         }
       }
     }
-  }
-
-  public async loadFromFile(filePath: string): Promise<ParsedTestCase> {
-    const content = await readFile(filePath, 'utf-8');
-    const name = basename(filePath, '.txt');
-    return this.parse(content, name);
-  }
-
-  /**
-   * Loads test cases from a directory and its subdirectories
-   * @param directoryPath The path to the directory containing test cases
-   * @param stopOnError Whether to stop processing on first error (default: true)
-   * @returns Promise that resolves with the loaded test cases and any errors
-   */
-  public async loadFromDirectory(
-    directoryPath: string,
-    stopOnError = true,
-  ): Promise<LoadResult> {
-    const result: LoadResult = {
-      testCases: [],
-      errors: [],
-    };
-
-    try {
-      const entries = await readdir(directoryPath, { withFileTypes: true });
-
-      if (stopOnError) {
-        // Process files sequentially if we need to stop on error
-        for (const entry of entries) {
-          const fullPath = join(directoryPath, entry.name);
-
-          if (entry.isDirectory()) {
-            const subResult = await this.loadFromDirectory(
-              fullPath,
-              stopOnError,
-            );
-            result.testCases.push(...subResult.testCases);
-            result.errors.push(...subResult.errors);
-            if (subResult.errors.length > 0) return result;
-            continue;
-          }
-
-          if (!entry.name.endsWith('.txt')) continue;
-
-          try {
-            const testCase = await this.loadFromFile(fullPath);
-            result.testCases.push(testCase);
-          } catch (error) {
-            result.errors.push({
-              filePath: fullPath,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            });
-            return result;
-          }
-        }
-      } else {
-        // Process files in parallel if we don't need to stop on error
-        const processPromises = entries.map(async (entry) => {
-          const fullPath = join(directoryPath, entry.name);
-
-          if (entry.isDirectory()) {
-            return this.loadFromDirectory(fullPath, stopOnError);
-          }
-
-          if (!entry.name.endsWith('.txt')) {
-            return {
-              testCases: [],
-              errors: [],
-            };
-          }
-
-          try {
-            const testCase = await this.loadFromFile(fullPath);
-            return {
-              testCases: [testCase],
-              errors: [],
-            };
-          } catch (error) {
-            return {
-              testCases: [],
-              errors: [
-                {
-                  filePath: fullPath,
-                  error:
-                    error instanceof Error ? error.message : 'Unknown error',
-                },
-              ],
-            };
-          }
-        });
-
-        const results = await Promise.all(processPromises);
-
-        for (const subResult of results) {
-          result.testCases.push(...subResult.testCases);
-          result.errors.push(...subResult.errors);
-        }
-      }
-    } catch (error) {
-      result.errors.push({
-        filePath: directoryPath,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-
-    return result;
   }
 }

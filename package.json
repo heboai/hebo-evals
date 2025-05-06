@@ -31,7 +31,6 @@
   "license": "FSL-1.1-ALv2",
   "dependencies": {
     "commander": "^13.1.0",
-    "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "zod": "^3.22.4"
   },

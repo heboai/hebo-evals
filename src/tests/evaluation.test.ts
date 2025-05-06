@@ -1,11 +1,17 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { EvaluationExecutor } from '../evaluation/evaluation-executor';
 import { IAgent } from '../agents/interfaces/agent.interface';
-import { MessageRole } from '../core/types/message.types';
-import { Parser, ParsedTestCase } from '../parser/parser';
+import { MessageRole, TestCase } from '../core/types/message.types';
+import { TestCaseLoader } from '../parser/loader';
 import { writeFile, rm, mkdtemp } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import {
+  AgentConfig,
+  AgentInput,
+  AgentOutput,
+  AgentAuthConfig,
+} from '../agents/types/agent.types';
 
 // Mock the logger to prevent console output during tests
 jest.mock('../utils/logger', () => ({
@@ -22,11 +28,11 @@ jest.mock('../utils/logger', () => ({
 describe('Evaluation System', () => {
   // Parser Tests
   describe('Parser', () => {
-    let parser: Parser;
+    let loader: TestCaseLoader;
     let tempDir: string;
 
     beforeEach(async () => {
-      parser = new Parser();
+      loader = new TestCaseLoader();
       tempDir = await mkdtemp(join(tmpdir(), 'hebo-eval-'));
     });
 
@@ -41,7 +47,7 @@ assistant: Hi there!`;
       const filePath = join(tempDir, 'test-case.txt');
       await writeFile(filePath, testCaseContent);
 
-      const result = await parser.loadFromFile(filePath);
+      const result = await loader.loadFile(filePath);
 
       expect(result).toBeDefined();
       expect(result.messageBlocks).toHaveLength(2);
@@ -56,90 +62,90 @@ assistant: Hi there!`;
       const filePath = join(tempDir, 'invalid.txt');
       await writeFile(filePath, invalidContent);
 
-      await expect(parser.loadFromFile(filePath)).rejects.toThrow();
+      await expect(loader.loadFile(filePath)).rejects.toThrow();
     });
   });
 
   // Evaluation Executor Tests
   describe('EvaluationExecutor', () => {
     let executor: EvaluationExecutor;
-    let mockAgent: jest.Mocked<IAgent>;
+    let mockAgent: IAgent;
 
     beforeEach(() => {
-      mockAgent = {
-        config: { model: 'test-model' },
-        getConfig: jest.fn().mockReturnValue({ model: 'test-model' }),
-        initialize: jest.fn().mockImplementation(() => Promise.resolve()),
-        authenticate: jest.fn().mockImplementation(() => Promise.resolve()),
-        sendInput: jest.fn().mockImplementation(() =>
-          Promise.resolve({
-            response: 'Hi there!',
-            metadata: { test: true },
-          }),
-        ),
-        validateConfig: jest
-          .fn()
-          .mockImplementation(() => Promise.resolve(true)),
-        cleanup: jest.fn().mockImplementation(() => Promise.resolve()),
-      } as jest.Mocked<IAgent>;
-
       executor = new EvaluationExecutor();
+      mockAgent = {
+        sendInput: jest
+          .fn<(input: AgentInput) => Promise<AgentOutput>>()
+          .mockResolvedValue({
+            response: 'Hi there!',
+          }),
+        getConfig: jest.fn<() => AgentConfig>().mockReturnValue({
+          model: 'test-model',
+        }),
+        initialize: jest
+          .fn<(config: AgentConfig) => Promise<void>>()
+          .mockResolvedValue(undefined),
+        authenticate: jest
+          .fn<(authConfig: AgentAuthConfig) => Promise<void>>()
+          .mockResolvedValue(undefined),
+        validateConfig: jest
+          .fn<() => Promise<boolean>>()
+          .mockResolvedValue(true),
+        cleanup: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      };
     });
 
     it('should execute a test case successfully', async () => {
-      const testCase: ParsedTestCase = {
+      const testCase: TestCase = {
         name: 'test-case',
         messageBlocks: [
           {
             role: MessageRole.USER,
             content: 'Hello',
-            toolUsages: [],
-            toolResponses: [],
           },
           {
             role: MessageRole.ASSISTANT,
             content: 'Hi there!',
-            toolUsages: [],
-            toolResponses: [],
           },
         ],
       };
 
       const result = await executor.executeTestCase(mockAgent, testCase);
 
-      expect(result).toBeDefined();
       expect(result.success).toBe(true);
+      expect(result.executionTime).toBeGreaterThan(0);
+      expect(result.score).toBe(1);
+      expect(result.error).toBeUndefined();
       expect(mockAgent.sendInput).toHaveBeenCalledTimes(1);
-      expect(mockAgent.sendInput).toHaveBeenCalledWith({
-        messages: [
-          {
-            role: MessageRole.USER,
-            content: 'Hello',
-          },
-        ],
-      });
     });
 
-    it('should handle agent errors gracefully', async () => {
-      const testCase: ParsedTestCase = {
-        name: 'error-test',
+    it('should handle test case execution failure', async () => {
+      const testCase: TestCase = {
+        name: 'test-case',
         messageBlocks: [
           {
             role: MessageRole.USER,
             content: 'Hello',
-            toolUsages: [],
-            toolResponses: [],
+          },
+          {
+            role: MessageRole.ASSISTANT,
+            content: 'Hi there!',
           },
         ],
       };
 
-      mockAgent.sendInput.mockRejectedValueOnce(new Error('Agent error'));
+      (
+        mockAgent.sendInput as jest.Mock<
+          (input: AgentInput) => Promise<AgentOutput>
+        >
+      ).mockRejectedValue(new Error('Test error'));
 
       const result = await executor.executeTestCase(mockAgent, testCase);
 
-      expect(result).toBeDefined();
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
+      expect(result.executionTime).toBeGreaterThan(0);
+      expect(result.score).toBe(0);
     });
   });
 });

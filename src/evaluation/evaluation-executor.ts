@@ -1,7 +1,9 @@
-import { IAgent } from '../agents/interfaces/agent.interface';
 import { AgentInput } from '../agents/types/agent.types';
-import { ParsedTestCase, Parser } from '../parser/parser';
+import { IAgent } from '../agents/interfaces/agent.interface';
 import { Logger } from '../utils/logger';
+import { Parser } from '../parser/parser';
+import { performance } from 'perf_hooks';
+import { TestCase } from '../core/types/message.types';
 
 export interface EvaluationResult {
   success: boolean;
@@ -24,16 +26,16 @@ export class EvaluationExecutor {
   }
 
   /**
-   * Executes a single test case against the agent
+   * Executes a single test case against an agent
    * @param agent The agent to test
    * @param testCase The test case to execute
-   * @returns The test case result
+   * @returns Promise that resolves with the evaluation result
    */
   public async executeTestCase(
     agent: IAgent,
-    testCase: ParsedTestCase,
+    testCase: TestCase,
   ): Promise<EvaluationResult> {
-    const startTime = Date.now();
+    const startTime = performance.now();
     try {
       const input: AgentInput = {
         messages: testCase.messageBlocks.slice(0, -1).map((block) => ({
@@ -74,14 +76,14 @@ export class EvaluationExecutor {
   }
 
   /**
-   * Executes multiple test cases against the agent
+   * Executes multiple test cases against an agent
    * @param agent The agent to test
    * @param testCases The test cases to execute
-   * @returns The test case results
+   * @returns Promise that resolves with the evaluation results
    */
-  public async executeTestCasesSequential(
+  public async executeTestCases(
     agent: IAgent,
-    testCases: ParsedTestCase[],
+    testCases: TestCase[],
   ): Promise<EvaluationResult[]> {
     const results: EvaluationResult[] = [];
     for (const testCase of testCases) {
@@ -91,14 +93,18 @@ export class EvaluationExecutor {
   }
 
   /**
-   * Executes multiple test cases in parallel and returns their evaluation results
+   * Executes test cases in parallel with a maximum concurrency
+   * @param agent The agent to test
+   * @param testCases The test cases to execute
+   * @param maxConcurrency Maximum number of concurrent executions
+   * @returns Promise that resolves with the evaluation results
    */
-  public async executeTestCasesParallel(
+  private async executeTestCasesInParallel(
     agent: IAgent,
-    testCases: ParsedTestCase[],
-    maxConcurrency = 5,
+    testCases: TestCase[],
+    maxConcurrency: number,
   ): Promise<EvaluationResult[]> {
-    const chunks: ParsedTestCase[][] = [];
+    const chunks: TestCase[][] = [];
     for (let i = 0; i < testCases.length; i += maxConcurrency) {
       chunks.push(testCases.slice(i, i + maxConcurrency));
     }
