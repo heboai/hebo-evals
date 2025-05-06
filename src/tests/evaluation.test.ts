@@ -97,6 +97,7 @@ assistant: Hi there!`;
 
     it('should execute a test case successfully', async () => {
       const testCase: TestCase = {
+        id: 'test-case-1',
         name: 'test-case',
         messageBlocks: [
           {
@@ -121,6 +122,7 @@ assistant: Hi there!`;
 
     it('should handle test case execution failure', async () => {
       const testCase: TestCase = {
+        id: 'test-case-2',
         name: 'test-case',
         messageBlocks: [
           {

@@ -6,6 +6,7 @@ import { performance } from 'perf_hooks';
 import { TestCase } from '../core/types/message.types';
 
 export interface EvaluationResult {
+  testCaseId: string;
   success: boolean;
   error?: string;
   score: number;
@@ -50,13 +51,14 @@ export class EvaluationExecutor {
 
       // Execute the test
       const response = await agent.sendInput(input);
-      const executionTime = Date.now() - startTime;
+      const executionTime = performance.now() - startTime;
 
       // Validate response
       const isMatch =
         response.response.trim() === expectedResponse.content.trim();
 
       return {
+        testCaseId: testCase.id,
         success: isMatch,
         error: isMatch ? undefined : 'Response mismatch',
         score: isMatch ? 1 : 0,
@@ -66,6 +68,7 @@ export class EvaluationExecutor {
     } catch (error) {
       const executionTime = Date.now() - startTime;
       return {
+        testCaseId: testCase.id,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         score: 0,
@@ -86,8 +89,29 @@ export class EvaluationExecutor {
     testCases: TestCase[],
   ): Promise<EvaluationResult[]> {
     const results: EvaluationResult[] = [];
-    for (const testCase of testCases) {
-      results.push(await this.executeTestCase(agent, testCase));
+    try {
+      for (const testCase of testCases) {
+        try {
+          results.push(await this.executeTestCase(agent, testCase));
+        } catch (error) {
+          this.logger.error(
+            `Error executing test case ${testCase.id}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          );
+          results.push({
+            testCaseId: testCase.id,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            score: 0,
+            executionTime: 0,
+            response: '',
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Fatal error in executeTestCases: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      throw error; // Re-throw fatal errors that affect the entire execution
     }
     return results;
   }

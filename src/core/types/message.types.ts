@@ -70,6 +70,7 @@ export interface BaseMessage {
  * Test case definition
  */
 export interface TestCase {
+  id: string;
   name: string;
   messageBlocks: BaseMessage[];
 }
