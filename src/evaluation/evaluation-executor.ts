@@ -134,16 +134,22 @@ export class EvaluationExecutor {
     }
 
     const results: EvaluationResult[] = [];
-    this.logger.info(`Starting parallel execution of ${testCases.length} test cases with concurrency ${maxConcurrency}`);
+    this.logger.info(
+      `Starting parallel execution of ${testCases.length} test cases with concurrency ${maxConcurrency}`,
+    );
     for (const chunk of chunks) {
-      this.logger.debug(`Executing chunk of ${chunk.length} test cases (${results.length}/${testCases.length} completed)`);
+      this.logger.debug(
+        `Executing chunk of ${chunk.length} test cases (${results.length}/${testCases.length} completed)`,
+      );
       // Process each test case with error handling
       const chunkPromises = chunk.map(async (testCase) => {
         try {
           return await this.executeTestCase(agent, testCase);
         } catch (error) {
           this.logger.error(
-            `Error executing test case ${testCase.id}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            `Error executing test case ${testCase.id}: ${
+              error instanceof Error ? error.message : 'Unknown error'
+            }`,
           );
           return {
             testCaseId: testCase.id,
@@ -158,7 +164,9 @@ export class EvaluationExecutor {
       const chunkResults = await Promise.all(chunkPromises);
       results.push(...chunkResults);
     }
-    this.logger.info(`Completed parallel execution of ${testCases.length} test cases`);
+    this.logger.info(
+      `Completed parallel execution of ${testCases.length} test cases`,
+    );
     return results;
   }
 }
