@@ -1,88 +1,59 @@
-import { BaseMessage } from '../../core/types/message.types';
-import { TestCase as CoreTestCase } from '../../core/types/message.types';
+import { z } from 'zod';
 
 /**
- * Represents a test case for agent evaluation.
+ * Configuration for scoring and report generation
  */
-export interface TestCase extends CoreTestCase {
-  /**
-   * Unique identifier for the test case.
-   */
-  id: string;
+export const EvaluationConfigSchema = z.object({
+  threshold: z.number().min(0).max(1).default(0.7),
+  useSemanticScoring: z.boolean().default(true),
+  outputFormat: z.enum(['json', 'markdown', 'text']).default('markdown'),
+  maxConcurrency: z.number().min(1).default(5),
+});
 
-  /**
-   * Name of the test case.
-   */
-  name: string;
-
-  /**
-   * The sequence of messages that form the test case.
-   */
-  messageBlocks: BaseMessage[];
-}
+export type EvaluationConfig = z.infer<typeof EvaluationConfigSchema>;
 
 /**
- * Represents the result of executing a test case.
+ * Represents a single evaluation result
  */
-export interface TestCaseResult {
-  /**
-   * Whether the test case execution was successful.
-   */
-  success: boolean;
+export const EvaluationResultSchema = z.object({
+  testCase: z.object({
+    id: z.string(),
+    input: z.string(),
+    expected: z.string(),
+  }),
+  score: z.number().min(0).max(1),
+  passed: z.boolean(),
+  error: z.string().optional(),
+  timestamp: z.date(),
+  response: z.string(),
+});
 
-  /**
-   * Error message if the test case failed.
-   */
-  error?: string;
-
-  /**
-   * Score between 0 and 1 indicating how well the agent performed.
-   */
-  score: number;
-
-  /**
-   * Time taken to execute the test case in milliseconds.
-   */
-  executionTime: number;
-}
+export type EvaluationResult = z.infer<typeof EvaluationResultSchema>;
 
 /**
- * Represents the complete result of evaluating a test case, including the test case itself
- * and the agent's response.
+ * Represents the aggregated report of all evaluations
  */
-export interface EvaluationResult {
-  /**
-   * Unique identifier of the test case.
-   */
-  testCaseId: string;
+export const EvaluationReportSchema = z.object({
+  totalTests: z.number(),
+  passedTests: z.number(),
+  failedTests: z.number(),
+  passRate: z.number().min(0).max(1),
+  results: z.array(
+    z.object({
+      testCase: z.object({
+        id: z.string(),
+        input: z.string(),
+        expected: z.string(),
+      }),
+      score: z.number().min(0).max(1),
+      passed: z.boolean(),
+      error: z.string().optional(),
+      timestamp: z.date(),
+      response: z.string(),
+    }),
+  ),
+  timestamp: z.date(),
+  duration: z.number(),
+});
 
-  /**
-   * Whether the test case execution was successful.
-   */
-  success: boolean;
-
-  /**
-   * Error message if the test case failed.
-   */
-  error?: string;
-
-  /**
-   * Score between 0 and 1 indicating how well the agent performed.
-   */
-  score: number;
-
-  /**
-   * Time taken to execute the test case in milliseconds.
-   */
-  executionTime: number;
-
-  /**
-   * The response from the agent.
-   */
-  response?: string;
-
-  /**
-   * The original test case that was evaluated.
-   */
-  testCase: TestCase;
-}
+export type EvaluationReport = z.infer<typeof EvaluationReportSchema>;

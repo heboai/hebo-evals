@@ -2,7 +2,7 @@ import {
   EvaluationConfig,
   EvaluationReport,
   EvaluationResult,
-} from './evaluation-types';
+} from '../evaluation/types/evaluation.types';
 
 /**
  * Service for generating evaluation reports in various formats

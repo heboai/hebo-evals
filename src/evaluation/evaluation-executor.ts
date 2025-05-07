@@ -6,8 +6,8 @@ import { TestCase } from '../core/types/message.types';
 import { TestCaseLoader } from '../parser/loader';
 import { ScoringService } from '../scoring/scoring.service';
 import { ReportGenerator } from '../report/report-generator';
-import { EvaluationConfig, EvaluationReport } from '../report/evaluation-types';
-import { EvaluationResult } from './types/evaluation.types';
+import { EvaluationConfig, EvaluationReport } from './types/evaluation.types';
+import { TestCaseEvaluation } from './types/test-case.types';
 
 /**
  * Service for executing test cases against an agent
@@ -73,7 +73,7 @@ export class EvaluationExecutor {
           id: result.testCaseId,
           input: result.testCase.messageBlocks
             .slice(0, -1)
-            .map((m) => m.content)
+            .map((m: { content: string }) => m.content)
             .join('\n'),
           expected:
             result.testCase.messageBlocks[
@@ -104,7 +104,7 @@ export class EvaluationExecutor {
     agent: IAgent,
     directoryPath: string,
     stopOnError: boolean = true,
-  ): Promise<EvaluationResult[]> {
+  ): Promise<TestCaseEvaluation[]> {
     this.logger.info(`Loading test cases from directory: ${directoryPath}`);
     const loadResult = await this.testCaseLoader.loadFromDirectory(
       directoryPath,
@@ -140,7 +140,7 @@ export class EvaluationExecutor {
   public async executeTestCase(
     agent: IAgent,
     testCase: TestCase,
-  ): Promise<EvaluationResult> {
+  ): Promise<TestCaseEvaluation> {
     const startTime = performance.now();
     try {
       if (testCase.messageBlocks.length < 2) {
@@ -204,8 +204,8 @@ export class EvaluationExecutor {
   public async executeTestCases(
     agent: IAgent,
     testCases: TestCase[],
-  ): Promise<EvaluationResult[]> {
-    const results: EvaluationResult[] = [];
+  ): Promise<TestCaseEvaluation[]> {
+    const results: TestCaseEvaluation[] = [];
     try {
       for (const testCase of testCases) {
         try {
@@ -245,13 +245,13 @@ export class EvaluationExecutor {
     agent: IAgent,
     testCases: TestCase[],
     maxConcurrency: number,
-  ): Promise<EvaluationResult[]> {
+  ): Promise<TestCaseEvaluation[]> {
     const chunks: TestCase[][] = [];
     for (let i = 0; i < testCases.length; i += maxConcurrency) {
       chunks.push(testCases.slice(i, i + maxConcurrency));
     }
 
-    const results: EvaluationResult[] = [];
+    const results: TestCaseEvaluation[] = [];
     this.logger.info(
       `Starting parallel execution of ${testCases.length} test cases with concurrency ${maxConcurrency}`,
     );

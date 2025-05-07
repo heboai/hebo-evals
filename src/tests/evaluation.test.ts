@@ -2,7 +2,7 @@ import { EvaluationExecutor } from '../evaluation/evaluation-executor';
 import { ScoringService } from '../scoring/scoring.service';
 import { IAgent } from '../agents/interfaces/agent.interface';
 import { TestCase, MessageRole } from '../core/types/message.types';
-import { EvaluationConfig } from '../report/evaluation-types';
+import { EvaluationConfig } from '../evaluation/types/evaluation.types';
 import { jest } from '@jest/globals';
 
 // Mock dependencies
