@@ -6,6 +6,7 @@ import {
   OpenAIMessage,
 } from '../types/openai.types';
 import { roleMapper } from '../../core/utils/role-mapper';
+import { AgentAuthConfig } from '../types/agent.types';
 
 /**
  * Configuration specific to Hebo agent
@@ -48,6 +49,23 @@ export class HeboAgent extends BaseAgent {
       throw new Error('Model is required for Hebo agent');
     }
     return super.validateConfig();
+  }
+
+  /**
+   * Authenticates the agent with the provided API key
+   * @param authConfig Authentication configuration containing the API key
+   * @returns Promise that resolves when authentication is complete
+   */
+  public override async authenticate(
+    authConfig: AgentAuthConfig,
+  ): Promise<void> {
+    // Set Hebo-specific header format
+    const heboAuthConfig = {
+      ...authConfig,
+      headerName: 'X-API-Key',
+      headerFormat: '{apiKey}',
+    };
+    await super.authenticate(heboAuthConfig);
   }
 
   /**
@@ -130,23 +148,6 @@ export class HeboAgent extends BaseAgent {
     }
 
     return response.json() as Promise<Response>;
-  }
-
-  /**
-   * Gets the authentication headers for the Hebo API
-   * @returns Record containing the authentication headers
-   * @throws Error if authentication configuration is invalid
-   */
-  protected override getAuthHeaders(): Record<string, string> {
-    if (!this.authConfig) {
-      throw new Error('Authentication configuration not found');
-    }
-
-    const { apiKey } = this.authConfig;
-
-    return {
-      'X-API-Key': apiKey,
-    };
   }
 
   /**

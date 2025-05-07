@@ -105,9 +105,21 @@ export abstract class BaseAgent implements IAgent {
   }
 
   /**
-   * Gets the authentication headers for the request
+   * Validates the authentication configuration
+   * @param authConfig Authentication configuration to validate
+   * @throws Error if the authentication configuration is invalid
+   */
+  protected validateAuthConfig(authConfig: AgentAuthConfig): Promise<void> {
+    if (!authConfig.apiKey) {
+      throw new Error('API key is required for authentication');
+    }
+    return Promise.resolve();
+  }
+
+  /**
+   * Gets the authentication headers for API requests
    * @returns Record containing the authentication headers
-   * @throws Error if authentication configuration is invalid or headerFormat is missing the {apiKey} placeholder
+   * @throws Error if authentication configuration is invalid
    */
   protected getAuthHeaders(): Record<string, string> {
     if (!this.authConfig) {
@@ -120,27 +132,9 @@ export abstract class BaseAgent implements IAgent {
       headerFormat = 'Bearer {apiKey}',
     } = this.authConfig;
 
-    if (!headerFormat.includes('{apiKey}')) {
-      throw new Error('headerFormat must contain the {apiKey} placeholder');
-    }
-
-    const headerValue = headerFormat.replace('{apiKey}', apiKey);
-
     return {
-      [headerName]: headerValue,
+      [headerName]: headerFormat.replace('{apiKey}', apiKey),
     };
-  }
-
-  /**
-   * Validates the authentication configuration
-   * @param authConfig Authentication configuration to validate
-   * @throws Error if the authentication configuration is invalid
-   */
-  protected validateAuthConfig(authConfig: AgentAuthConfig): Promise<void> {
-    if (!authConfig.apiKey) {
-      throw new Error('API key is required for authentication');
-    }
-    return Promise.resolve();
   }
 
   /**

@@ -3,11 +3,11 @@
  * @module index
  */
 
-import { HeboEval } from './core/index.js';
-import { EvaluationConfig } from './report/evaluationTypes.js';
+import { HeboEval } from './core/index';
+import { EvaluationConfig } from './evaluation/types/evaluation.types';
 
 export { HeboEval, EvaluationConfig };
 export type {
   EvaluationResult,
   EvaluationReport,
-} from './report/evaluationTypes.js';
+} from './evaluation/types/evaluation.types';
