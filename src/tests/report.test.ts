@@ -1,5 +1,5 @@
 import { ReportGenerator } from '../report/report-generator';
-import { EvaluationConfig, EvaluationReport } from '../report/evaluationTypes';
+import { EvaluationConfig, EvaluationReport } from '../report/evaluation-types';
 
 describe('ReportGenerator', () => {
   let reportGenerator: ReportGenerator;
@@ -18,22 +18,22 @@ describe('ReportGenerator', () => {
       {
         testCase: {
           id: 'test-1',
-          input: 'What is 2+2?',
+          input: '2 + 2',
           expected: '4',
         },
-        observed: '4',
-        score: 1.0,
+        response: '4',
+        score: 1,
         passed: true,
         timestamp: new Date(),
       },
       {
         testCase: {
           id: 'test-2',
-          input: 'What is 3+3?',
-          expected: '6',
+          input: '2 + 3',
+          expected: '5',
         },
-        observed: '5',
-        score: 0.0,
+        response: '6',
+        score: 0,
         passed: false,
         timestamp: new Date(),
       },
@@ -118,20 +118,20 @@ describe('ReportGenerator', () => {
           {
             testCase: {
               id: 'test-3',
-              input: 'What is 4+4?',
-              expected: '8',
+              input: 'invalid',
+              expected: 'error',
             },
-            observed: '',
-            score: 0.0,
+            response: '',
+            score: 0,
             passed: false,
-            error: 'Test execution failed',
+            error: 'Invalid input',
             timestamp: new Date(),
           },
         ],
       };
 
       const report = reportGenerator.generateReport(errorReport);
-      expect(report).toContain('Test execution failed');
+      expect(report).toContain('Invalid input');
     });
   });
 });

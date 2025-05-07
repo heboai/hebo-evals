@@ -121,6 +121,7 @@ export class Parser {
     this.validateTestCase(messageBlocks);
 
     return {
+      id: name,
       name,
       messageBlocks,
     };

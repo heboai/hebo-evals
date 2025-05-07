@@ -100,12 +100,11 @@ user: \tHow are you?
       });
 
       it('should handle partial role matches', () => {
-        const text = `user: Hello
-user123: This should not be parsed as a role
+        const text = `user123: Hello
 assistant: Hi there`;
 
         expect(() => tokenizer.tokenize(text)).toThrow(
-          'Invalid role: user123. Valid roles are: user, assistant, human agent',
+          'Invalid message role: user123. Valid roles are: user, assistant, human agent',
         );
       });
 

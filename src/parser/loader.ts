@@ -121,7 +121,7 @@ export class TestCaseLoader {
    * @param filePath The path to the test case file
    * @returns Promise that resolves with the parsed test case
    */
-  private async loadFile(filePath: string): Promise<TestCase> {
+  public async loadFile(filePath: string): Promise<TestCase> {
     const content = await readFile(filePath, 'utf-8');
     const name = this.getTestCaseName(filePath);
     return this.parser.parse(content, name);

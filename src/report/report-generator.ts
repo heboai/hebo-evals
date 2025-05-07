@@ -2,7 +2,7 @@ import {
   EvaluationConfig,
   EvaluationReport,
   EvaluationResult,
-} from './evaluationTypes';
+} from './evaluation-types';
 
 /**
  * Service for generating evaluation reports in various formats
@@ -71,9 +71,9 @@ export class ReportGenerator {
         result.testCase.expected,
         '```',
         '',
-        `#### Observed Output`,
+        `#### Actual Response`,
         '```',
-        result.observed,
+        result.response,
         '```',
         '',
         result.error ? `#### Error\n${result.error}\n` : '',
@@ -119,8 +119,8 @@ export class ReportGenerator {
         'Expected Output:',
         result.testCase.expected,
         '',
-        'Observed Output:',
-        result.observed,
+        'Actual Response:',
+        result.response,
         '',
         result.error ? `Error:\n${result.error}\n` : '',
         '---',
