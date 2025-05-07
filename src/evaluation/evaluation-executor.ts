@@ -3,6 +3,7 @@ import { IAgent } from '../agents/interfaces/agent.interface';
 import { Logger } from '../utils/logger';
 import { performance } from 'perf_hooks';
 import { TestCase } from '../core/types/message.types';
+import { TestCaseLoader } from '../parser/loader';
 
 export interface EvaluationResult {
   testCaseId: string;
@@ -18,9 +19,49 @@ export interface EvaluationResult {
  */
 export class EvaluationExecutor {
   private logger: Logger;
+  private testCaseLoader: TestCaseLoader;
 
   constructor() {
     this.logger = Logger.getInstance();
+    this.testCaseLoader = new TestCaseLoader();
+  }
+
+  /**
+   * Loads and executes test cases from a directory
+   * @param agent The agent to test
+   * @param directoryPath The path to the directory containing test case files
+   * @param stopOnError Whether to stop processing files after the first error (default: true)
+   * @returns Promise that resolves with the evaluation results
+   */
+  public async executeTestCasesFromDirectory(
+    agent: IAgent,
+    directoryPath: string,
+    stopOnError: boolean = true,
+  ): Promise<EvaluationResult[]> {
+    this.logger.info(`Loading test cases from directory: ${directoryPath}`);
+    const loadResult = await this.testCaseLoader.loadFromDirectory(
+      directoryPath,
+      stopOnError,
+    );
+
+    if (loadResult.errors.length > 0) {
+      this.logger.warn(
+        `Encountered ${loadResult.errors.length} errors while loading test cases:`,
+        {
+          errors: loadResult.errors,
+        },
+      );
+    }
+
+    if (loadResult.testCases.length === 0) {
+      this.logger.warn('No test cases were loaded successfully');
+      return [];
+    }
+
+    this.logger.info(
+      `Successfully loaded ${loadResult.testCases.length} test cases`,
+    );
+    return this.executeTestCases(agent, loadResult.testCases);
   }
 
   /**
