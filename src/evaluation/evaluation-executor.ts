@@ -7,16 +7,7 @@ import { TestCaseLoader } from '../parser/loader';
 import { ScoringService } from '../scoring/scoring.service';
 import { ReportGenerator } from '../report/report-generator';
 import { EvaluationConfig, EvaluationReport } from '../report/evaluation-types';
-
-export interface EvaluationResult {
-  testCaseId: string;
-  success: boolean;
-  error?: string;
-  score: number;
-  executionTime: number;
-  response?: string;
-  testCase: TestCase;
-}
+import { EvaluationResult } from './types/evaluation.types';
 
 /**
  * Service for executing test cases against an agent
