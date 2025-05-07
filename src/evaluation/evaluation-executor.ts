@@ -1,7 +1,6 @@
 import { AgentInput } from '../agents/types/agent.types';
 import { IAgent } from '../agents/interfaces/agent.interface';
 import { Logger } from '../utils/logger';
-import { Parser } from '../parser/parser';
 import { performance } from 'perf_hooks';
 import { TestCase } from '../core/types/message.types';
 
@@ -18,11 +17,9 @@ export interface EvaluationResult {
  * Service for executing test cases against an agent
  */
 export class EvaluationExecutor {
-  private parser: Parser;
   private logger: Logger;
 
   constructor() {
-    this.parser = new Parser();
     this.logger = Logger.getInstance();
   }
 
