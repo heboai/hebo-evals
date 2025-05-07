@@ -4,6 +4,9 @@ import { Logger } from '../utils/logger';
 import { performance } from 'perf_hooks';
 import { TestCase } from '../core/types/message.types';
 import { TestCaseLoader } from '../parser/loader';
+import { ScoringService } from '../scoring/scoring.service';
+import { ReportGenerator } from '../report/report-generator';
+import { EvaluationConfig, EvaluationReport } from '../report/evaluation-types';
 
 export interface EvaluationResult {
   testCaseId: string;
@@ -12,6 +15,7 @@ export interface EvaluationResult {
   score: number;
   executionTime: number;
   response?: string;
+  testCase: TestCase;
 }
 
 /**
@@ -20,10 +24,79 @@ export interface EvaluationResult {
 export class EvaluationExecutor {
   private logger: Logger;
   private testCaseLoader: TestCaseLoader;
+  private scoringService: ScoringService;
+  private reportGenerator: ReportGenerator;
+  private readonly MAX_CONCURRENCY = 5; // Configurable concurrency limit
 
-  constructor() {
+  constructor(scoringService: ScoringService, config: EvaluationConfig) {
     this.logger = Logger.getInstance();
     this.testCaseLoader = new TestCaseLoader();
+    this.scoringService = scoringService;
+    this.reportGenerator = new ReportGenerator(config);
+  }
+
+  /**
+   * Loads and executes test cases from a directory and generates a report
+   * @param agent The agent to test
+   * @param directoryPath The path to the directory containing test case files
+   * @param stopOnError Whether to stop processing files after the first error (default: true)
+   * @returns Promise that resolves with the evaluation report
+   */
+  public async evaluateFromDirectory(
+    agent: IAgent,
+    directoryPath: string,
+    stopOnError: boolean = true,
+  ): Promise<EvaluationReport> {
+    const startTime = performance.now();
+
+    // First load the test cases
+    const loadResult = await this.testCaseLoader.loadFromDirectory(
+      directoryPath,
+      stopOnError,
+    );
+
+    // Then execute them in parallel
+    const results = await this.executeTestCasesInParallel(
+      agent,
+      loadResult.testCases,
+      this.MAX_CONCURRENCY,
+    );
+
+    const duration = (performance.now() - startTime) / 1000; // Convert to seconds
+
+    const passedTests = results.filter((r) => r.success).length;
+    const totalTests = results.length;
+    const failedTests = totalTests - passedTests;
+    const passRate = totalTests > 0 ? passedTests / totalTests : 0;
+
+    const report: EvaluationReport = {
+      totalTests,
+      passedTests,
+      failedTests,
+      passRate,
+      results: results.map((result) => ({
+        testCase: {
+          id: result.testCaseId,
+          input: result.testCase.messageBlocks
+            .slice(0, -1)
+            .map((m) => m.content)
+            .join('\n'),
+          expected:
+            result.testCase.messageBlocks[
+              result.testCase.messageBlocks.length - 1
+            ].content,
+        },
+        score: result.score,
+        passed: result.success,
+        error: result.error,
+        timestamp: new Date(),
+        response: result.response || '',
+      })),
+      timestamp: new Date(),
+      duration,
+    };
+
+    return report;
   }
 
   /**
@@ -96,17 +169,23 @@ export class EvaluationExecutor {
       const response = await agent.sendInput(input);
       const executionTime = performance.now() - startTime;
 
-      // Validate response
-      const isMatch =
-        response.response.trim() === expectedResponse.content.trim();
+      // Calculate semantic similarity score
+      const score = await this.scoringService.scoreStrings(
+        response.response.trim(),
+        expectedResponse.content.trim(),
+      );
+
+      // Consider it a success if score is above threshold (0.7 by default)
+      const isMatch = score >= 0.7;
 
       return {
         testCaseId: testCase.id,
         success: isMatch,
         error: isMatch ? undefined : 'Response mismatch',
-        score: isMatch ? 1 : 0,
+        score,
         executionTime,
         response: response.response,
+        testCase,
       };
     } catch (error) {
       const executionTime = Date.now() - startTime;
@@ -117,6 +196,7 @@ export class EvaluationExecutor {
         score: 0,
         executionTime,
         response: '',
+        testCase,
       };
     }
   }
@@ -147,6 +227,7 @@ export class EvaluationExecutor {
             score: 0,
             executionTime: 0,
             response: '',
+            testCase,
           });
         }
       }
@@ -180,6 +261,7 @@ export class EvaluationExecutor {
     this.logger.info(
       `Starting parallel execution of ${testCases.length} test cases with concurrency ${maxConcurrency}`,
     );
+
     for (const chunk of chunks) {
       this.logger.debug(
         `Executing chunk of ${chunk.length} test cases (${results.length}/${testCases.length} completed)`,
@@ -201,12 +283,14 @@ export class EvaluationExecutor {
             score: 0,
             executionTime: 0,
             response: '',
+            testCase,
           };
         }
       });
       const chunkResults = await Promise.all(chunkPromises);
       results.push(...chunkResults);
     }
+
     this.logger.info(
       `Completed parallel execution of ${testCases.length} test cases`,
     );
