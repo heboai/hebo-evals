@@ -179,7 +179,7 @@ export class EvaluationExecutor {
         testCase,
       };
     } catch (error) {
-      const executionTime = Date.now() - startTime;
+      const executionTime = performance.now() - startTime;
       return {
         testCaseId: testCase.id,
         success: false,
