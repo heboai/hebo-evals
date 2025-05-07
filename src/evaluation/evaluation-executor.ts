@@ -38,6 +38,11 @@ export class EvaluationExecutor {
   ): Promise<EvaluationResult> {
     const startTime = performance.now();
     try {
+      if (testCase.messageBlocks.length < 2) {
+        throw new Error(
+          'Test case must have at least 2 message blocks: input and expected output',
+        );
+      }
       const input: AgentInput = {
         messages: testCase.messageBlocks.slice(0, -1).map((block) => ({
           role: block.role,
