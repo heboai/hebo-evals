@@ -7,6 +7,7 @@ describe('ReportGenerator', () => {
     threshold: 0.7,
     useSemanticScoring: false,
     outputFormat: 'markdown',
+    maxConcurrency: 5,
   };
 
   const sampleReport: EvaluationReport = {

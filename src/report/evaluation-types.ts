@@ -40,6 +40,7 @@ export const EvaluationConfigSchema = z.object({
   threshold: z.number().min(0).max(1).default(0.7),
   useSemanticScoring: z.boolean().default(true),
   outputFormat: z.enum(['json', 'markdown', 'text']).default('markdown'),
+  maxConcurrency: z.number().min(1).default(5),
 });
 
 export type EvaluationConfig = z.infer<typeof EvaluationConfigSchema>;

@@ -35,6 +35,7 @@ describe('EvaluationExecutor', () => {
       threshold: 0.7,
       useSemanticScoring: true,
       outputFormat: 'json',
+      maxConcurrency: 5,
     };
 
     evaluationExecutor = new EvaluationExecutor(mockScoringService, mockConfig);
