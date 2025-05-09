@@ -9,7 +9,6 @@ import { EvaluationConfig } from './evaluation/types/evaluation.types.js';
 import { Logger } from './utils/logger.js';
 import { EmbeddingProviderFactory } from './embeddings/config/embedding.config.js';
 import { readFileSync } from 'fs';
-import { join } from 'path';
 import { EmbeddingConfig } from './embeddings/types/embedding.types.js';
 import { ReportGenerator } from './report/report-generator.js';
 
@@ -20,6 +19,19 @@ import { ReportGenerator } from './report/report-generator.js';
 
 const program = new Command();
 const logger = Logger.getInstance();
+
+/**
+ * Interface for run command options
+ */
+interface RunCommandOptions {
+  directory?: string;
+  config?: string;
+  threshold: string;
+  format: string;
+  stopOnError: boolean;
+  maxConcurrency: string;
+  useSemanticScoring: boolean;
+}
 
 /**
  * Loads configuration from a file
@@ -85,7 +97,7 @@ program
     '5',
   )
   .option('--use-semantic-scoring', 'Use semantic scoring for evaluation', true)
-  .action(async (agent, options) => {
+  .action(async (agent: string, options: RunCommandOptions) => {
     try {
       // Load configuration from file, environment, or defaults
       let config;
