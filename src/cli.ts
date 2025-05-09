@@ -11,6 +11,7 @@ import { EmbeddingProviderFactory } from './embeddings/config/embedding.config.j
 import { readFileSync } from 'fs';
 import { EmbeddingConfig } from './embeddings/types/embedding.types.js';
 import { ReportGenerator } from './report/report-generator.js';
+import { join } from 'path';
 
 /**
  * Main CLI entry point for Hebo Eval
@@ -34,13 +35,25 @@ interface RunCommandOptions {
 }
 
 /**
+ * Interface for cli config
+ */
+interface CliConfig {
+  embedding: EmbeddingConfig;
+  agent: {
+    apiKey: string;
+    baseUrl?: string;
+  };
+}
+
+/**
  * Loads configuration from a file
  * @param configPath Path to the configuration file
  * @returns The loaded configuration
  */
-function loadConfig(configPath: string) {
+function loadConfig(configPath: string): CliConfig {
   try {
-    const configContent = readFileSync(configPath, 'utf-8');
+    const resolvedPath = join(process.cwd(), configPath);
+    const configContent = readFileSync(resolvedPath, 'utf-8');
     const parsed = JSON.parse(configContent) as {
       embedding: EmbeddingConfig;
       agent: {
