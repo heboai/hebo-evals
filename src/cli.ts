@@ -111,6 +111,8 @@ program
   )
   .option('--use-semantic-scoring', 'Use semantic scoring for evaluation', true)
   .action(async (agent: string, options: RunCommandOptions) => {
+    let heboAgent: HeboAgent | undefined;
+    let embeddingProvider: any | undefined;
     try {
       // Load configuration from file, environment, or defaults
       let config;
@@ -125,6 +127,13 @@ program
             baseUrl: process.env.HEBO_BASE_URL || 'https://api.hebo.ai',
           },
         };
+
+        //Validate embedding configurationb
+        if (!config.embedding || Object.keys(config.embedding).length === 0) {
+          logger.warn(
+            'No embedding configuration found in environment variables',
+          );
+        }
       }
 
       // Validate required configuration
@@ -135,7 +144,7 @@ program
       }
 
       // Initialize agent
-      const heboAgent = new HeboAgent({
+      heboAgent = new HeboAgent({
         model: agent,
         baseUrl: config.agent.baseUrl,
       });
@@ -143,7 +152,7 @@ program
       await heboAgent.authenticate({ apiKey: config.agent.apiKey });
 
       // Initialize scoring service with embedding provider
-      const embeddingProvider = EmbeddingProviderFactory.createProvider({
+      embeddingProvider = EmbeddingProviderFactory.createProvider({
         defaultProvider: 'litellm',
         ...config.embedding,
       });
@@ -169,15 +178,17 @@ program
       const reportGenerator = new ReportGenerator(evalConfig);
       const formattedReport = reportGenerator.generateReport(report);
       console.log(formattedReport);
-
-      // Cleanup
-      await heboAgent.cleanup();
-      await embeddingProvider.cleanup();
     } catch (error) {
       logger.error('Evaluation failed:', {
         error: error instanceof Error ? error : String(error),
       });
       process.exit(1);
+    } finally {
+      // Always attempt to free resources
+      await Promise.allSettled([
+        heboAgent?.cleanup?.(),
+        embeddingProvider?.cleanup?.(),
+      ]);
     }
   });
 
