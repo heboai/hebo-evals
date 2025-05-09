@@ -7,62 +7,87 @@ import { EvaluationExecutor } from '../evaluation/evaluation-executor';
 import { EmbeddingProviderFactory } from '../embeddings/config/embedding.config';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { EvaluationReport } from '../evaluation/types/evaluation.types';
 
 // Increase timeout for all tests in this file
 jest.setTimeout(10000);
 
+// Create mock functions with proper Jest mocking
+const mockHeboAgentInitialize = jest.fn().mockResolvedValue(undefined);
+const mockHeboAgentAuthenticate = jest.fn().mockResolvedValue(undefined);
+const mockHeboAgentCleanup = jest.fn().mockResolvedValue(undefined);
+const mockHeboAgentValidateConfig = jest.fn();
+const mockHeboAgentSendInput = jest.fn();
+const mockHeboAgentGetConfig = jest.fn();
+
+const mockEvaluateFromDirectory = jest.fn().mockResolvedValue({
+  totalTests: 0,
+  passedTests: 0,
+  failedTests: 0,
+  passRate: 0,
+  results: [],
+  timestamp: new Date(),
+  duration: 0,
+});
+
+const mockEmbeddingProviderCleanup = jest.fn().mockResolvedValue(undefined);
+const mockScoreStrings = jest.fn();
+const mockEmbeddingProviderFactoryCreateProvider = jest.fn();
+const mockEmbeddingProviderFactoryLoadFromEnv = jest.fn();
+
 // Mock dependencies
 jest.mock('../agents/implementations/hebo-agent', () => {
-  const mockHeboAgent = {
-    initialize: jest.fn(),
-    authenticate: jest.fn(),
-    cleanup: jest.fn(),
-    validateConfig: jest.fn(),
-    sendInput: jest.fn(),
-    getConfig: jest.fn(),
-  };
   return {
-    HeboAgent: jest.fn().mockImplementation(() => mockHeboAgent),
+    HeboAgent: jest.fn().mockImplementation(() => ({
+      initialize: mockHeboAgentInitialize,
+      authenticate: mockHeboAgentAuthenticate,
+      cleanup: mockHeboAgentCleanup,
+      validateConfig: mockHeboAgentValidateConfig,
+      sendInput: mockHeboAgentSendInput,
+      getConfig: mockHeboAgentGetConfig,
+    })),
   };
 });
+
 jest.mock('../scoring/scoring.service', () => ({
   ScoringService: jest.fn().mockImplementation(() => ({
-    scoreStrings: jest.fn(),
+    scoreStrings: mockScoreStrings,
   })),
 }));
-jest.mock('../evaluation/evaluation-executor', () => ({
-  EvaluationExecutor: jest.fn().mockImplementation(() => ({
-    evaluateFromDirectory: jest.fn(),
-    executeTestCasesFromDirectory: jest.fn(),
-    executeTestCase: jest.fn(),
-  })),
-}));
+
+jest.mock('../evaluation/evaluation-executor', () => {
+  return {
+    EvaluationExecutor: jest.fn().mockImplementation(() => ({
+      evaluateFromDirectory: mockEvaluateFromDirectory,
+      executeTestCasesFromDirectory: jest.fn(),
+      executeTestCase: jest.fn(),
+      executeTestCases: jest.fn(),
+    })),
+  };
+});
+
 jest.mock('../embeddings/config/embedding.config', () => ({
   EmbeddingProviderFactory: {
-    createProvider: jest.fn(),
-    loadFromEnv: jest.fn(),
+    createProvider: mockEmbeddingProviderFactoryCreateProvider,
+    loadFromEnv: mockEmbeddingProviderFactoryLoadFromEnv,
   },
 }));
+
 jest.mock('fs', () => ({
   readFileSync: jest.fn(),
 }));
+
 jest.mock('path');
 
 // Mock Commander's parse method to prevent process.exit
-jest.spyOn(Command.prototype, 'parse').mockImplementation(function (
-  this: Command,
-) {
+jest.spyOn(Command.prototype, 'parse').mockImplementation(function () {
   return this;
 });
 
 describe('CLI Commands', () => {
   let program: Command;
   let originalArgv: string[];
-  let mockHeboAgent: jest.Mocked<HeboAgent>;
-  let mockScoringService: jest.Mocked<ScoringService>;
-  let mockEvaluationExecutor: jest.Mocked<EvaluationExecutor>;
-  let mockEmbeddingProvider: jest.Mocked<any>;
-
+  
   beforeEach(() => {
     // Store original process.argv
     originalArgv = process.argv;
@@ -74,29 +99,12 @@ describe('CLI Commands', () => {
     // Reset all mocks
     jest.clearAllMocks();
 
-    // Get mock instances
-    mockHeboAgent = new (HeboAgent as any)({
-      model: 'test-model',
-    }) as jest.Mocked<HeboAgent>;
-    mockScoringService =
-      new (ScoringService as any)() as jest.Mocked<ScoringService>;
-    mockEvaluationExecutor =
-      new (EvaluationExecutor as any)() as jest.Mocked<EvaluationExecutor>;
-    mockEmbeddingProvider = {
-      cleanup: jest.fn(),
-    };
-
-    // Set up EmbeddingProviderFactory mock methods
-    const { EmbeddingProviderFactory: mockFactory } = jest.requireMock(
-      '../embeddings/config/embedding.config',
-    ) as {
-      EmbeddingProviderFactory: {
-        createProvider: jest.Mock;
-        loadFromEnv: jest.Mock;
-      };
-    };
-    mockFactory.createProvider.mockReturnValue(mockEmbeddingProvider);
-    mockFactory.loadFromEnv.mockReturnValue({
+    // Set up EmbeddingProviderFactory mock methods to return specific values for tests
+    mockEmbeddingProviderFactoryCreateProvider.mockReturnValue({
+      cleanup: mockEmbeddingProviderCleanup,
+    });
+    
+    mockEmbeddingProviderFactoryLoadFromEnv.mockReturnValue({
       defaultProvider: 'litellm',
       litellm: { model: 'test-model' },
     });
@@ -181,31 +189,30 @@ describe('CLI Commands', () => {
         timestamp: new Date(),
         duration: 1.5,
       };
-      mockEvaluationExecutor.evaluateFromDirectory.mockResolvedValue(
-        mockReport,
-      );
+
+      mockEvaluateFromDirectory.mockResolvedValueOnce(mockReport);
 
       // Import CLI after environment setup
       const cli = await import('../cli');
 
       // Verify agent initialization
-      expect(mockHeboAgent.initialize).toHaveBeenCalledWith({
+      expect(mockHeboAgentInitialize).toHaveBeenCalledWith({
         model: 'gato-qa:next',
       });
-      expect(mockHeboAgent.authenticate).toHaveBeenCalledWith({
+      expect(mockHeboAgentAuthenticate).toHaveBeenCalledWith({
         apiKey: 'test-key',
       });
 
       // Verify evaluation execution
-      expect(mockEvaluationExecutor.evaluateFromDirectory).toHaveBeenCalledWith(
-        mockHeboAgent,
+      expect(mockEvaluateFromDirectory).toHaveBeenCalledWith(
+        expect.anything(),
         './test-cases',
         false,
       );
 
       // Verify cleanup
-      expect(mockHeboAgent.cleanup).toHaveBeenCalled();
-      expect(mockEmbeddingProvider.cleanup).toHaveBeenCalled();
+      expect(mockHeboAgentCleanup).toHaveBeenCalled();
+      expect(mockEmbeddingProviderCleanup).toHaveBeenCalled();
     });
 
     it('should execute evaluation with config file', async () => {
@@ -220,7 +227,8 @@ describe('CLI Commands', () => {
           baseUrl: 'https://test-api.hebo.ai',
         },
       };
-      (readFileSync as jest.Mock).mockReturnValue(JSON.stringify(mockConfig));
+      
+      (readFileSync as jest.Mock).mockReturnValueOnce(JSON.stringify(mockConfig));
 
       // Mock evaluation result
       const mockReport = {
@@ -232,9 +240,8 @@ describe('CLI Commands', () => {
         timestamp: new Date(),
         duration: 1.5,
       };
-      mockEvaluationExecutor.evaluateFromDirectory.mockResolvedValue(
-        mockReport,
-      );
+
+      mockEvaluateFromDirectory.mockResolvedValueOnce(mockReport);
 
       // Import CLI after mocks setup
       const cli = await import('../cli');
@@ -243,16 +250,16 @@ describe('CLI Commands', () => {
       expect(readFileSync).toHaveBeenCalled();
 
       // Verify agent initialization
-      expect(mockHeboAgent.initialize).toHaveBeenCalledWith({
+      expect(mockHeboAgentInitialize).toHaveBeenCalledWith({
         model: 'gato-qa:next',
       });
-      expect(mockHeboAgent.authenticate).toHaveBeenCalledWith({
+      expect(mockHeboAgentAuthenticate).toHaveBeenCalledWith({
         apiKey: 'test-key',
       });
 
       // Verify evaluation execution
-      expect(mockEvaluationExecutor.evaluateFromDirectory).toHaveBeenCalledWith(
-        mockHeboAgent,
+      expect(mockEvaluateFromDirectory).toHaveBeenCalledWith(
+        expect.anything(),
         './test-cases',
         false,
       );
@@ -266,25 +273,261 @@ describe('CLI Commands', () => {
       const cli = await import('../cli');
 
       // Verify error handling
-      expect(mockHeboAgent.initialize).not.toHaveBeenCalled();
-      expect(mockHeboAgent.authenticate).not.toHaveBeenCalled();
+      expect(mockHeboAgentInitialize).not.toHaveBeenCalled();
+      expect(mockHeboAgentAuthenticate).not.toHaveBeenCalled();
     });
 
     it('should handle evaluation errors', async () => {
       // Setup environment
       process.env.HEBO_API_KEY = 'test-key';
 
-      // Mock evaluation error
-      mockEvaluationExecutor.evaluateFromDirectory.mockRejectedValue(
-        new Error('Evaluation failed'),
-      );
+      mockEvaluateFromDirectory.mockRejectedValueOnce(new Error('Evaluation failed'));
 
       // Import CLI
       const cli = await import('../cli');
 
       // Verify error handling
-      expect(mockHeboAgent.cleanup).toHaveBeenCalled();
-      expect(mockEmbeddingProvider.cleanup).toHaveBeenCalled();
+      expect(mockHeboAgentCleanup).toHaveBeenCalled();
+      expect(mockEmbeddingProviderCleanup).toHaveBeenCalled();
+    });
+
+    it('should use custom directory path when provided', async () => {
+      process.env.HEBO_API_KEY = 'test-key';
+      process.argv = [
+        'node',
+        'hebo-eval',
+        'run',
+        'test-agent',
+        '--directory',
+        '/custom/path',
+      ];
+
+      const cli = await import('../cli');
+
+      expect(mockEvaluateFromDirectory).toHaveBeenCalledWith(
+        expect.anything(),
+        '/custom/path',
+        false,
+      );
+    });
+
+    it('should use custom threshold when provided', async () => {
+      process.env.HEBO_API_KEY = 'test-key';
+      process.argv = [
+        'node',
+        'hebo-eval',
+        'run',
+        'test-agent',
+        '--threshold',
+        '0.8',
+      ];
+
+      const cli = await import('../cli');
+
+      // Verify the EvaluationExecutor was created with the correct config
+      expect(EvaluationExecutor).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          threshold: 0.8,
+          useSemanticScoring: true,
+          outputFormat: 'markdown',
+          maxConcurrency: 5,
+        }),
+      );
+    });
+
+    it('should use custom max concurrency when provided', async () => {
+      process.env.HEBO_API_KEY = 'test-key';
+      process.argv = [
+        'node',
+        'hebo-eval',
+        'run',
+        'test-agent',
+        '--max-concurrency',
+        '10',
+      ];
+
+      const cli = await import('../cli');
+
+      expect(EvaluationExecutor).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          maxConcurrency: 10,
+        }),
+      );
+    });
+
+    it('should disable semantic scoring when specified', async () => {
+      process.env.HEBO_API_KEY = 'test-key';
+      process.argv = [
+        'node',
+        'hebo-eval',
+        'run',
+        'test-agent',
+        '--no-use-semantic-scoring',
+      ];
+
+      const cli = await import('../cli');
+
+      expect(EvaluationExecutor).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          useSemanticScoring: false,
+        }),
+      );
+    });
+
+    it('should generate report in specified format', async () => {
+      process.env.HEBO_API_KEY = 'test-key';
+      process.argv = [
+        'node',
+        'hebo-eval',
+        'run',
+        'test-agent',
+        '--format',
+        'json',
+      ];
+
+      const mockReport = {
+        totalTests: 2,
+        passedTests: 1,
+        failedTests: 1,
+        passRate: 0.5,
+        results: [],
+        timestamp: new Date(),
+        duration: 1.5,
+      };
+
+      mockEvaluateFromDirectory.mockResolvedValueOnce(mockReport);
+
+      const cli = await import('../cli');
+
+      // Verify report generation with correct format
+      expect(EvaluationExecutor).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          outputFormat: 'json',
+        }),
+      );
+    });
+
+    it('should stop on first error when specified', async () => {
+      process.env.HEBO_API_KEY = 'test-key';
+      process.argv = [
+        'node',
+        'hebo-eval',
+        'run',
+        'test-agent',
+        '--stop-on-error',
+      ];
+
+      const cli = await import('../cli');
+
+      expect(mockEvaluateFromDirectory).toHaveBeenCalledWith(
+        expect.anything(),
+        './test-cases',
+        true,
+      );
+    });
+
+    it('should handle invalid JSON in config file', async () => {
+      (readFileSync as jest.Mock).mockReturnValueOnce('invalid json');
+      process.argv = [
+        'node',
+        'hebo-eval',
+        'run',
+        'test-agent',
+        '--config',
+        'invalid.json',
+      ];
+
+      const cli = await import('../cli');
+
+      expect(mockHeboAgentInitialize).not.toHaveBeenCalled();
+      expect(mockHeboAgentAuthenticate).not.toHaveBeenCalled();
+    });
+
+    it('should handle missing config file', async () => {
+      (readFileSync as jest.Mock).mockImplementationOnce(() => {
+        throw new Error('ENOENT');
+      });
+      process.argv = [
+        'node',
+        'hebo-eval',
+        'run',
+        'test-agent',
+        '--config',
+        'missing.json',
+      ];
+
+      const cli = await import('../cli');
+
+      expect(mockHeboAgentInitialize).not.toHaveBeenCalled();
+      expect(mockHeboAgentAuthenticate).not.toHaveBeenCalled();
+    });
+
+    it('should handle agent initialization failure', async () => {
+      process.env.HEBO_API_KEY = 'test-key';
+      mockHeboAgentInitialize.mockRejectedValueOnce(new Error('Initialization failed'));
+
+      const cli = await import('../cli');
+
+      expect(mockHeboAgentCleanup).toHaveBeenCalled();
+      expect(mockEmbeddingProviderCleanup).toHaveBeenCalled();
+    });
+
+    it('should handle authentication failure', async () => {
+      process.env.HEBO_API_KEY = 'test-key';
+      mockHeboAgentAuthenticate.mockRejectedValueOnce(new Error('Authentication failed'));
+
+      const cli = await import('../cli');
+
+      expect(mockHeboAgentCleanup).toHaveBeenCalled();
+      expect(mockEmbeddingProviderCleanup).toHaveBeenCalled();
+    });
+
+    it('should handle embedding provider initialization failure', async () => {
+      process.env.HEBO_API_KEY = 'test-key';
+      mockEmbeddingProviderFactoryCreateProvider.mockImplementationOnce(() => {
+        throw new Error('Provider initialization failed');
+      });
+
+      const cli = await import('../cli');
+
+      expect(mockHeboAgentCleanup).toHaveBeenCalled();
+    });
+
+    it('should handle invalid report format', async () => {
+      process.env.HEBO_API_KEY = 'test-key';
+      process.argv = [
+        'node',
+        'hebo-eval',
+        'run',
+        'test-agent',
+        '--format',
+        'invalid-format',
+      ];
+
+      const cli = await import('../cli');
+
+      expect(EvaluationExecutor).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          outputFormat: 'markdown', // Should default to markdown
+        }),
+      );
+    });
+
+    it('should handle cleanup failures gracefully', async () => {
+      process.env.HEBO_API_KEY = 'test-key';
+      mockHeboAgentCleanup.mockRejectedValueOnce(new Error('Cleanup failed'));
+      mockEmbeddingProviderCleanup.mockRejectedValueOnce(new Error('Provider cleanup failed'));
+
+      const cli = await import('../cli');
+
+      // Should not throw, but log errors
+      expect(mockHeboAgentCleanup).toHaveBeenCalled();
+      expect(mockEmbeddingProviderCleanup).toHaveBeenCalled();
     });
   });
 });

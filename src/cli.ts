@@ -11,6 +11,7 @@ import { EmbeddingProviderFactory } from './embeddings/config/embedding.config.j
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { EmbeddingConfig } from './embeddings/types/embedding.types.js';
+import { ReportGenerator } from './report/report-generator.js';
 
 /**
  * Main CLI entry point for Hebo Eval
@@ -78,6 +79,12 @@ program
     'markdown',
   )
   .option('-s, --stop-on-error', 'Stop processing on first error', false)
+  .option(
+    '-m, --max-concurrency <number>',
+    'Maximum number of concurrent test executions',
+    '5',
+  )
+  .option('--use-semantic-scoring', 'Use semantic scoring for evaluation', true)
   .action(async (agent, options) => {
     try {
       // Load configuration from file, environment, or defaults
@@ -121,8 +128,8 @@ program
       const evalConfig: EvaluationConfig = {
         threshold: parseFloat(options.threshold),
         outputFormat: options.format as 'json' | 'markdown' | 'text',
-        useSemanticScoring: true,
-        maxConcurrency: 5,
+        useSemanticScoring: options.useSemanticScoring,
+        maxConcurrency: parseInt(options.maxConcurrency, 10),
       };
 
       // Create and run evaluation
@@ -133,8 +140,10 @@ program
         options.stopOnError,
       );
 
-      // Output results
-      console.log(JSON.stringify(report, null, 2));
+      // Output results using the configured format
+      const reportGenerator = new ReportGenerator(evalConfig);
+      const formattedReport = reportGenerator.generateReport(report);
+      console.log(formattedReport);
 
       // Cleanup
       await heboAgent.cleanup();
