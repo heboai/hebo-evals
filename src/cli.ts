@@ -12,6 +12,7 @@ import { readFileSync } from 'fs';
 import { EmbeddingConfig } from './embeddings/types/embedding.types.js';
 import { ReportGenerator } from './report/report-generator.js';
 import { join } from 'path';
+import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
 
 /**
  * Main CLI entry point for Hebo Eval
@@ -112,7 +113,7 @@ program
   .option('--use-semantic-scoring', 'Use semantic scoring for evaluation', true)
   .action(async (agent: string, options: RunCommandOptions) => {
     let heboAgent: HeboAgent | undefined;
-    let embeddingProvider: any | undefined;
+    let embeddingProvider: IEmbeddingProvider | undefined;
     try {
       // Load configuration from file, environment, or defaults
       let config;
