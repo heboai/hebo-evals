@@ -1,10 +1,7 @@
 import { jest } from '@jest/globals';
 import { Command } from 'commander';
 import { version } from '../utils/package-info.js';
-import { promises as fs } from 'fs';
 import { HeboAgent } from '../agents/implementations/hebo-agent.js';
-import { ScoringService } from '../scoring/scoring.service.js';
-import { EvaluationExecutor } from '../evaluation/evaluation-executor.js';
 import { AgentAuthConfig } from '../agents/index.js';
 
 // Mock external dependencies
@@ -20,10 +17,6 @@ jest.mock('../agents/implementations/hebo-agent.js', () => ({
 jest.mock('../scoring/scoring.service.js');
 jest.mock('../evaluation/evaluation-executor.js');
 jest.mock('fs');
-
-const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => {
-  throw new Error('process.exit() was called');
-});
 
 // Increase timeout for all tests in this file
 jest.setTimeout(10000);
