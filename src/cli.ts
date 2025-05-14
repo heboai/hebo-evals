@@ -12,6 +12,7 @@ import { readFileSync } from 'fs';
 import { EmbeddingConfig } from './embeddings/types/embedding.types.js';
 import { ReportGenerator } from './report/report-generator.js';
 import { join } from 'path';
+import { fileURLToPath } from 'url';
 import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
 
 /**
@@ -19,7 +20,7 @@ import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.i
  * @module cli
  */
 
-const program = new Command();
+export const program = new Command();
 const logger = Logger.getInstance();
 
 /**
@@ -110,7 +111,11 @@ program
     'Maximum number of concurrent test executions',
     '5',
   )
-  .option('--use-semantic-scoring', 'Use semantic scoring for evaluation', true)
+  .option(
+    '--use-semantic-scoring',
+    'Use semantic scoring for evaluation',
+    false,
+  )
   .action(async (agent: string, options: RunCommandOptions) => {
     let heboAgent: HeboAgent | undefined;
     let embeddingProvider: IEmbeddingProvider | undefined;
@@ -159,19 +164,26 @@ program
       });
       const scoringService = new ScoringService(embeddingProvider);
 
-      // Configure evaluation
+      const threshold = Number(options.threshold);
+      const maxConcurrency = Number(options.maxConcurrency);
+      if (isNaN(threshold) || threshold < 0 || threshold > 1) {
+        throw new Error('`--threshold` must be a number between 0 and 1');
+      }
+      if (!Number.isInteger(maxConcurrency) || maxConcurrency <= 0) {
+        throw new Error('`--max-concurrency` must be a positive integer');
+      }
       const evalConfig: EvaluationConfig = {
-        threshold: parseFloat(options.threshold),
+        threshold,
         outputFormat: options.format as 'json' | 'markdown' | 'text',
         useSemanticScoring: options.useSemanticScoring,
-        maxConcurrency: parseInt(options.maxConcurrency, 10),
+        maxConcurrency,
       };
 
       // Create and run evaluation
       const executor = new EvaluationExecutor(scoringService, evalConfig);
       const report = await executor.evaluateFromDirectory(
         heboAgent,
-        options.directory || './test-cases',
+        options.directory || '../examples',
         options.stopOnError,
       );
 
@@ -193,4 +205,13 @@ program
     }
   });
 
-program.parse();
+/**
+ * Run the CLI - only called when this module is run directly
+ */
+export const run = () => {
+  program.parse();
+};
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  run();
+}
