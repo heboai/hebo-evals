@@ -33,7 +33,6 @@ describe('EvaluationExecutor', () => {
     // Setup mock config
     mockConfig = {
       threshold: 0.7,
-      useSemanticScoring: true,
       outputFormat: 'json',
       maxConcurrency: 5,
     };
