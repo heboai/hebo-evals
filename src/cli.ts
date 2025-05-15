@@ -130,7 +130,7 @@ program
           embedding: EmbeddingProviderFactory.loadFromEnv(),
           agent: {
             apiKey: process.env.HEBO_API_KEY,
-            baseUrl: process.env.HEBO_BASE_URL || 'https://api.hebo.ai',
+            baseUrl: process.env.HEBO_BASE_URL || 'https://api.hebo.ai/v1/embeddings',
           },
         };
 
