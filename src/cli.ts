@@ -2,7 +2,10 @@
 
 import { Command } from 'commander';
 import { version } from './utils/package-info.js';
-import { HeboAgent } from './agents/implementations/hebo-agent.js';
+import {
+  HeboAgent,
+  HeboAgentConfig,
+} from './agents/implementations/hebo-agent.js';
 import { ScoringService } from './scoring/scoring.service.js';
 import { EvaluationExecutor } from './evaluation/evaluation-executor.js';
 import { EvaluationConfig } from './evaluation/types/evaluation.types.js';
@@ -14,6 +17,7 @@ import { ReportGenerator } from './report/report-generator.js';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
+import { IAgent } from './agents/interfaces/agent.interface.js';
 
 /**
  * Main CLI entry point for Hebo Eval
@@ -33,7 +37,6 @@ interface RunCommandOptions {
   format: string;
   stopOnError: boolean;
   maxConcurrency: string;
-  useSemanticScoring: boolean;
 }
 
 /**
@@ -41,10 +44,7 @@ interface RunCommandOptions {
  */
 interface CliConfig {
   embedding: EmbeddingConfig;
-  agent: {
-    apiKey: string;
-    baseUrl?: string;
-  };
+  agent: HeboAgentConfig;
 }
 
 /**
@@ -56,13 +56,7 @@ function loadConfig(configPath: string): CliConfig {
   try {
     const resolvedPath = join(process.cwd(), configPath);
     const configContent = readFileSync(resolvedPath, 'utf-8');
-    const parsed = JSON.parse(configContent) as {
-      embedding: EmbeddingConfig;
-      agent: {
-        apiKey: string;
-        baseUrl?: string;
-      };
-    };
+    const parsed = JSON.parse(configContent) as CliConfig;
     return parsed;
   } catch (error) {
     logger.error(`Failed to load config from ${configPath}:`, {
@@ -111,13 +105,8 @@ program
     'Maximum number of concurrent test executions',
     '5',
   )
-  .option(
-    '--use-semantic-scoring',
-    'Use semantic scoring for evaluation',
-    false,
-  )
   .action(async (agent: string, options: RunCommandOptions) => {
-    let heboAgent: HeboAgent | undefined;
+    let heboAgent: IAgent | undefined;
     let embeddingProvider: IEmbeddingProvider | undefined;
     try {
       // Load configuration from file, environment, or defaults
@@ -130,7 +119,8 @@ program
           embedding: EmbeddingProviderFactory.loadFromEnv(),
           agent: {
             apiKey: process.env.HEBO_API_KEY,
-            baseUrl: process.env.HEBO_BASE_URL || 'https://api.hebo.ai/v1/embeddings',
+            baseUrl:
+              process.env.HEBO_BASE_URL || 'https://api.hebo.ai/v1/embeddings',
           },
         };
 
@@ -141,9 +131,12 @@ program
           );
         }
       }
-
       // Validate required configuration
-      if (!config.agent?.apiKey) {
+      if (
+        !config.agent ||
+        !('apiKey' in config.agent) ||
+        !config.agent.apiKey
+      ) {
         throw new Error(
           'HEBO_API_KEY environment variable or config file is required',
         );
@@ -175,7 +168,6 @@ program
       const evalConfig: EvaluationConfig = {
         threshold,
         outputFormat: options.format as 'json' | 'markdown' | 'text',
-        useSemanticScoring: options.useSemanticScoring,
         maxConcurrency,
       };
 

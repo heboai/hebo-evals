@@ -8,7 +8,6 @@ describe('ReportGenerator', () => {
   let reportGenerator: ReportGenerator;
   const defaultConfig: EvaluationConfig = {
     threshold: 0.7,
-    useSemanticScoring: false,
     outputFormat: 'markdown',
     maxConcurrency: 5,
   };
