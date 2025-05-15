@@ -150,7 +150,7 @@ program
       await heboAgent.initialize({ model: agent });
       await heboAgent.authenticate({ apiKey: config.agent.apiKey });
 
-      // Initialize scoring service with embedding provider
+      // Initialize scoring service with embedding provider.
       embeddingProvider = EmbeddingProviderFactory.createProvider({
         defaultProvider: 'litellm',
         ...config.embedding,
