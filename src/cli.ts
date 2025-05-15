@@ -175,7 +175,7 @@ program
       const executor = new EvaluationExecutor(scoringService, evalConfig);
       const report = await executor.evaluateFromDirectory(
         heboAgent,
-        options.directory || '../examples',
+        options.directory || join(process.cwd(), 'examples'),
         options.stopOnError,
       );
 
