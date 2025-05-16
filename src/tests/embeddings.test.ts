@@ -3,9 +3,9 @@ import {
   EmbeddingProviderFactory,
   EmbeddingSystemConfig,
 } from '../embeddings/config/embedding.config';
-import { LiteLLMEmbeddingProvider } from '../embeddings/implementations/litellm-embedding-provider';
-import { OpenAIEmbeddingProvider } from '../embeddings/implementations/openai-embedding-provider';
-import { EmbeddingResponse } from '../embeddings/types/embedding.types';
+import { LiteLLMEmbeddingProvider } from '../embeddings/implementations/litellm-embedding-provider.js';
+import { OpenAIEmbeddingProvider } from '../embeddings/implementations/openai-embedding-provider.js';
+import { EmbeddingResponse } from '../embeddings/types/embedding.types.js';
 
 // Mock fetch
 const mockFetch = jest.fn<typeof fetch>();

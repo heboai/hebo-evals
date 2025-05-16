@@ -1,13 +1,16 @@
-import { AgentInput } from '../agents/types/agent.types';
-import { IAgent } from '../agents/interfaces/agent.interface';
-import { Logger } from '../utils/logger';
+import { AgentInput } from '../agents/types/agent.types.js';
+import { IAgent } from '../agents/interfaces/agent.interface.js';
+import { Logger } from '../utils/logger.js';
 import { performance } from 'perf_hooks';
-import { TestCase } from '../core/types/message.types';
-import { TestCaseLoader } from '../parser/loader';
-import { ScoringService } from '../scoring/scoring.service';
-import { ReportGenerator } from '../report/report-generator';
-import { EvaluationConfig, EvaluationReport } from './types/evaluation.types';
-import { TestCaseEvaluation } from './types/test-case.types';
+import { TestCase } from '../core/types/message.types.js';
+import { TestCaseLoader } from '../parser/loader.js';
+import { ScoringService } from '../scoring/scoring.service.js';
+import { ReportGenerator } from '../report/report-generator.js';
+import {
+  EvaluationConfig,
+  EvaluationReport,
+} from './types/evaluation.types.js';
+import { TestCaseEvaluation } from './types/test-case.types.js';
 
 /**
  * Service for executing test cases against an agent

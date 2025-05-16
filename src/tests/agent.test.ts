@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { BaseAgent } from '../agents/interfaces/base-agent';
+import { BaseAgent } from '../agents/interfaces/base-agent.js';
 import {
   AgentConfig,
   AgentInput,
   AgentOutput,
-} from '../agents/types/agent.types';
-import { HeboAgent } from '../agents/implementations/hebo-agent';
-import { BaseMessage, MessageRole } from '../core/types/message.types';
-import { roleMapper } from '../core/utils/role-mapper';
+} from '../agents/types/agent.types.js';
+import { HeboAgent } from '../agents/implementations/hebo-agent.js';
+import { BaseMessage, MessageRole } from '../core/types/message.types.js';
+import { roleMapper } from '../core/utils/role-mapper.js';
 
 /**
  * Test implementation of BaseAgent for testing abstract functionality

@@ -2,10 +2,10 @@ import {
   EmbeddingConfig,
   LiteLLMEmbeddingConfig,
   OpenAIEmbeddingConfig,
-} from '../types/embedding.types';
-import { LiteLLMEmbeddingProvider } from '../implementations/litellm-embedding-provider';
-import { OpenAIEmbeddingProvider } from '../implementations/openai-embedding-provider';
-import { IEmbeddingProvider } from '../interfaces/embedding-provider.interface';
+} from '../types/embedding.types.js';
+import { LiteLLMEmbeddingProvider } from '../implementations/litellm-embedding-provider.js';
+import { OpenAIEmbeddingProvider } from '../implementations/openai-embedding-provider.js';
+import { IEmbeddingProvider } from '../interfaces/embedding-provider.interface.js';
 
 /**
  * Configuration options for the embedding system

@@ -77,12 +77,12 @@ program
   .description('A CLI tool for evaluating and testing language models')
   .version(version);
 
-program
-  .command('version')
-  .description('Display the current version')
-  .action(() => {
-    console.log(version);
-  });
+// program
+//   .command('version')
+//   .description('Display the current version')
+//   .action(() => {
+//     console.log(version);
+//   });
 
 program
   .command('run <agent>')

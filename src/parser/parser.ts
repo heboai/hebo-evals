@@ -1,11 +1,11 @@
-import { TestCaseParser } from './tokenizer';
+import { TestCaseParser } from './tokenizer.js';
 import {
   MessageRole,
   BaseMessage,
   TestCase,
-} from '../core/types/message.types';
-import { roleMapper } from '../core/utils/role-mapper';
-import { ParseError } from './errors';
+} from '../core/types/message.types.js';
+import { roleMapper } from '../core/utils/role-mapper.js';
+import { ParseError } from './errors.js';
 
 /**
  * Parser for test case text files

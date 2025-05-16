@@ -1,12 +1,12 @@
-import { BaseAgent } from '../interfaces/base-agent';
-import { AgentConfig, AgentInput, AgentOutput } from '../types/agent.types';
+import { BaseAgent } from '../interfaces/base-agent.js';
+import { AgentConfig, AgentInput, AgentOutput } from '../types/agent.types.js';
 import {
   Response,
   ResponseRequest,
   OpenAIMessage,
-} from '../types/openai.types';
-import { roleMapper } from '../../core/utils/role-mapper';
-import { AgentAuthConfig } from '../types/agent.types';
+} from '../types/openai.types.js';
+import { roleMapper } from '../../core/utils/role-mapper.js';
+import { AgentAuthConfig } from '../types/agent.types.js';
 
 /**
  * Configuration specific to Hebo agent

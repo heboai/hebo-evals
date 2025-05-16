@@ -1,4 +1,4 @@
-import { ParseError } from './errors';
+import { ParseError } from './errors.js';
 
 /**
  * Represents an element in the test case text
