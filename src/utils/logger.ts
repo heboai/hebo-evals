@@ -73,16 +73,15 @@ export class Logger {
       const paddedLine = line.padEnd(maxLength);
       return `${BOX.VERTICAL}${BOX.SPACE.repeat(padding)}${paddedLine}${BOX.SPACE.repeat(padding)}${BOX.VERTICAL}`;
     });
-
-    const icon = ICONS[type];
-    const color = COLORS[type];
-    const reset = COLORS.reset;
-
+    
+    // Add a separator between lines for better readability
+    const separator = `${BOX.VERTICAL}${BOX.HORIZONTAL.repeat(width)}${BOX.VERTICAL}`;
+    
     return [
       '',
       `${color}${icon} ${type.charAt(0).toUpperCase() + type.slice(1)}${reset}`,
       top,
-      ...formattedLines,
+      ...formattedLines.flatMap((line, index) => index < formattedLines.length - 1 ? [line, separator] : [line]),
       bottom,
       '',
     ].join('\n');
