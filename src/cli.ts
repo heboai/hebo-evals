@@ -57,7 +57,7 @@ function loadConfig(configPath: string): CliConfig {
     const configContent = readFileSync(resolvedPath, 'utf-8');
     const parsed = JSON.parse(configContent) as CliConfig;
     return parsed;
-  } catch (error) {
+  } catch (error: unknown) {
     const errorMessage = `Failed to load config from ${configPath}: ${error instanceof Error ? error.message : String(error)}`;
     Logger.error(errorMessage);
     throw new Error(errorMessage);

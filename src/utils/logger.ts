@@ -73,18 +73,46 @@ export class Logger {
       const paddedLine = line.padEnd(maxLength);
       return `${BOX.VERTICAL}${BOX.SPACE.repeat(padding)}${paddedLine}${BOX.SPACE.repeat(padding)}${BOX.VERTICAL}`;
     });
-    
+
     // Add a separator between lines for better readability
     const separator = `${BOX.VERTICAL}${BOX.HORIZONTAL.repeat(width)}${BOX.VERTICAL}`;
-    
+
     return [
       '',
-      `${color}${icon} ${type.charAt(0).toUpperCase() + type.slice(1)}${reset}`,
+      `${COLORS[type]}${ICONS[type]} ${type.charAt(0).toUpperCase() + type.slice(1)}${COLORS.reset}`,
       top,
-      ...formattedLines.flatMap((line, index) => index < formattedLines.length - 1 ? [line, separator] : [line]),
+      ...formattedLines.flatMap((line, index) =>
+        index < formattedLines.length - 1 ? [line, separator] : [line],
+      ),
       bottom,
       '',
     ].join('\n');
+  }
+
+  /**
+   * Logs an error message
+   * @param message The message to log
+   * @param meta Optional metadata to include
+   */
+  static error(message: unknown, meta?: Record<string, unknown>): void {
+    const messageStr = typeof message === 'string' ? message : String(message);
+    console.error(this.formatMessage(messageStr, 'error'));
+    if (meta) {
+      console.error(JSON.stringify(meta, null, 2));
+    }
+  }
+
+  /**
+   * Logs a warning message
+   * @param message The message to log
+   * @param meta Optional metadata to include
+   */
+  static warn(message: unknown, meta?: Record<string, unknown>): void {
+    const messageStr = typeof message === 'string' ? message : String(message);
+    console.warn(this.formatMessage(messageStr, 'warning'));
+    if (meta) {
+      console.warn(JSON.stringify(meta, null, 2));
+    }
   }
 
   /**
@@ -92,8 +120,9 @@ export class Logger {
    * @param message The message to log
    * @param meta Optional metadata to include
    */
-  static info(message: string, meta?: Record<string, unknown>): void {
-    console.log(this.formatMessage(message, 'info'));
+  static info(message: unknown, meta?: Record<string, unknown>): void {
+    const messageStr = typeof message === 'string' ? message : String(message);
+    console.log(this.formatMessage(messageStr, 'info'));
     if (meta) {
       console.log(JSON.stringify(meta, null, 2));
     }
@@ -104,34 +133,11 @@ export class Logger {
    * @param message The message to log
    * @param meta Optional metadata to include
    */
-  static success(message: string, meta?: Record<string, unknown>): void {
-    console.log(this.formatMessage(message, 'success'));
+  static success(message: unknown, meta?: Record<string, unknown>): void {
+    const messageStr = typeof message === 'string' ? message : String(message);
+    console.log(this.formatMessage(messageStr, 'success'));
     if (meta) {
       console.log(JSON.stringify(meta, null, 2));
-    }
-  }
-
-  /**
-   * Logs a warning message
-   * @param message The message to log
-   * @param meta Optional metadata to include
-   */
-  static warn(message: string, meta?: Record<string, unknown>): void {
-    console.warn(this.formatMessage(message, 'warning'));
-    if (meta) {
-      console.warn(JSON.stringify(meta, null, 2));
-    }
-  }
-
-  /**
-   * Logs an error message
-   * @param message The message to log
-   * @param meta Optional metadata to include
-   */
-  static error(message: string, meta?: Record<string, unknown>): void {
-    console.error(this.formatMessage(message, 'error'));
-    if (meta) {
-      console.error(JSON.stringify(meta, null, 2));
     }
   }
 
@@ -140,9 +146,11 @@ export class Logger {
    * @param message The message to log
    * @param meta Optional metadata to include
    */
-  static debug(message: string, meta?: Record<string, unknown>): void {
+  static debug(message: unknown, meta?: Record<string, unknown>): void {
     if (process.env.DEBUG) {
-      console.debug(this.formatMessage(message, 'debug'));
+      const messageStr =
+        typeof message === 'string' ? message : String(message);
+      console.debug(this.formatMessage(messageStr, 'debug'));
       if (meta) {
         console.debug(JSON.stringify(meta, null, 2));
       }

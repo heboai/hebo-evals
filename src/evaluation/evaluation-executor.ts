@@ -16,7 +16,6 @@ import { TestCaseEvaluation } from './types/test-case.types.js';
  * Service for executing test cases against an agent
  */
 export class EvaluationExecutor {
-  private logger: Logger;
   private testCaseLoader: TestCaseLoader;
   private scoringService: ScoringService;
   private reportGenerator: ReportGenerator;
@@ -24,7 +23,6 @@ export class EvaluationExecutor {
   private readonly maxConcurrency: number;
 
   constructor(scoringService: ScoringService, config: EvaluationConfig) {
-    this.logger = Logger.getInstance();
     this.testCaseLoader = new TestCaseLoader();
     this.scoringService = scoringService;
     this.reportGenerator = new ReportGenerator(config);
@@ -108,14 +106,14 @@ export class EvaluationExecutor {
     directoryPath: string,
     stopOnError: boolean = true,
   ): Promise<TestCaseEvaluation[]> {
-    this.logger.info(`Loading test cases from directory: ${directoryPath}`);
+    Logger.info(`Loading test cases from directory: ${directoryPath}`);
     const loadResult = await this.testCaseLoader.loadFromDirectory(
       directoryPath,
       stopOnError,
     );
 
     if (loadResult.errors.length > 0) {
-      this.logger.warn(
+      Logger.warn(
         `Encountered ${loadResult.errors.length} errors while loading test cases:`,
         {
           errors: loadResult.errors,
@@ -124,11 +122,11 @@ export class EvaluationExecutor {
     }
 
     if (loadResult.testCases.length === 0) {
-      this.logger.warn('No test cases were loaded successfully');
+      Logger.warn('No test cases were loaded successfully');
       return [];
     }
 
-    this.logger.info(
+    Logger.info(
       `Successfully loaded ${loadResult.testCases.length} test cases`,
     );
     return this.executeTestCases(agent, loadResult.testCases);
@@ -214,7 +212,7 @@ export class EvaluationExecutor {
         try {
           results.push(await this.executeTestCase(agent, testCase));
         } catch (error) {
-          this.logger.error(
+          Logger.error(
             `Error executing test case ${testCase.id}: ${error instanceof Error ? error.message : 'Unknown error'}`,
           );
           results.push({
@@ -229,7 +227,7 @@ export class EvaluationExecutor {
         }
       }
     } catch (error) {
-      this.logger.error(
+      Logger.error(
         `Fatal error in executeTestCases: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
       throw error; // Re-throw fatal errors that affect the entire execution
@@ -255,12 +253,12 @@ export class EvaluationExecutor {
     }
 
     const results: TestCaseEvaluation[] = [];
-    this.logger.info(
+    Logger.info(
       `Starting parallel execution of ${testCases.length} test cases with concurrency ${maxConcurrency}`,
     );
 
     for (const chunk of chunks) {
-      this.logger.debug(
+      Logger.debug(
         `Executing chunk of ${chunk.length} test cases (${results.length}/${testCases.length} completed)`,
       );
       // Process each test case with error handling
@@ -268,7 +266,7 @@ export class EvaluationExecutor {
         try {
           return await this.executeTestCase(agent, testCase);
         } catch (error) {
-          this.logger.error(
+          Logger.error(
             `Error executing test case ${testCase.id}: ${
               error instanceof Error ? error.message : 'Unknown error'
             }`,
@@ -288,7 +286,7 @@ export class EvaluationExecutor {
       results.push(...chunkResults);
     }
 
-    this.logger.info(
+    Logger.info(
       `Completed parallel execution of ${testCases.length} test cases`,
     );
     return results;
