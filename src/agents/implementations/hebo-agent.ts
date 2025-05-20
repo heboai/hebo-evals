@@ -204,7 +204,7 @@ export class HeboAgent extends BaseAgent {
 
     // Create AbortController for timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 360000); // 2 minute timeout
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 1 minute timeout
 
     try {
       const response = await fetch(`${this.baseUrl}/api/responses`, {
@@ -242,7 +242,7 @@ export class HeboAgent extends BaseAgent {
 
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          throw new Error('Request timed out after 2 minutes');
+          throw new Error('Request timed out after 1 minute');
         }
         // If it's already a gateway timeout error, pass it through
         if (error.message.includes('Gateway timeout')) {
