@@ -7,7 +7,6 @@ import {
 } from '../types/openai.types.js';
 import { roleMapper } from '../../core/utils/role-mapper.js';
 import { AgentAuthConfig } from '../types/agent.types.js';
-import { MessageRole } from '../../core/types/message.types.js';
 
 /**
  * Configuration specific to Hebo agent
@@ -77,18 +76,12 @@ export class HeboAgent extends BaseAgent {
    * Processes the input and returns the agent's response
    */
   protected async processInput(input: AgentInput): Promise<AgentOutput> {
-    // Clear message history before processing new input
-    this.messageHistory = [];
-    this.previousResponseId = undefined;
-
-    // Only add user messages to history
+    // Add all messages to history
     for (const msg of input.messages) {
-      if (msg.role === MessageRole.USER) {
-        this.messageHistory.push({
-          role: msg.role,
-          content: msg.content,
-        });
-      }
+      this.messageHistory.push({
+        role: msg.role,
+        content: msg.content,
+      });
     }
 
     const request: ResponseRequest = {

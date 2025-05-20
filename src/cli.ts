@@ -2,10 +2,7 @@
 
 import { Command } from 'commander';
 import { version } from './utils/package-info.js';
-import {
-  HeboAgent,
-  HeboAgentConfig,
-} from './agents/implementations/hebo-agent.js';
+import { HeboAgent } from './agents/implementations/hebo-agent.js';
 import { ScoringService } from './scoring/scoring.service.js';
 import { EvaluationExecutor } from './evaluation/evaluation-executor.js';
 import { EvaluationConfig } from './evaluation/types/evaluation.types.js';
