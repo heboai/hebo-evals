@@ -73,7 +73,7 @@ export class HeboEmbeddingProvider extends BaseEmbeddingProvider {
       let responseBody;
       try {
         responseBody = await responseClone.text();
-      } catch (e) {
+      } catch {
         responseBody = '[Unable to read response body]';
       }
       console.log('[HeboEmbeddingProvider] Response status:', response.status);

@@ -161,10 +161,14 @@ program
           apiKey: config.embedding.apiKey,
         };
       } else {
-        throw new Error('Invalid embedding configuration: missing provider information');
+        throw new Error(
+          'Invalid embedding configuration: missing provider information',
+        );
       }
 
-      embeddingProvider = EmbeddingProviderFactory.createProvider(embeddingSystemConfig);
+      embeddingProvider = EmbeddingProviderFactory.createProvider(
+        embeddingSystemConfig,
+      );
       await embeddingProvider.initialize({
         provider: embeddingSystemConfig.defaultProvider,
         model: embeddingSystemConfig.model,

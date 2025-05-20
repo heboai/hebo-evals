@@ -101,9 +101,12 @@ export class HeboAgent extends BaseAgent {
           toolResponses: message.toolResponses || [],
         });
         // If there are tool usages and tool responses, format them into the response
-        if (message.toolUsages && message.toolUsages.length > 0 && message.toolResponses && message.toolResponses.length > 0) {
-          // Compose a response string that includes tool use and tool response
-          // This is a simplified approach; you may want to customize formatting further
+        if (
+          message.toolUsages &&
+          message.toolUsages.length > 0 &&
+          message.toolResponses &&
+          message.toolResponses.length > 0
+        ) {
           finalResponse = message.content || '';
           for (let i = 0; i < message.toolUsages.length; i++) {
             const usage = message.toolUsages[i];
@@ -167,7 +170,7 @@ export class HeboAgent extends BaseAgent {
     let responseBody;
     try {
       responseBody = await responseClone.text();
-    } catch (e) {
+    } catch {
       responseBody = '[Unable to read response body]';
     }
     console.log('[HeboAgent] Response status:', response.status);
