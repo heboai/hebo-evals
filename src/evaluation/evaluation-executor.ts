@@ -11,6 +11,7 @@ import {
   EvaluationReport,
 } from './types/evaluation.types.js';
 import { TestCaseEvaluation } from './types/test-case.types.js';
+import { formatTestCasePlain } from '../parser/formatter.js';
 
 /**
  * Service for executing test cases against an agent
@@ -72,14 +73,20 @@ export class EvaluationExecutor {
       results: results.map((result) => ({
         testCase: {
           id: result.testCaseId,
-          input: result.testCase.messageBlocks
-            .slice(0, -1)
-            .map((m: { content: string }) => m.content)
-            .join('\n'),
-          expected:
-            result.testCase.messageBlocks[
-              result.testCase.messageBlocks.length - 1
-            ].content,
+          input: formatTestCasePlain({
+            id: result.testCaseId,
+            name: result.testCaseId,
+            messageBlocks: result.testCase.messageBlocks.slice(0, -1),
+          }),
+          expected: formatTestCasePlain({
+            id: result.testCaseId,
+            name: result.testCaseId,
+            messageBlocks: [
+              result.testCase.messageBlocks[
+                result.testCase.messageBlocks.length - 1
+              ],
+            ],
+          }),
         },
         score: result.score,
         passed: result.success,
@@ -164,6 +171,11 @@ export class EvaluationExecutor {
       const response = await agent.sendInput(input);
       const executionTime = performance.now() - startTime;
 
+      // Only calculate similarity score if we have a valid response
+      if (!response.response || response.response.trim().length === 0) {
+        throw new Error('Agent returned an empty response');
+      }
+
       // Calculate semantic similarity score
       const score = await this.scoringService.scoreStrings(
         response.response.trim(),
@@ -190,7 +202,7 @@ export class EvaluationExecutor {
         error: error instanceof Error ? error.message : 'Unknown error',
         score: 0,
         executionTime,
-        response: '',
+        response: error instanceof Error ? error.message : 'Unknown error',
         testCase,
       };
     }

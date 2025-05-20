@@ -151,8 +151,15 @@ export class Parser {
       throw new ParseError('Test case must contain at least one message block');
     }
 
-    // Validate tool usage and response sequence
+    // Validate that all messages have a role
     for (const block of messageBlocks) {
+      if (!block.role) {
+        throw new ParseError(
+          'All messages must have a role marker (e.g. "user:", "assistant:", "human agent:")',
+        );
+      }
+
+      // Validate tool usage and response sequence
       if (block.toolUsages && block.toolUsages.length > 0) {
         // Tool usage must be from assistant or human agent
         if (

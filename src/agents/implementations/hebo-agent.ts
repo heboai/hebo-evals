@@ -33,10 +33,13 @@ export class HeboAgent extends BaseAgent {
   private store: boolean;
   private previousResponseId?: string;
   private messageHistory: OpenAIMessage[] = [];
+  private apiKey?: string;
 
   constructor(config: HeboAgentConfig) {
     super(config);
-    this.baseUrl = config.baseUrl || 'https://api.hebo.ai';
+    // Remove trailing slash from baseUrl if present
+    const rawBaseUrl = config.baseUrl || 'https://api.hebo.ai';
+    this.baseUrl = rawBaseUrl.replace(/\/$/, '');
     this.store = config.store ?? true;
     this.messageHistory = [];
   }
@@ -65,6 +68,7 @@ export class HeboAgent extends BaseAgent {
       headerName: 'X-API-Key',
       headerFormat: '{apiKey}',
     };
+    this.apiKey = authConfig.apiKey;
     await super.authenticate(heboAuthConfig);
   }
 
@@ -87,6 +91,7 @@ export class HeboAgent extends BaseAgent {
       this.previousResponseId = response.id;
 
       // Add assistant's response to history
+      let finalResponse = '';
       if (response.choices.length > 0 && response.choices[0].message) {
         const message = response.choices[0].message;
         this.messageHistory.push({
@@ -95,6 +100,20 @@ export class HeboAgent extends BaseAgent {
           toolUsages: message.toolUsages || [],
           toolResponses: message.toolResponses || [],
         });
+        // If there are tool usages and tool responses, format them into the response
+        if (message.toolUsages && message.toolUsages.length > 0 && message.toolResponses && message.toolResponses.length > 0) {
+          // Compose a response string that includes tool use and tool response
+          // This is a simplified approach; you may want to customize formatting further
+          finalResponse = message.content || '';
+          for (let i = 0; i < message.toolUsages.length; i++) {
+            const usage = message.toolUsages[i];
+            const resp = message.toolResponses[i];
+            finalResponse += `\ntool use: ${usage.name} args: ${JSON.stringify(usage.args)}`;
+            finalResponse += `\ntool response: ${resp.content}`;
+          }
+        } else {
+          finalResponse = message.content || '';
+        }
       }
 
       if (response.error) {
@@ -109,7 +128,7 @@ export class HeboAgent extends BaseAgent {
       }
 
       return {
-        response: response.choices[0].message.content || '',
+        response: finalResponse,
         metadata: {
           id: response.id,
           model: response.model,
@@ -135,13 +154,24 @@ export class HeboAgent extends BaseAgent {
     const headers = {
       ...this.getAuthHeaders(),
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${this.apiKey}`,
     };
 
-    const response = await fetch(`${this.baseUrl}/response`, {
+    const response = await fetch(`${this.baseUrl}/api/responses`, {
       method: 'POST',
       headers,
       body: JSON.stringify(request),
     });
+    // Log the status and response body for debugging (do not log API key)
+    const responseClone = response.clone();
+    let responseBody;
+    try {
+      responseBody = await responseClone.text();
+    } catch (e) {
+      responseBody = '[Unable to read response body]';
+    }
+    console.log('[HeboAgent] Response status:', response.status);
+    console.log('[HeboAgent] Response body:', responseBody);
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);

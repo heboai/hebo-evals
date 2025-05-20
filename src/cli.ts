@@ -90,11 +90,7 @@ program
     'Score threshold for passing (0-1)',
     '0.7',
   )
-  .option(
-    '-f, --format <format>',
-    'Output format (json|markdown|text)',
-    'markdown',
-  )
+  .option('-f, --format <format>', 'Output format (json|markdown|text)', 'text')
   .option('-s, --stop-on-error', 'Stop processing on first error', false)
   .option(
     '-m, --max-concurrency <number>',
@@ -114,9 +110,10 @@ program
         config = {
           embedding: EmbeddingProviderFactory.loadFromEnv(),
           agent: {
-            apiKey: process.env.HEBO_API_KEY,
+            apiKey: process.env.HEBO_AGENT_API_KEY || process.env.HEBO_API_KEY,
             baseUrl:
-              process.env.HEBO_BASE_URL || 'https://api.hebo.ai/v1/embeddings',
+              process.env.HEBO_AGENT_BASE_URL ||
+              'https://api.hebo.ai/api/responses',
           },
         };
 
@@ -134,7 +131,7 @@ program
         !config.agent.apiKey
       ) {
         throw new Error(
-          'HEBO_API_KEY environment variable or config file is required',
+          'HEBO_AGENT_API_KEY or HEBO_API_KEY environment variable or config file is required',
         );
       }
 
@@ -151,9 +148,28 @@ program
       Logger.info('Initializing scoring service...');
 
       // Initialize scoring service with embedding provider.
-      embeddingProvider = EmbeddingProviderFactory.createProvider({
-        defaultProvider: 'litellm',
-        ...config.embedding,
+      let embeddingSystemConfig;
+      if ('defaultProvider' in config.embedding) {
+        // Already an EmbeddingSystemConfig
+        embeddingSystemConfig = config.embedding;
+      } else if ('provider' in config.embedding) {
+        // Convert EmbeddingConfig to EmbeddingSystemConfig
+        embeddingSystemConfig = {
+          defaultProvider: config.embedding.provider,
+          model: config.embedding.model,
+          baseUrl: config.embedding.baseUrl,
+          apiKey: config.embedding.apiKey,
+        };
+      } else {
+        throw new Error('Invalid embedding configuration: missing provider information');
+      }
+
+      embeddingProvider = EmbeddingProviderFactory.createProvider(embeddingSystemConfig);
+      await embeddingProvider.initialize({
+        provider: embeddingSystemConfig.defaultProvider,
+        model: embeddingSystemConfig.model,
+        baseUrl: embeddingSystemConfig.baseUrl,
+        apiKey: embeddingSystemConfig.apiKey,
       });
       const scoringService = new ScoringService(embeddingProvider);
 

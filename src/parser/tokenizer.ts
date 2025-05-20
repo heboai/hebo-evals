@@ -138,8 +138,10 @@ export class TestCaseParser {
       }
 
       if (!handled) {
-        // If no pattern matches, treat as content continuation
-        elements.push({ type: 'content', value: line.trim() });
+        // If no pattern matches and no role is specified, throw an error
+        throw new ParseError(
+          'All messages must have a role marker (e.g. "user:", "assistant:", "human agent:")',
+        );
       }
     }
 
