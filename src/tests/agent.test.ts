@@ -155,6 +155,10 @@ describe('HeboAgent', () => {
           status: 500,
           statusText: 'Internal Server Error',
           json: () => Promise.resolve({ error: { message: 'Server error' } }),
+          clone: () => ({
+            text: () =>
+              Promise.resolve('{"error": {"message": "Server error"}}'),
+          }),
         } as Response);
       }) as jest.MockedFunction<typeof fetch>;
 
@@ -230,6 +234,28 @@ describe('HeboAgent', () => {
                 total_tokens: 15,
               },
             }),
+          clone: () => ({
+            text: () =>
+              Promise.resolve(
+                JSON.stringify({
+                  id: 'test-id',
+                  model: config.model,
+                  choices: [
+                    {
+                      message: {
+                        role: 'assistant',
+                        content: 'Test response',
+                      },
+                    },
+                  ],
+                  usage: {
+                    prompt_tokens: 10,
+                    completion_tokens: 5,
+                    total_tokens: 15,
+                  },
+                }),
+              ),
+          }),
         } as Response);
       }) as jest.MockedFunction<typeof fetch>;
 

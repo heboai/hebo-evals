@@ -198,6 +198,12 @@ describe('Embedding System', () => {
       mockFetch.mockResolvedValueOnce(
         createMockResponse({
           data: [{ embedding: mockResponse.embedding }],
+          model: 'test-model',
+          object: 'list',
+          usage: {
+            prompt_tokens: 10,
+            total_tokens: 10,
+          },
         }),
       );
 
