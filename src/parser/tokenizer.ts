@@ -49,6 +49,8 @@ export class TestCaseParser {
     'user',
     'assistant',
     'human agent',
+    'tool use',
+    'tool response',
   ]);
 
   /**
@@ -140,7 +142,7 @@ export class TestCaseParser {
       if (!handled) {
         // If no pattern matches and no role is specified, throw an error
         throw new ParseError(
-          'All messages must have a role marker (e.g. "user:", "assistant:", "human agent:")',
+          'All messages must have a role marker (e.g. "user:", "assistant:", "human agent:", "tool use:", "tool response:")',
         );
       }
     }

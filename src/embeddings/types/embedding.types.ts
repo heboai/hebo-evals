@@ -16,7 +16,7 @@ export interface EmbeddingConfig {
 
   /**
    * Base URL for the embedding API
-   * @default "https://api.openai.com/v1" for OpenAI, "http://localhost:4000" for LiteLLM, "https://api.hebo.ai/v1" for Hebo
+   * @default "https://api.openai.com/v1" for OpenAI, "https://api.hebo.ai/v1" for LiteLLM, "https://api.hebo.ai/v1" for Hebo
    */
   baseUrl?: string;
 

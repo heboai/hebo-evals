@@ -29,7 +29,7 @@ export class HeboEmbeddingProvider extends BaseEmbeddingProvider {
 
   constructor(config: HeboEmbeddingConfig, apiKey: string) {
     super(config);
-    this.baseUrl = config.baseUrl || 'https://api.hebo.ai/v1/embeddings';
+    this.baseUrl = config.baseUrl || 'https://api.hebo.ai';
     this.apiKey = apiKey;
   }
 
@@ -50,64 +50,57 @@ export class HeboEmbeddingProvider extends BaseEmbeddingProvider {
    * Processes the text and returns the embedding response
    */
   protected async processText(text: string): Promise<EmbeddingResponse> {
+    // Validate input text
+    if (!text || text.trim().length === 0) {
+      throw new Error('Input text cannot be empty');
+    }
+
+    const response = await fetch(`${this.baseUrl}/api/embeddings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.apiKey,
+      },
+      body: JSON.stringify({
+        model: this.config.model,
+        input: text,
+        encoding_format: 'base64',
+      }),
+    });
+
+    // Log the status and response body for debugging (do not log API key)
+    const responseClone = response.clone();
+    let responseBody;
     try {
-      // Validate input text
-      if (!text || text.trim().length === 0) {
-        throw new Error('Input text cannot be empty');
-      }
+      responseBody = await responseClone.text();
+    } catch {
+      responseBody = '[Unable to read response body]';
+    }
+    console.log('[HeboEmbeddingProvider] Response status:', response.status);
+    console.log('[HeboEmbeddingProvider] Response body:', responseBody);
 
-      const response = await fetch(this.baseUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.config.model,
-          input: text,
-          encoding_format: 'base64',
-        }),
-      });
-      // Log the status and response body for debugging (do not log API key)
-      const responseClone = response.clone();
-      let responseBody;
-      try {
-        responseBody = await responseClone.text();
-      } catch {
-        responseBody = '[Unable to read response body]';
-      }
-      console.log('[HeboEmbeddingProvider] Response status:', response.status);
-      console.log('[HeboEmbeddingProvider] Response body:', responseBody);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(
-          `HTTP error! status: ${response.status}${
-            errorData ? ` - ${JSON.stringify(errorData)}` : ''
-          }`,
-        );
-      }
-
-      const data = (await response.json()) as HeboEmbeddingResponse;
-
-      if (!data.data?.[0]?.embedding) {
-        throw new Error('Invalid response format from Hebo API');
-      }
-
-      return {
-        embedding: data.data[0].embedding,
-        metadata: {
-          model: this.config.model,
-          provider: 'hebo',
-          usage: data.usage,
-        },
-      };
-    } catch (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
       throw new Error(
-        `Failed to generate embedding: ${
-          error instanceof Error ? error.message : 'Unknown error'
+        `HTTP error! status: ${response.status}${
+          errorData ? ` - ${JSON.stringify(errorData)}` : ''
         }`,
       );
     }
+
+    const data = (await response.json()) as HeboEmbeddingResponse;
+
+    if (!data.data?.[0]?.embedding) {
+      throw new Error('Invalid response format from Hebo API');
+    }
+
+    return {
+      embedding: data.data[0].embedding,
+      metadata: {
+        model: this.config.model,
+        provider: 'hebo',
+        usage: data.usage,
+      },
+    };
   }
 }

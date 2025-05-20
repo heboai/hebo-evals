@@ -7,6 +7,7 @@ import {
 } from '../types/openai.types.js';
 import { roleMapper } from '../../core/utils/role-mapper.js';
 import { AgentAuthConfig } from '../types/agent.types.js';
+import { MessageRole } from '../../core/types/message.types.js';
 
 /**
  * Configuration specific to Hebo agent
@@ -14,7 +15,7 @@ import { AgentAuthConfig } from '../types/agent.types.js';
 export interface HeboAgentConfig extends AgentConfig {
   /**
    * The base URL for the Hebo API
-   * @default 'https://api.hebo.ai'
+   * @default 'https://app.hebo.ai'
    */
   baseUrl?: string;
 
@@ -38,7 +39,7 @@ export class HeboAgent extends BaseAgent {
   constructor(config: HeboAgentConfig) {
     super(config);
     // Remove trailing slash from baseUrl if present
-    const rawBaseUrl = config.baseUrl || 'https://api.hebo.ai';
+    const rawBaseUrl = config.baseUrl || 'https://app.hebo.ai';
     this.baseUrl = rawBaseUrl.replace(/\/$/, '');
     this.store = config.store ?? true;
     this.messageHistory = [];
@@ -76,8 +77,19 @@ export class HeboAgent extends BaseAgent {
    * Processes the input and returns the agent's response
    */
   protected async processInput(input: AgentInput): Promise<AgentOutput> {
-    // Add new messages to history
-    this.messageHistory.push(...input.messages);
+    // Clear message history before processing new input
+    this.messageHistory = [];
+    this.previousResponseId = undefined;
+
+    // Only add user messages to history
+    for (const msg of input.messages) {
+      if (msg.role === MessageRole.USER) {
+        this.messageHistory.push({
+          role: msg.role,
+          content: msg.content,
+        });
+      }
+    }
 
     const request: ResponseRequest = {
       model: this.config.model,
@@ -94,32 +106,59 @@ export class HeboAgent extends BaseAgent {
       let finalResponse = '';
       if (response.choices.length > 0 && response.choices[0].message) {
         const message = response.choices[0].message;
+
+        // Log the raw message for debugging
+        console.log(
+          '[HeboAgent] Raw message:',
+          JSON.stringify(message, null, 2),
+        );
+
+        if (!message.content && !message.function_call) {
+          console.log('[HeboAgent] Warning: Empty response received from API');
+          return {
+            response: '',
+            error: {
+              message: 'Empty response received from API',
+              details: response,
+            },
+          };
+        }
+
+        // Convert function_call back to tool usage format
+        const toolUsages = message.function_call
+          ? [
+              {
+                name: message.function_call.name,
+                args: message.function_call.arguments,
+              },
+            ]
+          : [];
+
         this.messageHistory.push({
           role: roleMapper.toRole(message.role),
           content: message.content || '',
-          toolUsages: message.toolUsages || [],
-          toolResponses: message.toolResponses || [],
+          toolUsages,
+          toolResponses: [],
         });
-        // If there are tool usages and tool responses, format them into the response
-        if (
-          message.toolUsages &&
-          message.toolUsages.length > 0 &&
-          message.toolResponses &&
-          message.toolResponses.length > 0
-        ) {
-          finalResponse = message.content || '';
-          for (let i = 0; i < message.toolUsages.length; i++) {
-            const usage = message.toolUsages[i];
-            const resp = message.toolResponses[i];
-            finalResponse += `\ntool use: ${usage.name} args: ${JSON.stringify(usage.args)}`;
-            finalResponse += `\ntool response: ${resp.content}`;
-          }
-        } else {
-          finalResponse = message.content || '';
+
+        // Format the response
+        finalResponse = message.content || '';
+        if (message.function_call) {
+          finalResponse += `\ntool use: ${message.function_call.name} args: ${message.function_call.arguments}`;
         }
+      } else {
+        console.log('[HeboAgent] Warning: No message in response choices');
+        return {
+          response: '',
+          error: {
+            message: 'No message in response choices',
+            details: response,
+          },
+        };
       }
 
       if (response.error) {
+        console.log('[HeboAgent] Error in response:', response.error);
         return {
           response: '',
           error: {
@@ -139,6 +178,7 @@ export class HeboAgent extends BaseAgent {
         },
       };
     } catch (error) {
+      console.log('[HeboAgent] Error processing input:', error);
       return {
         response: '',
         error: {
@@ -157,30 +197,60 @@ export class HeboAgent extends BaseAgent {
     const headers = {
       ...this.getAuthHeaders(),
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${this.apiKey}`,
     };
 
-    const response = await fetch(`${this.baseUrl}/api/responses`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(request),
-    });
-    // Log the status and response body for debugging (do not log API key)
-    const responseClone = response.clone();
-    let responseBody;
+    // Log the request body
+    console.log('[HeboAgent] Request body:', JSON.stringify(request, null, 2));
+
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 360000); // 2 minute timeout
+
     try {
-      responseBody = await responseClone.text();
-    } catch {
-      responseBody = '[Unable to read response body]';
-    }
-    console.log('[HeboAgent] Response status:', response.status);
-    console.log('[HeboAgent] Response body:', responseBody);
+      const response = await fetch(`${this.baseUrl}/api/responses`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(request),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+      // Clear timeout since request completed
+      clearTimeout(timeoutId);
 
-    return response.json() as Promise<Response>;
+      // Log the status and response body for debugging (do not log API key)
+      const responseClone = response.clone();
+      let responseBody;
+      try {
+        responseBody = await responseClone.text();
+      } catch {
+        responseBody = '[Unable to read response body]';
+      }
+      console.log('[HeboAgent] Response status:', response.status);
+      console.log('[HeboAgent] Response body:', responseBody);
+
+      if (!response.ok) {
+        if (response.status === 504) {
+          throw new Error('Gateway timeout - server took too long to respond');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return response.json() as Promise<Response>;
+    } catch (error) {
+      // Clear timeout in case of error
+      clearTimeout(timeoutId);
+
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Request timed out after 2 minutes');
+        }
+        // If it's already a gateway timeout error, pass it through
+        if (error.message.includes('Gateway timeout')) {
+          throw error;
+        }
+      }
+      throw error;
+    }
   }
 
   /**

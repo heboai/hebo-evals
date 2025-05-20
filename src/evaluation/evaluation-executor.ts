@@ -11,7 +11,7 @@ import {
   EvaluationReport,
 } from './types/evaluation.types.js';
 import { TestCaseEvaluation } from './types/test-case.types.js';
-import { formatTestCasePlain } from '../parser/formatter.js';
+import { formatTestCasePlain } from '../utils/formatter.js';
 
 /**
  * Service for executing test cases against an agent
@@ -156,11 +156,10 @@ export class EvaluationExecutor {
           'Test case must have at least 2 message blocks: input and expected output',
         );
       }
+
+      // Send all messages except the last one to the API
       const input: AgentInput = {
-        messages: testCase.messageBlocks.slice(0, -1).map((block) => ({
-          role: block.role,
-          content: block.content,
-        })),
+        messages: testCase.messageBlocks.slice(0, -1),
       };
 
       // Get the expected response from the last message block

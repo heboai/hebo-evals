@@ -43,7 +43,10 @@ interface RunCommandOptions {
  */
 interface CliConfig {
   embedding: EmbeddingConfig;
-  agent: HeboAgentConfig;
+  agent: {
+    agentKey: string;
+    baseUrl: string;
+  };
 }
 
 /**
@@ -110,10 +113,10 @@ program
         config = {
           embedding: EmbeddingProviderFactory.loadFromEnv(),
           agent: {
-            apiKey: process.env.HEBO_AGENT_API_KEY || process.env.HEBO_API_KEY,
-            baseUrl:
-              process.env.HEBO_AGENT_BASE_URL ||
-              'https://api.hebo.ai/api/responses',
+            apiKey:
+              process.env.HEBO_AGENT_API_KEY ||
+              'D53xLSiZsSnIOOy96q2X_kPXu4y5PpvTgM2b4-zVqwY',
+            baseUrl: 'https://api.hebo.ai',
           },
         };
 
@@ -127,8 +130,8 @@ program
       // Validate required configuration
       if (
         !config.agent ||
-        !('apiKey' in config.agent) ||
-        !config.agent.apiKey
+        !('agentKey' in config.agent) ||
+        !config.agent.agentKey
       ) {
         throw new Error(
           'HEBO_AGENT_API_KEY or HEBO_API_KEY environment variable or config file is required',
@@ -143,7 +146,7 @@ program
         baseUrl: config.agent.baseUrl,
       });
       await heboAgent.initialize({ model: agent });
-      await heboAgent.authenticate({ apiKey: config.agent.apiKey });
+      await heboAgent.authenticate({ apiKey: config.agent.agentKey });
 
       Logger.info('Initializing scoring service...');
 
@@ -198,13 +201,23 @@ program
       const report = await executor.evaluateFromDirectory(
         heboAgent,
         options.directory || join(process.cwd(), 'examples'),
-        options.stopOnError,
+        options.stopOnError || false,
       );
 
       // Output results using the configured format
       const reportGenerator = new ReportGenerator(evalConfig);
       const formattedReport = reportGenerator.generateReport(report);
       console.log(formattedReport);
+
+      // Log any errors that occurred during evaluation
+      if (report.results.some((r) => r.error)) {
+        Logger.warn('Some test cases failed during evaluation');
+        report.results.forEach((r) => {
+          if (r.error) {
+            Logger.error(`Test case ${r.testCase.id} failed: ${r.error}`);
+          }
+        });
+      }
 
       Logger.success('Evaluation completed successfully!');
     } catch (error) {
