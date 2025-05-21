@@ -34,7 +34,7 @@ export class HeboAgent extends BaseAgent {
   private store: boolean;
   private previousResponseId?: string;
   private messageHistory: OpenAIMessage[] = [];
-  private apiKey?: string;
+  private agentKey?: string;
 
   constructor(config: HeboAgentConfig) {
     super(config);
@@ -67,9 +67,9 @@ export class HeboAgent extends BaseAgent {
     const heboAuthConfig = {
       ...authConfig,
       headerName: 'X-API-Key',
-      headerFormat: '{apiKey}',
+      headerFormat: '{agentKey}',
     };
-    this.apiKey = authConfig.apiKey;
+    this.agentKey = authConfig.agentKey;
     await super.authenticate(heboAuthConfig);
   }
 
@@ -199,7 +199,7 @@ export class HeboAgent extends BaseAgent {
 
     // Create AbortController for timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 1 minute timeout
+    const timeoutId = setTimeout(() => controller.abort(), 100000); // 100 seconds timeout
 
     try {
       const response = await fetch(`${this.baseUrl}/api/responses`, {
@@ -211,15 +211,6 @@ export class HeboAgent extends BaseAgent {
 
       // Clear timeout since request completed
       clearTimeout(timeoutId);
-
-      // Log the status and response body for debugging (do not log API key)
-      const responseClone = response.clone();
-      try {
-        await responseClone.text(); // Just consume the body
-      } catch {
-        // Ignore error
-      }
-      console.log('[HeboAgent] Response status:', response.status);
 
       if (!response.ok) {
         if (response.status === 504) {
@@ -252,7 +243,8 @@ export class HeboAgent extends BaseAgent {
   public override async cleanup(): Promise<void> {
     this.messageHistory = [];
     this.previousResponseId = undefined;
-    await new Promise((resolve) => setTimeout(resolve, 0)); // Ensure async operation
+    // Add a small delay to ensure proper cleanup
+    await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
   /**
@@ -261,8 +253,9 @@ export class HeboAgent extends BaseAgent {
    */
   public async clone(): Promise<IAgent> {
     const newAgent = new HeboAgent(this.config);
-    if (this.apiKey) {
-      await newAgent.authenticate({ apiKey: this.apiKey });
+    await newAgent.initialize({ model: this.config.model });
+    if (this.agentKey) {
+      await newAgent.authenticate({ agentKey: this.agentKey });
     }
     // Don't copy message history to ensure test isolation
     return newAgent;

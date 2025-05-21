@@ -270,36 +270,42 @@ export class EvaluationExecutor {
       `Starting parallel execution of ${testCases.length} test cases with concurrency ${maxConcurrency}`,
     );
 
-    for (const chunk of chunks) {
-      Logger.debug(
-        `Executing chunk of ${chunk.length} test cases (${results.length}/${testCases.length} completed)`,
-      );
+    // Start loading indicator
+    Logger.startLoading('Running test cases', testCases.length);
 
-      // Process each test case independently
-      const chunkPromises = chunk.map(async (testCase) => {
-        try {
-          // Create a new agent instance for each test case to ensure isolation
-          const isolatedAgent = (await agent.clone?.()) || agent;
-          return await this.executeTestCase(isolatedAgent, testCase);
-        } catch (error) {
-          Logger.error(
-            `Error executing test case ${testCase.id}: ${
-              error instanceof Error ? error.message : 'Unknown error'
-            }`,
-          );
-          return {
-            testCaseId: testCase.id,
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-            score: 0,
-            executionTime: 0,
-            response: '',
-            testCase,
-          };
-        }
-      });
-      const chunkResults = await Promise.all(chunkPromises);
-      results.push(...chunkResults);
+    try {
+      for (const chunk of chunks) {
+        // Process each test case independently
+        const chunkPromises = chunk.map(async (testCase) => {
+          try {
+            // Create a new agent instance for each test case to ensure isolation
+            const isolatedAgent = (await agent.clone?.()) || agent;
+            return await this.executeTestCase(isolatedAgent, testCase);
+          } catch (error) {
+            Logger.error(
+              `Error executing test case ${testCase.id}: ${
+                error instanceof Error ? error.message : 'Unknown error'
+              }`,
+            );
+            return {
+              testCaseId: testCase.id,
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              score: 0,
+              executionTime: 0,
+              response: '',
+              testCase,
+            };
+          }
+        });
+        const chunkResults = await Promise.all(chunkPromises);
+        results.push(...chunkResults);
+        // Update loading progress
+        Logger.updateLoadingProgress(results.length);
+      }
+    } finally {
+      // Stop loading indicator
+      Logger.stopLoading();
     }
 
     Logger.info(

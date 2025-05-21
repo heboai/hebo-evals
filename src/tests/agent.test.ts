@@ -71,13 +71,13 @@ describe('BaseAgent', () => {
   describe('Authentication', () => {
     it('should authenticate with valid API key', async () => {
       await agent.initialize(config);
-      await agent.authenticate({ apiKey: 'test-key' });
+      await agent.authenticate({ agentKey: 'test-key' });
       // No error means success
     });
 
     it('should throw error if not initialized before authentication', async () => {
       await expect(
-        agent.authenticate({ apiKey: 'test-key' }),
+        agent.authenticate({ agentKey: 'test-key' }),
       ).rejects.toThrow();
     });
   });
@@ -85,7 +85,7 @@ describe('BaseAgent', () => {
   describe('Input Processing', () => {
     it('should process input after initialization and authentication', async () => {
       await agent.initialize(config);
-      await agent.authenticate({ apiKey: 'test-key' });
+      await agent.authenticate({ agentKey: 'test-key' });
 
       const input: AgentInput = {
         messages: [{ role: MessageRole.USER, content: 'Hello' }],
@@ -118,7 +118,7 @@ describe('HeboAgent', () => {
   describe('Network Error Handling', () => {
     it('should handle network failure gracefully', async () => {
       await agent.initialize(config);
-      await agent.authenticate({ apiKey: 'test-key' });
+      await agent.authenticate({ agentKey: 'test-key' });
 
       // Mock fetch to simulate network errors
       const originalFetch = global.fetch;
@@ -145,7 +145,7 @@ describe('HeboAgent', () => {
 
     it('should handle HTTP error responses gracefully', async () => {
       await agent.initialize(config);
-      await agent.authenticate({ apiKey: 'test-key' });
+      await agent.authenticate({ agentKey: 'test-key' });
 
       // Mock fetch to simulate HTTP error
       const originalFetch = global.fetch;
@@ -183,7 +183,7 @@ describe('HeboAgent', () => {
   describe('Message History', () => {
     it('should maintain conversation history', async () => {
       await agent.initialize(config);
-      await agent.authenticate({ apiKey: 'test-key' });
+      await agent.authenticate({ agentKey: 'test-key' });
 
       const input: AgentInput = {
         messages: [
@@ -208,7 +208,7 @@ describe('HeboAgent', () => {
   describe('Memory Management', () => {
     it('should handle multiple consecutive inputs without performance degradation', async () => {
       await agent.initialize(config);
-      await agent.authenticate({ apiKey: 'test-key' });
+      await agent.authenticate({ agentKey: 'test-key' });
 
       // Mock fetch to simulate API responses
       const originalFetch = global.fetch;

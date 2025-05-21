@@ -35,6 +35,34 @@ const COLORS = {
 };
 
 /**
+ * Rainbow colors for loading indicator
+ */
+const RAINBOW_COLORS = [
+  '\x1b[31m', // Red
+  '\x1b[33m', // Yellow
+  '\x1b[32m', // Green
+  '\x1b[36m', // Cyan
+  '\x1b[34m', // Blue
+  '\x1b[35m', // Magenta
+];
+
+/**
+ * Loading indicator characters for spinner animation
+ */
+const LOADING_CHARS = [
+  '⚡',
+  '✨',
+  '🌟',
+  '💫',
+  '⭐',
+  '🌠',
+  '⚡',
+  '✨',
+  '🌟',
+  '💫',
+];
+
+/**
  * Message types for different styles
  */
 type MessageType = 'error' | 'success' | 'info' | 'warning' | 'debug';
@@ -44,6 +72,12 @@ type MessageType = 'error' | 'success' | 'info' | 'warning' | 'debug';
  */
 export class Logger {
   private static instance: Logger | null = null;
+  private static loadingInterval: NodeJS.Timeout | null = null;
+  private static loadingIndex: number = 0;
+  private static loadingMessage: string = '';
+  private static loadingTotal: number = 0;
+  private static loadingCurrent: number = 0;
+  private static colorIndex: number = 0;
 
   private constructor() {}
 
@@ -52,6 +86,58 @@ export class Logger {
       this.instance = new Logger();
     }
     return this.instance;
+  }
+
+  /**
+   * Starts a loading indicator with progress
+   * @param message The message to display
+   * @param total The total number of items to process
+   */
+  static startLoading(message: string, total: number): void {
+    this.loadingMessage = message;
+    this.loadingTotal = total;
+    this.loadingCurrent = 0;
+    this.loadingIndex = 0;
+    this.colorIndex = 0;
+
+    // Clear any existing loading indicator
+    this.stopLoading();
+
+    // Start new loading indicator
+    this.loadingInterval = setInterval(() => {
+      const color = RAINBOW_COLORS[this.colorIndex];
+      const spinner = LOADING_CHARS[this.loadingIndex];
+      const progress = `${this.loadingCurrent}/${this.loadingTotal}`;
+      const percentage = Math.round(
+        (this.loadingCurrent / this.loadingTotal) * 100,
+      );
+
+      process.stdout.write(
+        `\r${color}${spinner} ${this.loadingMessage} ${progress} (${percentage}%)${COLORS.reset}`,
+      );
+
+      this.loadingIndex = (this.loadingIndex + 1) % LOADING_CHARS.length;
+      this.colorIndex = (this.colorIndex + 1) % RAINBOW_COLORS.length;
+    }, 100);
+  }
+
+  /**
+   * Updates the progress of the loading indicator
+   * @param current The current number of completed items
+   */
+  static updateLoadingProgress(current: number): void {
+    this.loadingCurrent = current;
+  }
+
+  /**
+   * Stops the loading indicator and clears the line
+   */
+  static stopLoading(): void {
+    if (this.loadingInterval) {
+      clearInterval(this.loadingInterval);
+      this.loadingInterval = null;
+      process.stdout.write('\r\x1b[K'); // Clear the line
+    }
   }
 
   /**

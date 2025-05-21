@@ -84,7 +84,11 @@ export class Parser {
           // Validate that args is valid JSON
           let parsedArgs: Record<string, unknown>;
           try {
-            parsedArgs = JSON.parse(args) as Record<string, unknown>;
+            const parsed = JSON.parse(args) as unknown;
+            if (typeof parsed !== 'object' || parsed === null) {
+              throw new Error('Tool args must be a valid object');
+            }
+            parsedArgs = parsed as Record<string, unknown>;
           } catch (e: unknown) {
             const errorMessage =
               e instanceof Error ? e.message : 'Invalid JSON';

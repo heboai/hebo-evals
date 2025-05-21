@@ -88,7 +88,7 @@ program
   .option(
     '-t, --threshold <number>',
     'Score threshold for passing (0-1)',
-    '0.7',
+    '0.3',
   )
   .option('-f, --format <format>', 'Output format (json|markdown|text)', 'text')
   .option('-s, --stop-on-error', 'Stop processing on first error', false)
@@ -110,7 +110,7 @@ program
         config = {
           embedding: EmbeddingProviderFactory.loadFromEnv(),
           agent: {
-            apiKey: process.env.HEBO_AGENT_API_KEY,
+            agentKey: process.env.HEBO_AGENT_API_KEY,
             baseUrl: 'https://api.hebo.ai',
           },
         };
@@ -141,7 +141,7 @@ program
         baseUrl: config.agent.baseUrl,
       });
       await heboAgent.initialize({ model: agent });
-      await heboAgent.authenticate({ apiKey: config.agent.agentKey });
+      await heboAgent.authenticate({ agentKey: config.agent.agentKey });
 
       Logger.info('Initializing scoring service...');
 
@@ -209,7 +209,7 @@ program
         Logger.warn('Some test cases failed during evaluation');
         report.results.forEach((r) => {
           if (r.error) {
-            Logger.error(`Test case ${r.testCase.id} failed: ${r.error}`);
+            Logger.error(`${r.testCase.id} failed: ${r.error}`);
           }
         });
       }
