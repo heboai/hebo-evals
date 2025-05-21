@@ -110,9 +110,7 @@ program
         config = {
           embedding: EmbeddingProviderFactory.loadFromEnv(),
           agent: {
-            apiKey:
-              process.env.HEBO_AGENT_API_KEY ||
-              'D53xLSiZsSnIOOy96q2X_kPXu4y5PpvTgM2b4-zVqwY',
+            apiKey: process.env.HEBO_AGENT_API_KEY,
             baseUrl: 'https://api.hebo.ai',
           },
         };
