@@ -12,7 +12,6 @@ import {
 } from './types/evaluation.types.js';
 import { TestCaseEvaluation } from './types/test-case.types.js';
 import { formatTestCasePlain } from '../utils/formatter.js';
-import { MessageRole } from '../core/types/message.types.js';
 
 /**
  * Service for executing test cases against an agent

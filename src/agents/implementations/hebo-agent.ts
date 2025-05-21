@@ -102,13 +102,13 @@ export class HeboAgent extends BaseAgent {
         const message = response.choices[0].message;
 
         // Log the raw message for debugging
-        console.log(
-          '[HeboAgent] Raw message:',
-          JSON.stringify(message, null, 2),
-        );
+        //console.log(
+        //   '[HeboAgent] Raw message:',
+        //   JSON.stringify(message, null, 2),
+        // );
 
         if (!message.content && !message.function_call) {
-          console.log('[HeboAgent] Warning: Empty response received from API');
+          //console.log('[HeboAgent] Warning: Empty response received from API');
           return {
             response: '',
             error: {
@@ -128,6 +128,7 @@ export class HeboAgent extends BaseAgent {
             ]
           : [];
 
+        // Add assistant's response to history
         this.messageHistory.push({
           role: roleMapper.toRole(message.role),
           content: message.content || '',
@@ -141,7 +142,7 @@ export class HeboAgent extends BaseAgent {
           finalResponse += `\ntool use: ${message.function_call.name} args: ${message.function_call.arguments}`;
         }
       } else {
-        console.log('[HeboAgent] Warning: No message in response choices');
+        // console.log('[HeboAgent] Warning: No message in response choices');
         return {
           response: '',
           error: {
@@ -152,7 +153,7 @@ export class HeboAgent extends BaseAgent {
       }
 
       if (response.error) {
-        console.log('[HeboAgent] Error in response:', response.error);
+        //console.log('[HeboAgent] Error in response:', response.error);
         return {
           response: '',
           error: {
@@ -172,7 +173,7 @@ export class HeboAgent extends BaseAgent {
         },
       };
     } catch (error) {
-      console.log('[HeboAgent] Error processing input:', error);
+      // console.log('[HeboAgent] Error processing input:', error);
       return {
         response: '',
         error: {
@@ -194,7 +195,7 @@ export class HeboAgent extends BaseAgent {
     };
 
     // Log the request body
-    console.log('[HeboAgent] Request body:', JSON.stringify(request, null, 2));
+    // console.log('[HeboAgent] Request body:', JSON.stringify(request, null, 2));
 
     // Create AbortController for timeout
     const controller = new AbortController();
@@ -213,14 +214,12 @@ export class HeboAgent extends BaseAgent {
 
       // Log the status and response body for debugging (do not log API key)
       const responseClone = response.clone();
-      let responseBody;
       try {
-        responseBody = await responseClone.text();
+        await responseClone.text(); // Just consume the body
       } catch {
-        responseBody = '[Unable to read response body]';
+        // Ignore error
       }
       console.log('[HeboAgent] Response status:', response.status);
-      console.log('[HeboAgent] Response body:', responseBody);
 
       if (!response.ok) {
         if (response.status === 504) {
@@ -251,8 +250,9 @@ export class HeboAgent extends BaseAgent {
    * Cleans up the agent's resources and message history
    */
   public override async cleanup(): Promise<void> {
-    await super.cleanup();
     this.messageHistory = [];
+    this.previousResponseId = undefined;
+    await new Promise((resolve) => setTimeout(resolve, 0)); // Ensure async operation
   }
 
   /**
@@ -260,11 +260,11 @@ export class HeboAgent extends BaseAgent {
    * @returns Promise that resolves with a new agent instance
    */
   public async clone(): Promise<IAgent> {
-    const clonedAgent = new HeboAgent(this.config);
-    await clonedAgent.initialize(this.config);
-    if (this.authConfig) {
-      await clonedAgent.authenticate(this.authConfig);
+    const newAgent = new HeboAgent(this.config);
+    if (this.apiKey) {
+      await newAgent.authenticate({ apiKey: this.apiKey });
     }
-    return clonedAgent;
+    // Don't copy message history to ensure test isolation
+    return newAgent;
   }
 }

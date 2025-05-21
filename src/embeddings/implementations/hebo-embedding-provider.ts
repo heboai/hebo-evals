@@ -68,17 +68,6 @@ export class HeboEmbeddingProvider extends BaseEmbeddingProvider {
       }),
     });
 
-    // Log the status and response body for debugging (do not log API key)
-    const responseClone = response.clone();
-    let responseBody;
-    try {
-      responseBody = await responseClone.text();
-    } catch {
-      responseBody = '[Unable to read response body]';
-    }
-    console.log('[HeboEmbeddingProvider] Response status:', response.status);
-    console.log('[HeboEmbeddingProvider] Response body:', responseBody);
-
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
       throw new Error(
@@ -95,7 +84,7 @@ export class HeboEmbeddingProvider extends BaseEmbeddingProvider {
     }
 
     // Decode base64 embedding into number array
-    const base64Embedding = data.data[0].embedding as string;
+    const base64Embedding = data.data[0].embedding;
     const binaryString = atob(base64Embedding);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {

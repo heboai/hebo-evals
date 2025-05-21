@@ -82,9 +82,9 @@ export class Parser {
           const args = argsMatch[2].trim();
 
           // Validate that args is valid JSON
-          let parsedArgs;
+          let parsedArgs: Record<string, unknown>;
           try {
-            parsedArgs = JSON.parse(args);
+            parsedArgs = JSON.parse(args) as Record<string, unknown>;
           } catch (e: unknown) {
             const errorMessage =
               e instanceof Error ? e.message : 'Invalid JSON';
@@ -98,7 +98,7 @@ export class Parser {
           }
           currentBlock.toolUsages.push({
             name: toolName,
-            args: JSON.stringify(parsedArgs), // Store as stringified JSON
+            args: JSON.stringify(parsedArgs).replace(/"([^"]+)":/g, '"$1": '), // Add space after colon only
           });
           break;
         }
