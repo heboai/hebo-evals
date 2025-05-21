@@ -110,8 +110,7 @@ export class EmbeddingProviderFactory {
     return {
       defaultProvider,
       model: process.env.EMBEDDING_MODEL || 'hebo-embeddings',
-      baseUrl:
-        process.env.EMBEDDING_BASE_URL || 'https://api.hebo.ai/v1/embeddings',
+      baseUrl: process.env.EMBEDDING_BASE_URL || 'https://api.hebo.ai/v1',
       apiKey: process.env.EMBEDDING_API_KEY || process.env.HEBO_API_KEY || '',
     };
   }

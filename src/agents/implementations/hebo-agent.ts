@@ -7,6 +7,7 @@ import {
 } from '../types/openai.types.js';
 import { roleMapper } from '../../core/utils/role-mapper.js';
 import { AgentAuthConfig } from '../types/agent.types.js';
+import { IAgent } from '../interfaces/agent.interface.js';
 
 /**
  * Configuration specific to Hebo agent
@@ -252,5 +253,18 @@ export class HeboAgent extends BaseAgent {
   public override async cleanup(): Promise<void> {
     await super.cleanup();
     this.messageHistory = [];
+  }
+
+  /**
+   * Creates a clone of the agent with the same configuration
+   * @returns Promise that resolves with a new agent instance
+   */
+  public async clone(): Promise<IAgent> {
+    const clonedAgent = new HeboAgent(this.config);
+    await clonedAgent.initialize(this.config);
+    if (this.authConfig) {
+      await clonedAgent.authenticate(this.authConfig);
+    }
+    return clonedAgent;
   }
 }

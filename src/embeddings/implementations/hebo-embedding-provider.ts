@@ -6,7 +6,7 @@ import {
 
 interface HeboEmbeddingResponse {
   data: Array<{
-    embedding: number[];
+    embedding: string; // Base64 encoded embedding
     object: string;
     index: number;
   }>;
@@ -29,7 +29,7 @@ export class HeboEmbeddingProvider extends BaseEmbeddingProvider {
 
   constructor(config: HeboEmbeddingConfig, apiKey: string) {
     super(config);
-    this.baseUrl = config.baseUrl || 'https://api.hebo.ai';
+    this.baseUrl = config.baseUrl || 'https://api.hebo.ai/v1';
     this.apiKey = apiKey;
   }
 
@@ -55,7 +55,7 @@ export class HeboEmbeddingProvider extends BaseEmbeddingProvider {
       throw new Error('Input text cannot be empty');
     }
 
-    const response = await fetch(`${this.baseUrl}/api/embeddings`, {
+    const response = await fetch(`${this.baseUrl}/embeddings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -94,8 +94,18 @@ export class HeboEmbeddingProvider extends BaseEmbeddingProvider {
       throw new Error('Invalid response format from Hebo API');
     }
 
+    // Decode base64 embedding into number array
+    const base64Embedding = data.data[0].embedding as string;
+    const binaryString = atob(base64Embedding);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const floatArray = new Float32Array(bytes.buffer);
+    const embedding = Array.from(floatArray);
+
     return {
-      embedding: data.data[0].embedding,
+      embedding,
       metadata: {
         model: this.config.model,
         provider: 'hebo',

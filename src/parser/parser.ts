@@ -57,7 +57,7 @@ export class Parser {
 
           // Append content with proper spacing
           if (currentBlock.content) {
-            currentBlock.content += '\n\n';
+            currentBlock.content += '\n';
           }
           currentBlock.content += element.value;
           break;
@@ -70,7 +70,7 @@ export class Parser {
 
           // Parse tool usage and args from the combined value
           const toolValue = element.value;
-          const argsMatch = toolValue.match(/^(.*?)\s*args:\s*(.*)$/);
+          const argsMatch = toolValue.match(/^(.*?)\s*args:\s*(.*)$/i);
 
           if (!argsMatch) {
             throw new ParseError(
@@ -82,10 +82,15 @@ export class Parser {
           const args = argsMatch[2].trim();
 
           // Validate that args is valid JSON
+          let parsedArgs;
           try {
-            JSON.parse(args);
-          } catch {
-            throw new ParseError('Tool args must be valid JSON');
+            parsedArgs = JSON.parse(args);
+          } catch (e: unknown) {
+            const errorMessage =
+              e instanceof Error ? e.message : 'Invalid JSON';
+            throw new ParseError(
+              `Tool args must be valid JSON: ${errorMessage}`,
+            );
           }
 
           if (!currentBlock.toolUsages) {
@@ -93,7 +98,7 @@ export class Parser {
           }
           currentBlock.toolUsages.push({
             name: toolName,
-            args: args,
+            args: JSON.stringify(parsedArgs), // Store as stringified JSON
           });
           break;
         }

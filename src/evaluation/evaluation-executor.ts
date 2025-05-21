@@ -12,6 +12,7 @@ import {
 } from './types/evaluation.types.js';
 import { TestCaseEvaluation } from './types/test-case.types.js';
 import { formatTestCasePlain } from '../utils/formatter.js';
+import { MessageRole } from '../core/types/message.types.js';
 
 /**
  * Service for executing test cases against an agent
@@ -157,14 +158,16 @@ export class EvaluationExecutor {
         );
       }
 
-      // Send all messages except the last one to the API
-      const input: AgentInput = {
-        messages: testCase.messageBlocks.slice(0, -1),
-      };
+      // Get all messages except the last one for input
+      const inputMessages = testCase.messageBlocks.slice(0, -1);
 
       // Get the expected response from the last message block
       const expectedResponse =
         testCase.messageBlocks[testCase.messageBlocks.length - 1];
+
+      const input: AgentInput = {
+        messages: inputMessages,
+      };
 
       // Execute the test
       const response = await agent.sendInput(input);
@@ -272,10 +275,13 @@ export class EvaluationExecutor {
       Logger.debug(
         `Executing chunk of ${chunk.length} test cases (${results.length}/${testCases.length} completed)`,
       );
-      // Process each test case with error handling
+
+      // Process each test case independently
       const chunkPromises = chunk.map(async (testCase) => {
         try {
-          return await this.executeTestCase(agent, testCase);
+          // Create a new agent instance for each test case to ensure isolation
+          const isolatedAgent = (await agent.clone?.()) || agent;
+          return await this.executeTestCase(isolatedAgent, testCase);
         } catch (error) {
           Logger.error(
             `Error executing test case ${testCase.id}: ${
