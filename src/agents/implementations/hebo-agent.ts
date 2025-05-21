@@ -24,6 +24,12 @@ export interface HeboAgentConfig extends AgentConfig {
    * @default true
    */
   store?: boolean;
+
+  /**
+   * The provider to use for the agent
+   * @default 'hebo'
+   */
+  provider?: 'hebo' | 'openai';
 }
 
 /**
@@ -35,6 +41,7 @@ export class HeboAgent extends BaseAgent {
   private previousResponseId?: string;
   private messageHistory: OpenAIMessage[] = [];
   private agentKey?: string;
+  private provider: 'hebo' | 'openai';
 
   constructor(config: HeboAgentConfig) {
     super(config);
@@ -43,6 +50,7 @@ export class HeboAgent extends BaseAgent {
     this.baseUrl = rawBaseUrl.replace(/\/$/, '');
     this.store = config.store ?? true;
     this.messageHistory = [];
+    this.provider = config.provider || 'hebo';
   }
 
   /**
@@ -63,14 +71,15 @@ export class HeboAgent extends BaseAgent {
   public override async authenticate(
     authConfig: AgentAuthConfig,
   ): Promise<void> {
-    // Set Hebo-specific header format
-    const heboAuthConfig = {
+    // Set provider-specific header format
+    const providerAuthConfig = {
       ...authConfig,
-      headerName: 'X-API-Key',
-      headerFormat: '{agentKey}',
+      headerName: this.provider === 'openai' ? 'Authorization' : 'X-API-Key',
+      headerFormat:
+        this.provider === 'openai' ? 'Bearer {agentKey}' : '{agentKey}',
     };
     this.agentKey = authConfig.agentKey;
-    await super.authenticate(heboAuthConfig);
+    await super.authenticate(providerAuthConfig);
   }
 
   /**
@@ -186,7 +195,7 @@ export class HeboAgent extends BaseAgent {
   }
 
   /**
-   * Makes a request to the Hebo API
+   * Makes a request to the API
    */
   private async makeRequest(request: ResponseRequest): Promise<Response> {
     const headers = {
@@ -194,15 +203,17 @@ export class HeboAgent extends BaseAgent {
       'Content-Type': 'application/json',
     };
 
-    // Log the request body
-    // console.log('[HeboAgent] Request body:', JSON.stringify(request, null, 2));
-
     // Create AbortController for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 100000); // 100 seconds timeout
 
     try {
-      const response = await fetch(`${this.baseUrl}/api/responses`, {
+      const endpoint =
+        this.provider === 'openai'
+          ? 'https://api.openai.com/v1/responses'
+          : `${this.baseUrl}/api/responses`;
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify(request),
@@ -226,7 +237,7 @@ export class HeboAgent extends BaseAgent {
 
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          throw new Error('Request timed out after 1 minute');
+          throw new Error('Request timed out after 100 seconds');
         }
         // If it's already a gateway timeout error, pass it through
         if (error.message.includes('Gateway timeout')) {
