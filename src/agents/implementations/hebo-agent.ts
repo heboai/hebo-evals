@@ -198,6 +198,10 @@ export class HeboAgent extends BaseAgent {
    * Makes a request to the API
    */
   private async makeRequest(request: ResponseRequest): Promise<Response> {
+    if (!this.agentKey) {
+      throw new Error('Agent is not authenticated');
+    }
+
     const headers = {
       ...this.getAuthHeaders(),
       'Content-Type': 'application/json',

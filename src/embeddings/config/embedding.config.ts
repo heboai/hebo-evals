@@ -49,6 +49,9 @@ export class EmbeddingProviderFactory {
 
     switch (providerConfig.provider) {
       case 'litellm':
+        if (!config.apiKey) {
+          throw new Error('API key is required');
+        }
         return new LiteLLMEmbeddingProvider(
           providerConfig as LiteLLMEmbeddingConfig,
         );
