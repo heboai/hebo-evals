@@ -1,10 +1,8 @@
 import {
   EmbeddingConfig,
-  LiteLLMEmbeddingConfig,
   OpenAIEmbeddingConfig,
   HeboEmbeddingConfig,
 } from '../types/embedding.types.js';
-import { LiteLLMEmbeddingProvider } from '../implementations/litellm-embedding-provider.js';
 import { OpenAIEmbeddingProvider } from '../implementations/openai-embedding-provider.js';
 import { HeboEmbeddingProvider } from '../implementations/hebo-embedding-provider.js';
 import { IEmbeddingProvider } from '../interfaces/embedding-provider.interface.js';
@@ -16,7 +14,7 @@ export interface EmbeddingSystemConfig {
   /**
    * The default embedding provider to use
    */
-  defaultProvider: 'litellm' | 'openai' | 'hebo';
+  defaultProvider: 'openai' | 'hebo';
 
   /**
    * The model to use for embeddings
@@ -48,13 +46,6 @@ export class EmbeddingProviderFactory {
     const providerConfig = this.getProviderConfig(config);
 
     switch (providerConfig.provider) {
-      case 'litellm':
-        if (!config.apiKey) {
-          throw new Error('API key is required');
-        }
-        return new LiteLLMEmbeddingProvider(
-          providerConfig as LiteLLMEmbeddingConfig,
-        );
       case 'openai':
         if (!config.apiKey) {
           throw new Error('API key is required');
@@ -107,8 +98,7 @@ export class EmbeddingProviderFactory {
    */
   static loadFromEnv(): EmbeddingSystemConfig {
     const defaultProvider =
-      (process.env.EMBEDDING_PROVIDER as 'litellm' | 'openai' | 'hebo') ||
-      'hebo';
+      (process.env.EMBEDDING_PROVIDER as 'openai' | 'hebo') || 'hebo';
 
     return {
       defaultProvider,

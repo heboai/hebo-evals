@@ -3,7 +3,6 @@ import {
   EmbeddingProviderFactory,
   EmbeddingSystemConfig,
 } from '../embeddings/config/embedding.config';
-import { LiteLLMEmbeddingProvider } from '../embeddings/implementations/litellm-embedding-provider.js';
 import { OpenAIEmbeddingProvider } from '../embeddings/implementations/openai-embedding-provider.js';
 import { EmbeddingResponse } from '../embeddings/types/embedding.types.js';
 
@@ -29,24 +28,6 @@ describe('Embedding System', () => {
   });
 
   describe('EmbeddingProviderFactory', () => {
-    it('should create LiteLLM provider with correct configuration', () => {
-      const config: EmbeddingSystemConfig = {
-        defaultProvider: 'litellm',
-        model: 'test-model',
-        baseUrl: 'http://test-url',
-        apiKey: 'test-key',
-      };
-
-      const provider = EmbeddingProviderFactory.createProvider(config);
-      expect(provider).toBeInstanceOf(LiteLLMEmbeddingProvider);
-      expect(provider.getConfig()).toEqual({
-        provider: 'litellm',
-        model: 'test-model',
-        baseUrl: 'http://test-url',
-        apiKey: 'test-key',
-      });
-    });
-
     it('should create OpenAI provider with correct configuration', () => {
       const config: EmbeddingSystemConfig = {
         defaultProvider: 'openai',
@@ -67,7 +48,7 @@ describe('Embedding System', () => {
 
     it('should throw error for invalid provider', () => {
       const config = {
-        defaultProvider: 'invalid' as 'litellm' | 'openai',
+        defaultProvider: 'invalid' as 'openai',
         model: 'test-model',
         apiKey: 'test-key',
       };
@@ -91,93 +72,18 @@ describe('Embedding System', () => {
     });
 
     it('should load configuration from environment variables', () => {
-      process.env.EMBEDDING_PROVIDER = 'litellm';
+      process.env.EMBEDDING_PROVIDER = 'openai';
       process.env.EMBEDDING_MODEL = 'test-model';
       process.env.EMBEDDING_BASE_URL = 'http://test-url';
       process.env.HEBO_API_KEY = 'test-key';
 
       const config = EmbeddingProviderFactory.loadFromEnv();
       expect(config).toEqual({
-        defaultProvider: 'litellm',
+        defaultProvider: 'openai',
         model: 'test-model',
         baseUrl: 'http://test-url',
         apiKey: 'test-key',
       });
-    });
-  });
-
-  describe('LiteLLMEmbeddingProvider', () => {
-    const mockResponse: EmbeddingResponse = {
-      embedding: [0.1, 0.2, 0.3],
-      metadata: {
-        model: 'test-model',
-        provider: 'litellm',
-      },
-    };
-
-    it('should generate embedding successfully', async () => {
-      mockFetch.mockResolvedValueOnce(
-        createMockResponse({
-          data: [{ embedding: mockResponse.embedding }],
-        }),
-      );
-
-      const provider = new LiteLLMEmbeddingProvider({
-        provider: 'litellm',
-        model: 'test-model',
-        apiKey: 'test-key',
-      });
-
-      await provider.initialize({
-        provider: 'litellm',
-        model: 'test-model',
-        apiKey: 'test-key',
-      });
-
-      const result = await provider.generateEmbedding('test text');
-      expect(result).toEqual(mockResponse);
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:4000/embeddings',
-        expect.any(Object),
-      );
-    });
-
-    it('should handle API errors', async () => {
-      mockFetch.mockResolvedValueOnce(
-        createMockResponse({ error: 'Internal Server Error' }, 500),
-      );
-
-      const provider = new LiteLLMEmbeddingProvider({
-        provider: 'litellm',
-        model: 'test-model',
-        apiKey: 'test-key',
-      });
-
-      await provider.initialize({
-        provider: 'litellm',
-        model: 'test-model',
-        apiKey: 'test-key',
-      });
-
-      await expect(provider.generateEmbedding('test text')).rejects.toThrow(
-        'HTTP error! status: 500',
-      );
-    });
-
-    it('should validate model presence', async () => {
-      const provider = new LiteLLMEmbeddingProvider({
-        provider: 'litellm',
-        model: '',
-        apiKey: 'test-key',
-      });
-
-      await expect(
-        provider.initialize({
-          provider: 'litellm',
-          model: '',
-          apiKey: 'test-key',
-        }),
-      ).rejects.toThrow('Model is required for LiteLLM embedding provider');
     });
   });
 
@@ -277,21 +183,24 @@ describe('Embedding System', () => {
 
   describe('BaseEmbeddingProvider', () => {
     it('should throw error when initializing an already initialized provider', async () => {
-      const provider = new LiteLLMEmbeddingProvider({
-        provider: 'litellm',
-        model: 'test-model',
-        apiKey: 'test-key',
-      });
+      const provider = new OpenAIEmbeddingProvider(
+        {
+          provider: 'openai',
+          model: 'test-model',
+          apiKey: 'test-key',
+        },
+        'test-key',
+      );
 
       await provider.initialize({
-        provider: 'litellm',
+        provider: 'openai',
         model: 'test-model',
         apiKey: 'test-key',
       });
 
       await expect(
         provider.initialize({
-          provider: 'litellm',
+          provider: 'openai',
           model: 'test-model',
           apiKey: 'test-key',
         }),
@@ -299,11 +208,14 @@ describe('Embedding System', () => {
     });
 
     it('should throw error when generating embeddings before initialization', async () => {
-      const provider = new LiteLLMEmbeddingProvider({
-        provider: 'litellm',
-        model: 'test-model',
-        apiKey: 'test-key',
-      });
+      const provider = new OpenAIEmbeddingProvider(
+        {
+          provider: 'openai',
+          model: 'test-model',
+          apiKey: 'test-key',
+        },
+        'test-key',
+      );
 
       await expect(provider.generateEmbedding('test')).rejects.toThrow(
         'Embedding provider must be initialized before generating embeddings',
@@ -311,14 +223,17 @@ describe('Embedding System', () => {
     });
 
     it('should allow reinitialization after cleanup', async () => {
-      const provider = new LiteLLMEmbeddingProvider({
-        provider: 'litellm',
-        model: 'test-model',
-        apiKey: 'test-key',
-      });
+      const provider = new OpenAIEmbeddingProvider(
+        {
+          provider: 'openai',
+          model: 'test-model',
+          apiKey: 'test-key',
+        },
+        'test-key',
+      );
 
       await provider.initialize({
-        provider: 'litellm',
+        provider: 'openai',
         model: 'test-model',
         apiKey: 'test-key',
       });
@@ -328,7 +243,7 @@ describe('Embedding System', () => {
       // Should not throw
       await expect(
         provider.initialize({
-          provider: 'litellm',
+          provider: 'openai',
           model: 'updated-model',
           apiKey: 'test-key',
         }),

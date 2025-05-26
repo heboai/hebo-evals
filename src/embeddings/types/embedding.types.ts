@@ -10,13 +10,13 @@ export interface EmbeddingConfig {
 
   /**
    * The provider to use for embeddings
-   * @example "litellm", "openai", "hebo"
+   * @example  "openai", "hebo"
    */
-  provider: 'litellm' | 'openai' | 'hebo';
+  provider: 'openai' | 'hebo';
 
   /**
    * Base URL for the embedding API
-   * @default "https://api.openai.com/v1" for OpenAI, "https://api.hebo.ai/v1" for LiteLLM, "https://api.hebo.ai/v1" for Hebo
+   * @default "https://api.openai.com/v1" for OpenAI, "https://api.hebo.ai/v1" for Hebo, "https://api.hebo.ai/v1" for Hebo
    */
   baseUrl?: string;
 
@@ -24,18 +24,6 @@ export interface EmbeddingConfig {
    * API key for the embedding provider
    */
   apiKey: string;
-}
-
-/**
- * Configuration specific to LiteLLM embedding provider
- */
-export interface LiteLLMEmbeddingConfig extends EmbeddingConfig {
-  provider: 'litellm';
-  /**
-   * The model to use through LiteLLM
-   * @example "azure/azure-embedding-model", "anthropic/claude-embedding"
-   */
-  model: string;
 }
 
 /**
