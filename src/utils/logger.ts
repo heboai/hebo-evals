@@ -182,7 +182,7 @@ export class Logger {
    */
   static error(message: unknown, meta?: Record<string, unknown>): void {
     const messageStr = typeof message === 'string' ? message : String(message);
-    console.error(this.formatMessage(messageStr, 'error'));
+    console.error(Logger.formatMessage(messageStr, 'error'));
     if (meta) {
       console.error(JSON.stringify(meta, null, 2));
     }
@@ -195,7 +195,7 @@ export class Logger {
    */
   static warn(message: unknown, meta?: Record<string, unknown>): void {
     const messageStr = typeof message === 'string' ? message : String(message);
-    console.warn(this.formatMessage(messageStr, 'warning'));
+    console.warn(Logger.formatMessage(messageStr, 'warning'));
     if (meta) {
       console.warn(JSON.stringify(meta, null, 2));
     }
@@ -208,7 +208,7 @@ export class Logger {
    */
   static info(message: unknown, meta?: Record<string, unknown>): void {
     const messageStr = typeof message === 'string' ? message : String(message);
-    console.log(this.formatMessage(messageStr, 'info'));
+    console.log(Logger.formatMessage(messageStr, 'info'));
     if (meta) {
       console.log(JSON.stringify(meta, null, 2));
     }
@@ -221,7 +221,7 @@ export class Logger {
    */
   static success(message: unknown, meta?: Record<string, unknown>): void {
     const messageStr = typeof message === 'string' ? message : String(message);
-    console.log(this.formatMessage(messageStr, 'success'));
+    console.log(Logger.formatMessage(messageStr, 'success'));
     if (meta) {
       console.log(JSON.stringify(meta, null, 2));
     }
@@ -236,7 +236,7 @@ export class Logger {
     if (process.env.DEBUG) {
       const messageStr =
         typeof message === 'string' ? message : String(message);
-      console.debug(this.formatMessage(messageStr, 'debug'));
+      console.debug(Logger.formatMessage(messageStr, 'debug'));
       if (meta) {
         console.debug(JSON.stringify(meta, null, 2));
       }
