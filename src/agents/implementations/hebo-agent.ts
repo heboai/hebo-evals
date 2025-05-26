@@ -110,12 +110,6 @@ export class HeboAgent extends BaseAgent {
       if (response.choices.length > 0 && response.choices[0].message) {
         const message = response.choices[0].message;
 
-        // Log the raw message for debugging
-        //console.log(
-        //   '[HeboAgent] Raw message:',
-        //   JSON.stringify(message, null, 2),
-        // );
-
         if (!message.content && !message.function_call) {
           //console.log('[HeboAgent] Warning: Empty response received from API');
           return {
@@ -182,7 +176,7 @@ export class HeboAgent extends BaseAgent {
         },
       };
     } catch (error) {
-      // console.log('[HeboAgent] Error processing input:', error);
+      console.log('[HeboAgent] Error processing input:', error);
       return {
         response: '',
         error: {
