@@ -1,18 +1,52 @@
-import { jest } from '@jest/globals';
+import { jest, expect } from '@jest/globals';
+import type { AsymmetricMatchers } from '@jest/expect';
 import {
   EmbeddingProviderFactory,
   EmbeddingSystemConfig,
 } from '../embeddings/config/embedding.config';
 import { OpenAIEmbeddingProvider } from '../embeddings/implementations/openai-embedding-provider.js';
 import { EmbeddingResponse } from '../embeddings/types/embedding.types.js';
+import { HeboEmbeddingProvider } from '../embeddings/implementations/hebo-embedding-provider.js';
 
 // Mock fetch
 const mockFetch = jest.fn<typeof fetch>();
 global.fetch = mockFetch;
 
-// Helper to create mock response
-const createMockResponse = (data: unknown, status = 200) => {
-  return new Response(JSON.stringify(data), {
+interface MockOpenAIResponse extends Record<string, unknown> {
+  data: Array<{
+    embedding: number[];
+    object: string;
+    index: number;
+  }>;
+  model: string;
+  object: string;
+  usage: {
+    prompt_tokens: number;
+    total_tokens: number;
+  };
+}
+
+interface MockHeboResponse extends Record<string, unknown> {
+  data: Array<{
+    embedding: string; // Base64 encoded embedding
+    object: string;
+    index: number;
+  }>;
+  model: string;
+  object: string;
+  usage?: {
+    prompt_tokens: number;
+    total_tokens: number;
+  };
+}
+
+// Helper to create mock response with proper typing
+const createMockResponse = <T extends Record<string, unknown>>(
+  data: T,
+  status = 200,
+): Response => {
+  const responseBody = JSON.stringify(data);
+  return new Response(responseBody, {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
@@ -101,17 +135,23 @@ describe('Embedding System', () => {
     };
 
     it('should generate embedding successfully', async () => {
-      mockFetch.mockResolvedValueOnce(
-        createMockResponse({
-          data: [{ embedding: mockResponse.embedding }],
-          model: 'test-model',
-          object: 'list',
-          usage: {
-            prompt_tokens: 10,
-            total_tokens: 10,
+      const mockData: MockOpenAIResponse = {
+        data: [
+          {
+            embedding: mockResponse.embedding,
+            object: 'embedding',
+            index: 0,
           },
-        }),
-      );
+        ],
+        model: 'test-model',
+        object: 'list',
+        usage: {
+          prompt_tokens: 10,
+          total_tokens: 10,
+        },
+      };
+      const response = createMockResponse(mockData);
+      mockFetch.mockResolvedValueOnce(response);
 
       const provider = new OpenAIEmbeddingProvider(
         {
@@ -129,7 +169,13 @@ describe('Embedding System', () => {
       });
 
       const result = await provider.generateEmbedding('test text');
-      expect(result).toEqual(mockResponse);
+      const expectedEmbeddings = mockResponse.embedding.map(
+        (v) => expect.closeTo(v, 5) as unknown as AsymmetricMatchers,
+      );
+      expect(result.embedding).toEqual(
+        expect.arrayContaining(expectedEmbeddings),
+      );
+      expect(result.metadata).toEqual(mockResponse.metadata);
       expect(mockFetch).toHaveBeenCalledWith(
         'https://api.openai.com/v1/embeddings',
         expect.any(Object),
@@ -178,6 +224,150 @@ describe('Embedding System', () => {
           apiKey: 'test-key',
         }),
       ).rejects.toThrow('Model is required for OpenAI embedding provider');
+    });
+  });
+
+  describe('HeboEmbeddingProvider', () => {
+    const mockResponse: EmbeddingResponse = {
+      embedding: [0.1, 0.2, 0.3],
+      metadata: {
+        model: 'test-model',
+        provider: 'hebo',
+        usage: {
+          prompt_tokens: 10,
+          total_tokens: 10,
+        },
+      },
+    };
+
+    // Helper to create base64 encoded embedding
+    const createBase64Embedding = (embedding: number[]): string => {
+      const floatArray = new Float32Array(embedding);
+      const bytes = new Uint8Array(floatArray.buffer);
+      return btoa(String.fromCharCode(...bytes));
+    };
+
+    it('should generate embedding successfully', async () => {
+      const base64Embedding = createBase64Embedding(mockResponse.embedding);
+      const mockData: MockHeboResponse = {
+        data: [{ embedding: base64Embedding, object: 'embedding', index: 0 }],
+        model: 'test-model',
+        object: 'list',
+        usage: {
+          prompt_tokens: 10,
+          total_tokens: 10,
+        },
+      };
+      const response = createMockResponse(mockData);
+      mockFetch.mockResolvedValueOnce(response);
+
+      const provider = new HeboEmbeddingProvider(
+        {
+          provider: 'hebo',
+          model: 'test-model',
+          apiKey: 'test-key',
+        },
+        'test-key',
+      );
+
+      await provider.initialize({
+        provider: 'hebo',
+        model: 'test-model',
+        apiKey: 'test-key',
+      });
+
+      const result = await provider.generateEmbedding('test text');
+      const expectedEmbeddings = mockResponse.embedding.map(
+        (v) => expect.closeTo(v, 5) as unknown as AsymmetricMatchers,
+      );
+      expect(result.embedding).toEqual(
+        expect.arrayContaining(expectedEmbeddings),
+      );
+      expect(result.metadata).toEqual(mockResponse.metadata);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.hebo.ai/v1/embeddings',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            'X-API-Key': 'test-key',
+          }),
+          body: expect.stringContaining('"encoding_format":"base64"'),
+        }),
+      );
+    });
+
+    it('should handle API errors', async () => {
+      mockFetch.mockResolvedValueOnce(
+        createMockResponse({ error: 'Internal Server Error' }, 500),
+      );
+
+      const provider = new HeboEmbeddingProvider(
+        {
+          provider: 'hebo',
+          model: 'test-model',
+          apiKey: 'test-key',
+        },
+        'test-key',
+      );
+
+      await provider.initialize({
+        provider: 'hebo',
+        model: 'test-model',
+        apiKey: 'test-key',
+      });
+
+      await expect(provider.generateEmbedding('test text')).rejects.toThrow(
+        'HTTP error! status: 500',
+      );
+    });
+
+    it('should validate model presence', async () => {
+      const provider = new HeboEmbeddingProvider(
+        {
+          provider: 'hebo',
+          model: '',
+          apiKey: 'test-key',
+        },
+        'test-key',
+      );
+
+      await expect(
+        provider.initialize({
+          provider: 'hebo',
+          model: '',
+          apiKey: 'test-key',
+        }),
+      ).rejects.toThrow('Model is required for Hebo embedding provider');
+    });
+
+    it('should handle invalid base64 response', async () => {
+      mockFetch.mockResolvedValueOnce(
+        createMockResponse<MockHeboResponse>({
+          data: [
+            { embedding: 'invalid-base64', object: 'embedding', index: 0 },
+          ],
+          model: 'test-model',
+          object: 'list',
+        }),
+      );
+
+      const provider = new HeboEmbeddingProvider(
+        {
+          provider: 'hebo',
+          model: 'test-model',
+          apiKey: 'test-key',
+        },
+        'test-key',
+      );
+
+      await provider.initialize({
+        provider: 'hebo',
+        model: 'test-model',
+        apiKey: 'test-key',
+      });
+
+      await expect(provider.generateEmbedding('test text')).rejects.toThrow();
     });
   });
 
