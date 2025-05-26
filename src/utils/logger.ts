@@ -94,30 +94,30 @@ export class Logger {
    * @param total The total number of items to process
    */
   static startLoading(message: string, total: number): void {
-    this.loadingMessage = message;
-    this.loadingTotal = total;
-    this.loadingCurrent = 0;
-    this.loadingIndex = 0;
-    this.colorIndex = 0;
+    Logger.loadingMessage = message;
+    Logger.loadingTotal = total;
+    Logger.loadingCurrent = 0;
+    Logger.loadingIndex = 0;
+    Logger.colorIndex = 0;
 
     // Clear any existing loading indicator
-    this.stopLoading();
+    Logger.stopLoading();
 
     // Start new loading indicator
-    this.loadingInterval = setInterval(() => {
-      const color = RAINBOW_COLORS[this.colorIndex];
-      const spinner = LOADING_CHARS[this.loadingIndex];
-      const progress = `${this.loadingCurrent}/${this.loadingTotal}`;
+    Logger.loadingInterval = setInterval(() => {
+      const color = RAINBOW_COLORS[Logger.colorIndex];
+      const spinner = LOADING_CHARS[Logger.loadingIndex];
+      const progress = `${Logger.loadingCurrent}/${Logger.loadingTotal}`;
       const percentage = Math.round(
-        (this.loadingCurrent / this.loadingTotal) * 100,
+        (Logger.loadingCurrent / Logger.loadingTotal) * 100,
       );
 
       process.stdout.write(
-        `\r${color}${spinner} ${this.loadingMessage} ${progress} (${percentage}%)${COLORS.reset}`,
+        `\r${color}${spinner} ${Logger.loadingMessage} ${progress} (${percentage}%)${COLORS.reset}`,
       );
 
-      this.loadingIndex = (this.loadingIndex + 1) % LOADING_CHARS.length;
-      this.colorIndex = (this.colorIndex + 1) % RAINBOW_COLORS.length;
+      Logger.loadingIndex = (Logger.loadingIndex + 1) % LOADING_CHARS.length;
+      Logger.colorIndex = (Logger.colorIndex + 1) % RAINBOW_COLORS.length;
     }, 100);
   }
 
@@ -126,16 +126,16 @@ export class Logger {
    * @param current The current number of completed items
    */
   static updateLoadingProgress(current: number): void {
-    this.loadingCurrent = current;
+    Logger.loadingCurrent = current;
   }
 
   /**
    * Stops the loading indicator and clears the line
    */
   static stopLoading(): void {
-    if (this.loadingInterval) {
-      clearInterval(this.loadingInterval);
-      this.loadingInterval = null;
+    if (Logger.loadingInterval) {
+      clearInterval(Logger.loadingInterval);
+      Logger.loadingInterval = null;
       process.stdout.write('\r\x1b[K'); // Clear the line
     }
   }
