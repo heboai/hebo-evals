@@ -212,9 +212,12 @@ program
             Logger.error(`${r.testCase.id} failed: ${r.error}`);
           }
         });
+        Logger.info('Evaluation completed with errors');
+      } else {
+        Logger.success('Evaluation completed successfully!');
       }
 
-      Logger.success('Evaluation completed successfully!');
+      Logger.info('Evaluation completed');
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
