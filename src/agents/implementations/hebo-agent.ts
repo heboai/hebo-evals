@@ -38,7 +38,6 @@ export interface HeboAgentConfig extends AgentConfig {
 export class HeboAgent extends BaseAgent {
   private baseUrl: string;
   private store: boolean;
-  private previousResponseId?: string;
   private messageHistory: OpenAIMessage[] = [];
   private agentKey?: string;
   private provider: string;
@@ -108,13 +107,11 @@ export class HeboAgent extends BaseAgent {
     const request: ResponseRequest = {
       model: this.config.model,
       store: this.store,
-      previous_response_id: this.previousResponseId,
       messages: this.messageHistory,
     };
 
     try {
       const response = await this.makeRequest(request);
-      this.previousResponseId = response.id;
 
       // Add assistant's response to history
       let finalResponse = '';
@@ -289,7 +286,6 @@ export class HeboAgent extends BaseAgent {
    */
   public override async cleanup(): Promise<void> {
     this.messageHistory = [];
-    this.previousResponseId = undefined;
     // Add a small delay to ensure proper cleanup
     await new Promise((resolve) => setTimeout(resolve, 0));
   }

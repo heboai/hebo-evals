@@ -310,6 +310,9 @@ export class EvaluationExecutor {
       },
     );
 
+    // Start loading indicator
+    Logger.startLoading('Running test cases', testCases.length);
+
     // Process test cases in chunks to limit concurrency
     for (let i = 0; i < testCases.length; i += maxConcurrency) {
       const chunk = testCases.slice(i, i + maxConcurrency);
@@ -320,6 +323,8 @@ export class EvaluationExecutor {
       try {
         const chunkResults = await Promise.all(chunkPromises);
         results.push(...chunkResults);
+        // Update loading progress after each chunk
+        Logger.updateLoadingProgress(results.length);
       } catch (error) {
         Logger.error('Error executing test case chunk:', {
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -328,6 +333,9 @@ export class EvaluationExecutor {
         });
       }
     }
+
+    // Stop loading indicator
+    Logger.stopLoading();
 
     return results;
   }
