@@ -111,7 +111,7 @@ export class HeboAgent extends BaseAgent {
         const message = response.choices[0].message;
 
         if (!message.content && !message.function_call) {
-          //console.log('[HeboAgent] Warning: Empty response received from API');
+          console.log('[HeboAgent] Warning: Empty response received from API');
           return {
             response: '',
             error: {
@@ -145,7 +145,7 @@ export class HeboAgent extends BaseAgent {
           finalResponse += `\ntool use: ${message.function_call.name} args: ${message.function_call.arguments}`;
         }
       } else {
-        // console.log('[HeboAgent] Warning: No message in response choices');
+        console.log('[HeboAgent] Warning: No message in response choices');
         return {
           response: '',
           error: {
@@ -156,7 +156,7 @@ export class HeboAgent extends BaseAgent {
       }
 
       if (response.error) {
-        //console.log('[HeboAgent] Error in response:', response.error);
+        console.log('[HeboAgent] Error in response:', response.error);
         return {
           response: '',
           error: {
