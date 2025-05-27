@@ -8,34 +8,35 @@ import {
 import { roleMapper } from '../../core/utils/role-mapper.js';
 import { AgentAuthConfig } from '../types/agent.types.js';
 import { IAgent } from '../interfaces/agent.interface.js';
+import { Logger } from '../../utils/logger.js';
 
 /**
- * Configuration specific to Hebo agent
+ * Configuration specific to OpenAI agent
  */
-export interface HeboAgentConfig extends AgentConfig {
+export interface OpenAIAgentConfig extends AgentConfig {
   /**
-   * The base URL for the Hebo API
-   * @default 'https://app.hebo.ai'
+   * The base URL for the OpenAI API
+   * @default 'https://api.openai.com/v1'
    */
   baseUrl?: string;
 
   /**
    * Whether to store the conversation
-   * @default true
+   * @default false
    */
   store?: boolean;
 
   /**
    * The provider to use for the agent
-   * @default 'hebo'
+   * @default 'openai'
    */
   provider: string;
 }
 
 /**
- * Implementation of the Hebo agent
+ * Implementation of the OpenAI agent
  */
-export class HeboAgent extends BaseAgent {
+export class OpenAIAgent extends BaseAgent {
   private baseUrl: string;
   private store: boolean;
   private previousResponseId?: string;
@@ -43,22 +44,27 @@ export class HeboAgent extends BaseAgent {
   private agentKey?: string;
   private provider: string;
 
-  constructor(config: HeboAgentConfig) {
+  constructor(config: OpenAIAgentConfig) {
     super(config);
-    // Remove trailing slash from baseUrl if present
-    const rawBaseUrl = config.baseUrl || 'https://app.hebo.ai';
+    // Remove trailing slash from baseUrl if present and ensure it ends with /v1
+    const rawBaseUrl = config.baseUrl || 'https://api.openai.com/v1';
     this.baseUrl = rawBaseUrl.replace(/\/$/, '');
-    this.store = config.store ?? true;
+    if (!this.baseUrl.endsWith('/v1')) {
+      this.baseUrl = this.baseUrl.endsWith('/')
+        ? `${this.baseUrl}v1`
+        : `${this.baseUrl}/v1`;
+    }
+    this.store = config.store ?? false;
     this.messageHistory = [];
     this.provider = config.provider;
   }
 
   /**
-   * Validates the Hebo-specific configuration
+   * Validates the OpenAI-specific configuration
    */
   public override validateConfig(): Promise<boolean> {
     if (!this.config.model) {
-      throw new Error('Model is required for Hebo agent');
+      throw new Error('Model is required for OpenAI agent');
     }
     return super.validateConfig();
   }
@@ -75,19 +81,24 @@ export class HeboAgent extends BaseAgent {
       throw new Error('API key is required and cannot be empty');
     }
 
-    // Basic API key format validation
-    if (!/^[a-zA-Z0-9_-]{32,}$/.test(authConfig.agentKey)) {
+    // Accept both OpenAI and Hebo key formats
+    if (
+      !/^(sk-[a-zA-Z0-9]{32,}|sk-proj-[a-zA-Z0-9_-]{32,})$/.test(
+        authConfig.agentKey,
+      )
+    ) {
       throw new Error(
-        'Invalid API key format. API keys should be at least 32 characters long and contain only letters, numbers, underscores, and hyphens.',
+        'Invalid API key format. API keys should either:\n' +
+          '1. Start with "sk-" followed by at least 32 characters (OpenAI format)\n' +
+          '2. Start with "sk-proj-" followed by at least 32 characters (Hebo format)',
       );
     }
 
-    // Set provider-specific header format
+    // Set OpenAI-specific header format
     const providerAuthConfig = {
       ...authConfig,
-      headerName: this.provider === 'openai' ? 'Authorization' : 'X-API-Key',
-      headerFormat:
-        this.provider === 'openai' ? 'Bearer {agentKey}' : '{agentKey}',
+      headerName: 'Authorization',
+      headerFormat: 'Bearer {agentKey}',
     };
     this.agentKey = authConfig.agentKey;
     await super.authenticate(providerAuthConfig);
@@ -107,10 +118,14 @@ export class HeboAgent extends BaseAgent {
 
     const request: ResponseRequest = {
       model: this.config.model,
-      store: this.store,
-      previous_response_id: this.previousResponseId,
       messages: this.messageHistory,
     };
+
+    // Only add store and previous_response_id for Hebo provider
+    if (this.provider === 'hebo') {
+      request.store = this.store;
+      request.previous_response_id = this.previousResponseId;
+    }
 
     try {
       const response = await this.makeRequest(request);
@@ -122,7 +137,9 @@ export class HeboAgent extends BaseAgent {
         const message = response.choices[0].message;
 
         if (!message.content && !message.function_call) {
-          console.log('[HeboAgent] Warning: Empty response received from API');
+          console.log(
+            '[OpenAIAgent] Warning: Empty response received from API',
+          );
           return {
             response: '',
             error: {
@@ -156,7 +173,7 @@ export class HeboAgent extends BaseAgent {
           finalResponse += `\ntool use: ${message.function_call.name} args: ${message.function_call.arguments}`;
         }
       } else {
-        console.log('[HeboAgent] Warning: No message in response choices');
+        console.log('[OpenAIAgent] Warning: No message in response choices');
         return {
           response: '',
           error: {
@@ -167,7 +184,7 @@ export class HeboAgent extends BaseAgent {
       }
 
       if (response.error) {
-        console.log('[HeboAgent] Error in response:', response.error);
+        console.log('[OpenAIAgent] Error in response:', response.error);
         return {
           response: '',
           error: {
@@ -187,7 +204,7 @@ export class HeboAgent extends BaseAgent {
         },
       };
     } catch (error) {
-      console.log('[HeboAgent] Error processing input:', error);
+      console.log('[OpenAIAgent] Error processing input:', error);
       return {
         response: '',
         error: {
@@ -200,7 +217,7 @@ export class HeboAgent extends BaseAgent {
   }
 
   /**
-   * Makes a request to the API
+   * Makes a request to the OpenAI API
    */
   private async makeRequest(request: ResponseRequest): Promise<Response> {
     if (!this.agentKey) {
@@ -214,13 +231,11 @@ export class HeboAgent extends BaseAgent {
 
     // Create AbortController for timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 100000); // 100 seconds timeout
+    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
 
     try {
-      const endpoint =
-        this.provider === 'openai'
-          ? 'https://api.openai.com/v1/responses'
-          : `${this.baseUrl}/api/responses`;
+      const endpoint = `${this.baseUrl}/chat/completions`;
+      Logger.debug(`Making request to OpenAI API endpoint: ${endpoint}`);
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -233,81 +248,70 @@ export class HeboAgent extends BaseAgent {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(
+            `Invalid API endpoint (404): ${endpoint}. Please check your baseUrl configuration.`,
+          );
+        }
         if (response.status === 504) {
           throw new Error('Gateway timeout - server took too long to respond');
         }
-        if (response.status === 403) {
-          const errorBody = await response
-            .text()
-            .catch(() => 'No error details available');
-          if (errorBody.includes('Invalid or inactive API key')) {
-            console.log(errorBody);
-            throw new Error(
-              'Invalid or inactive API key. Please:\n' +
-                '1. Check that your API key is correct\n' +
-                '2. Verify that your API key is active in your account\n' +
-                '3. Ensure you have the necessary permissions\n' +
-                'You can find your API key in your account settings at https://app.hebo.ai/settings',
-            );
-          }
+        if (response.status === 401) {
           throw new Error(
-            `Authentication failed (403 Forbidden). Please check your API key and permissions. Details: ${errorBody}`,
+            'Invalid API key. Please check your OpenAI API key and try again.',
           );
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status === 429) {
+          throw new Error(
+            'Rate limit exceeded. Please try again later or contact OpenAI support.',
+          );
+        }
+
+        const errorBody = await response
+          .text()
+          .catch(() => 'No error details available');
+        throw new Error(`OpenAI API error: ${errorBody}`);
       }
 
-      return response.json() as Promise<Response>;
+      const data = await response.json();
+      return data as Response;
     } catch (error) {
-      // Clear timeout in case of error
       clearTimeout(timeoutId);
-
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          throw new Error('Request timed out after 100 seconds');
+          throw new Error('Request timed out after 5 minutes');
         }
-        // If it's already a gateway timeout error, pass it through
-        if (error.message.includes('Gateway timeout')) {
-          throw error;
-        }
-        // Handle connection errors
-        if (
-          error.message.includes('fetch failed') ||
-          error.message.includes('connect')
-        ) {
-          throw new Error(
-            `Connection failed: ${error.message}. Please check your internet connection and try again.`,
-          );
-        }
+        throw error;
       }
-      throw error;
+      throw new Error(
+        'Unknown error occurred while making request to OpenAI API',
+      );
     }
   }
 
   /**
-   * Cleans up the agent's resources and message history
+   * Cleans up any resources used by the agent
    */
   public override async cleanup(): Promise<void> {
     this.messageHistory = [];
     this.previousResponseId = undefined;
-    // Add a small delay to ensure proper cleanup
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await super.cleanup();
   }
 
   /**
-   * Creates a clone of the agent with the same configuration
-   * @returns Promise that resolves with a new agent instance
+   * Creates a clone of the current agent
    */
   public async clone(): Promise<IAgent> {
-    const newAgent = new HeboAgent(this.config);
-    await newAgent.initialize({
-      model: this.config.model,
-      provider: this.config.provider,
-    });
+    const config = {
+      ...this.config,
+      baseUrl: this.baseUrl,
+      store: this.store,
+      provider: this.provider,
+    };
+    const agent = new OpenAIAgent(config);
     if (this.agentKey) {
-      await newAgent.authenticate({ agentKey: this.agentKey });
+      await agent.authenticate({ agentKey: this.agentKey });
     }
-    // Don't copy message history to ensure test isolation
-    return newAgent;
+    return agent;
   }
 }

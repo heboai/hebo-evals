@@ -44,6 +44,9 @@ export class EvaluationExecutor {
     stopOnError: boolean = true,
   ): Promise<EvaluationReport> {
     const startTime = performance.now();
+    Logger.info(
+      `Starting evaluation with provider: ${agent.getConfig().provider}`,
+    );
 
     // First load the test cases
     const loadResult = await this.testCaseLoader.loadFromDirectory(
@@ -64,6 +67,13 @@ export class EvaluationExecutor {
     const totalTests = results.length;
     const failedTests = totalTests - passedTests;
     const passRate = totalTests > 0 ? passedTests / totalTests : 0;
+
+    Logger.info(`Evaluation completed in ${duration.toFixed(2)}s`, {
+      totalTests,
+      passedTests,
+      failedTests,
+      passRate: (passRate * 100).toFixed(2) + '%',
+    });
 
     const report: EvaluationReport = {
       totalTests,
@@ -150,6 +160,11 @@ export class EvaluationExecutor {
     testCase: TestCase,
   ): Promise<TestCaseEvaluation> {
     const startTime = performance.now();
+    const agentConfig = agent.getConfig();
+    Logger.debug(
+      `Executing test case ${testCase.id} with provider: ${agentConfig.provider}`,
+    );
+
     try {
       if (testCase.messageBlocks.length < 2) {
         throw new Error(
@@ -157,8 +172,13 @@ export class EvaluationExecutor {
         );
       }
 
-      // Get all messages except the last one for input
-      const inputMessages = testCase.messageBlocks.slice(0, -1);
+      // Get input messages based on provider
+      let inputMessages;
+      // Send all messages except the last one (expected response) for both providers
+      inputMessages = testCase.messageBlocks.slice(0, -1);
+      Logger.debug(
+        `Using message format: sending ${inputMessages.length} messages of conversation history`,
+      );
 
       // Get the expected response from the last message block
       const expectedResponse =
@@ -169,6 +189,7 @@ export class EvaluationExecutor {
       };
 
       // Execute the test
+      Logger.debug(`Sending input to ${agentConfig.provider} agent`);
       const response = await agent.sendInput(input);
       const executionTime = performance.now() - startTime;
 
@@ -178,6 +199,7 @@ export class EvaluationExecutor {
       }
 
       // Calculate semantic similarity score
+      Logger.debug('Calculating similarity score');
       const score = await this.scoringService.scoreStrings(
         response.response.trim(),
         expectedResponse.content.trim(),
@@ -185,6 +207,12 @@ export class EvaluationExecutor {
 
       // Consider it a success if score is above threshold (0.7 by default)
       const isMatch = score >= this.threshold;
+
+      Logger.debug(`Test case ${testCase.id} completed`, {
+        success: isMatch,
+        score,
+        executionTime: executionTime.toFixed(2) + 'ms',
+      });
 
       return {
         testCaseId: testCase.id,
@@ -197,6 +225,12 @@ export class EvaluationExecutor {
       };
     } catch (error) {
       const executionTime = performance.now() - startTime;
+      Logger.error(`Error executing test case ${testCase.id}:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        provider: agentConfig.provider,
+        executionTime: executionTime.toFixed(2) + 'ms',
+      });
+
       return {
         testCaseId: testCase.id,
         success: false,
@@ -220,14 +254,20 @@ export class EvaluationExecutor {
     testCases: TestCase[],
   ): Promise<TestCaseEvaluation[]> {
     const results: TestCaseEvaluation[] = [];
+    const agentConfig = agent.getConfig();
+    Logger.info(
+      `Executing ${testCases.length} test cases with provider: ${agentConfig.provider}`,
+    );
+
     try {
       for (const testCase of testCases) {
         try {
           results.push(await this.executeTestCase(agent, testCase));
         } catch (error) {
-          Logger.error(
-            `Error executing test case ${testCase.id}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          );
+          Logger.error(`Error executing test case ${testCase.id}:`, {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            provider: agentConfig.provider,
+          });
           results.push({
             testCaseId: testCase.id,
             success: false,
@@ -240,11 +280,12 @@ export class EvaluationExecutor {
         }
       }
     } catch (error) {
-      Logger.error(
-        `Fatal error in executeTestCases: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-      throw error; // Re-throw fatal errors that affect the entire execution
+      Logger.error('Fatal error during test execution:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        provider: agentConfig.provider,
+      });
     }
+
     return results;
   }
 
@@ -252,7 +293,7 @@ export class EvaluationExecutor {
    * Executes test cases in parallel with a maximum concurrency
    * @param agent The agent to test
    * @param testCases The test cases to execute
-   * @param maxConcurrency Maximum number of concurrent executions
+   * @param maxConcurrency The maximum number of concurrent executions
    * @returns Promise that resolves with the evaluation results
    */
   private async executeTestCasesInParallel(
@@ -260,57 +301,34 @@ export class EvaluationExecutor {
     testCases: TestCase[],
     maxConcurrency: number,
   ): Promise<TestCaseEvaluation[]> {
-    const chunks: TestCase[][] = [];
-    for (let i = 0; i < testCases.length; i += maxConcurrency) {
-      chunks.push(testCases.slice(i, i + maxConcurrency));
-    }
-
     const results: TestCaseEvaluation[] = [];
+    const agentConfig = agent.getConfig();
     Logger.info(
-      `Starting parallel execution of ${testCases.length} test cases with concurrency ${maxConcurrency}`,
+      `Executing ${testCases.length} test cases in parallel with max concurrency ${maxConcurrency}`,
+      {
+        provider: agentConfig.provider,
+      },
     );
 
-    // Start loading indicator
-    Logger.startLoading('Running test cases', testCases.length);
+    // Process test cases in chunks to limit concurrency
+    for (let i = 0; i < testCases.length; i += maxConcurrency) {
+      const chunk = testCases.slice(i, i + maxConcurrency);
+      const chunkPromises = chunk.map((testCase) =>
+        this.executeTestCase(agent, testCase),
+      );
 
-    try {
-      for (const chunk of chunks) {
-        // Process each test case independently
-        const chunkPromises = chunk.map(async (testCase) => {
-          try {
-            // Create a new agent instance for each test case to ensure isolation
-            const isolatedAgent = (await agent.clone?.()) || agent;
-            return await this.executeTestCase(isolatedAgent, testCase);
-          } catch (error) {
-            Logger.error(
-              `Error executing test case ${testCase.id}: ${
-                error instanceof Error ? error.message : 'Unknown error'
-              }`,
-            );
-            return {
-              testCaseId: testCase.id,
-              success: false,
-              error: error instanceof Error ? error.message : 'Unknown error',
-              score: 0,
-              executionTime: 0,
-              response: '',
-              testCase,
-            };
-          }
-        });
+      try {
         const chunkResults = await Promise.all(chunkPromises);
         results.push(...chunkResults);
-        // Update loading progress
-        Logger.updateLoadingProgress(results.length);
+      } catch (error) {
+        Logger.error('Error executing test case chunk:', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          provider: agentConfig.provider,
+          chunkIndex: i,
+        });
       }
-    } finally {
-      // Stop loading indicator
-      Logger.stopLoading();
     }
 
-    Logger.info(
-      `Completed parallel execution of ${testCases.length} test cases`,
-    );
     return results;
   }
 }

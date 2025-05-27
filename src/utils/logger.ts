@@ -68,6 +68,16 @@ const LOADING_CHARS = [
 type MessageType = 'error' | 'success' | 'info' | 'warning' | 'debug';
 
 /**
+ * Logger configuration options
+ */
+interface LoggerConfig {
+  /**
+   * Whether to show verbose output including test results and provider information
+   */
+  verbose: boolean;
+}
+
+/**
  * Simple logger utility for CLI output
  */
 export class Logger {
@@ -78,6 +88,9 @@ export class Logger {
   private static loadingTotal: number = 0;
   private static loadingCurrent: number = 0;
   private static colorIndex: number = 0;
+  private static config: LoggerConfig = {
+    verbose: false,
+  };
 
   private constructor() {}
 
@@ -86,6 +99,14 @@ export class Logger {
       this.instance = new Logger();
     }
     return this.instance;
+  }
+
+  /**
+   * Configure the logger
+   * @param config Logger configuration options
+   */
+  public static configure(config: Partial<LoggerConfig>): void {
+    Logger.config = { ...Logger.config, ...config };
   }
 
   /**
@@ -207,6 +228,11 @@ export class Logger {
    * @param meta Optional metadata to include
    */
   static info(message: unknown, meta?: Record<string, unknown>): void {
+    // Skip verbose messages if not in verbose mode
+    if (!Logger.config.verbose && meta && (meta.provider || meta.totalTests)) {
+      return;
+    }
+
     const messageStr = typeof message === 'string' ? message : String(message);
     console.log(Logger.formatMessage(messageStr, 'info'));
     if (meta) {

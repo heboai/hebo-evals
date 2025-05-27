@@ -50,6 +50,7 @@ describe('BaseAgent', () => {
   let agent: TestAgent;
   const config: AgentConfig = {
     model: 'gpt-4o',
+    provider: 'hebo',
   };
 
   beforeEach(() => {
@@ -107,8 +108,9 @@ describe('BaseAgent', () => {
 
 describe('HeboAgent', () => {
   let agent: HeboAgent;
-  const config = {
+  const config: AgentConfig = {
     model: 'gpt-4o',
+    provider: 'hebo',
   };
 
   beforeEach(() => {

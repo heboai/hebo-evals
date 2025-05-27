@@ -2,7 +2,6 @@
 
 import { Command } from 'commander';
 import { version } from './utils/package-info.js';
-import { HeboAgent } from './agents/implementations/hebo-agent.js';
 import { ScoringService } from './scoring/scoring.service.js';
 import { EvaluationExecutor } from './evaluation/evaluation-executor.js';
 import { EvaluationConfig } from './evaluation/types/evaluation.types.js';
@@ -15,6 +14,8 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
 import { IAgent } from './agents/interfaces/agent.interface.js';
+import { AgentFactory } from './agents/factory/agent.factory.js';
+import { getProviderBaseUrl } from './utils/provider-config.js';
 
 /**
  * Main CLI entry point for Hebo Eval
@@ -33,6 +34,7 @@ interface RunCommandOptions {
   format: string;
   stopOnError: boolean;
   maxConcurrency: string;
+  verbose: boolean;
 }
 
 /**
@@ -42,7 +44,7 @@ interface CliConfig {
   embedding: EmbeddingConfig;
   agent: {
     agentKey: string;
-    baseUrl: string;
+    provider: string;
   };
 }
 
@@ -97,10 +99,18 @@ program
     'Maximum number of concurrent test executions',
     '5',
   )
+  .option(
+    '-v, --verbose',
+    'Show verbose output including test results and provider information',
+    false,
+  )
   .action(async (agent: string, options: RunCommandOptions) => {
     let heboAgent: IAgent | undefined;
     let embeddingProvider: IEmbeddingProvider | undefined;
     try {
+      // Configure logger verbosity
+      Logger.configure({ verbose: options.verbose });
+
       // Load configuration from file, environment, or defaults
       let config;
       if (options.config) {
@@ -111,7 +121,7 @@ program
           embedding: EmbeddingProviderFactory.loadFromEnv(),
           agent: {
             agentKey: process.env.HEBO_AGENT_API_KEY,
-            baseUrl: 'https://api.hebo.ai',
+            provider: process.env.HEBO_AGENT_PROVIDER || 'hebo', // Default to hebo if not specified
           },
         };
 
@@ -133,14 +143,20 @@ program
         );
       }
 
-      Logger.info(`Initializing agent: ${agent}`);
+      Logger.info(
+        `Initializing agent: ${agent} with provider: ${config.agent.provider}`,
+      );
 
-      // Initialize agent
-      heboAgent = new HeboAgent({
+      // Initialize agent using factory
+      heboAgent = AgentFactory.createAgent({
         model: agent,
-        baseUrl: config.agent.baseUrl,
+        baseUrl: getProviderBaseUrl(config.agent.provider),
+        provider: config.agent.provider,
       });
-      await heboAgent.initialize({ model: agent });
+      await heboAgent.initialize({
+        model: agent,
+        provider: config.agent.provider,
+      });
       await heboAgent.authenticate({ agentKey: config.agent.agentKey });
 
       Logger.info('Initializing scoring service...');
