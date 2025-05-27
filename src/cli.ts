@@ -14,7 +14,7 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
 import { IAgent } from './agents/interfaces/agent.interface.js';
-import { AgentFactory } from './agents/factory/agent.factory.js';
+import { createAgent } from './agents/factory/agent.factory.js';
 import { getProviderBaseUrl } from './utils/provider-config.js';
 
 /**
@@ -148,7 +148,7 @@ program
       );
 
       // Initialize agent using factory
-      heboAgent = AgentFactory.createAgent({
+      heboAgent = createAgent({
         model: agent,
         baseUrl: getProviderBaseUrl(config.agent.provider),
         provider: config.agent.provider,

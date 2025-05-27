@@ -6,29 +6,24 @@ import { Logger } from '../../utils/logger.js';
 import { getProviderBaseUrl } from '../../utils/provider-config.js';
 
 /**
- * Factory for creating agent instances based on provider
+ * Creates an agent instance based on the provider
+ * @param config The agent configuration
+ * @returns A new agent instance
+ * @throws Error if the provider is not supported
  */
-export class AgentFactory {
-  /**
-   * Creates an agent instance based on the provider
-   * @param config The agent configuration
-   * @returns A new agent instance
-   * @throws Error if the provider is not supported
-   */
-  public static createAgent(config: AgentConfig): IAgent {
-    Logger.debug(`Creating agent with provider: ${config.provider}`);
+export function createAgent(config: AgentConfig): IAgent {
+  Logger.debug(`Creating agent with provider: ${config.provider}`);
 
-    // Get the base URL for the provider
-    const baseUrl = getProviderBaseUrl(config.provider);
-    const agentConfig = { ...config, baseUrl };
+  // Get the base URL for the provider
+  const baseUrl = getProviderBaseUrl(config.provider);
+  const agentConfig = { ...config, baseUrl };
 
-    switch (config.provider.toLowerCase()) {
-      case 'hebo':
-        return new HeboAgent(agentConfig);
-      case 'openai':
-        return new OpenAIAgent(agentConfig);
-      default:
-        throw new Error(`Unsupported provider: ${config.provider}`);
-    }
+  switch (config.provider.toLowerCase()) {
+    case 'hebo':
+      return new HeboAgent(agentConfig);
+    case 'openai':
+      return new OpenAIAgent(agentConfig);
+    default:
+      throw new Error(`Unsupported provider: ${config.provider}`);
   }
 }
