@@ -102,6 +102,14 @@ export class Logger {
   }
 
   /**
+   * Check if verbose mode is enabled
+   * @returns true if verbose mode is enabled
+   */
+  public static isVerbose(): boolean {
+    return Logger.config.verbose;
+  }
+
+  /**
    * Configure the logger
    * @param config Logger configuration options
    */

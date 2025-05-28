@@ -8,6 +8,7 @@ import {
 import { roleMapper } from '../../core/utils/role-mapper.js';
 import { AgentAuthConfig } from '../types/agent.types.js';
 import { IAgent } from '../interfaces/agent.interface.js';
+import { Logger } from '../../utils/logger.js';
 
 /**
  * Configuration specific to Hebo agent
@@ -93,10 +94,20 @@ export class HeboAgent extends BaseAgent {
   }
 
   /**
+   * Clears the message history
+   */
+  private clearMessageHistory(): void {
+    this.messageHistory = [];
+  }
+
+  /**
    * Processes the input and returns the agent's response
    */
   protected async processInput(input: AgentInput): Promise<AgentOutput> {
-    // Add all messages to history
+    // Clear previous message history before processing new input
+    this.clearMessageHistory();
+
+    // Add only the current test case messages to history
     for (const msg of input.messages) {
       this.messageHistory.push({
         role: msg.role,
@@ -109,6 +120,17 @@ export class HeboAgent extends BaseAgent {
       store: this.store,
       messages: this.messageHistory,
     };
+
+    // Log message preparation only in verbose mode
+    if (Logger.isVerbose()) {
+      console.log('\n=== Message Preparation ===');
+      console.log('Input Messages:', JSON.stringify(input.messages, null, 2));
+      console.log(
+        'Current Message History:',
+        JSON.stringify(this.messageHistory, null, 2),
+      );
+      console.log('========================\n');
+    }
 
     try {
       const response = await this.makeRequest(request);
@@ -218,6 +240,15 @@ export class HeboAgent extends BaseAgent {
         this.provider === 'openai'
           ? 'https://api.openai.com/v1/responses'
           : `${this.baseUrl}/api/responses`;
+
+      // Log the request details only in verbose mode
+      if (Logger.isVerbose()) {
+        console.log('\n=== Hebo API Request ===');
+        console.log('Endpoint:', endpoint);
+        console.log('Headers:', JSON.stringify(headers, null, 2));
+        console.log('Request Payload:', JSON.stringify(request, null, 2));
+        console.log('========================\n');
+      }
 
       const response = await fetch(endpoint, {
         method: 'POST',
