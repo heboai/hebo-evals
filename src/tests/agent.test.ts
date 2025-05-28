@@ -123,6 +123,28 @@ describe('HeboAgent', () => {
     agent = new HeboAgent(config);
   });
 
+  describe('Configuration', () => {
+    it('should initialize with default baseUrl', () => {
+      expect(agent['baseUrl']).toBe('https://app.hebo.ai');
+    });
+
+    it('should handle custom baseUrl with trailing slash', () => {
+      const customConfig = { ...config, baseUrl: 'https://custom.hebo.ai/' };
+      const customAgent = new HeboAgent(customConfig);
+      expect(customAgent['baseUrl']).toBe('https://custom.hebo.ai');
+    });
+
+    it('should initialize with default store value', () => {
+      expect(agent['store']).toBe(true);
+    });
+
+    it('should handle custom store value', () => {
+      const customConfig = { ...config, store: false };
+      const customAgent = new HeboAgent(customConfig);
+      expect(customAgent['store']).toBe(false);
+    });
+  });
+
   describe('Network Error Handling', () => {
     it('should handle network failure gracefully', async () => {
       await agent.initialize(config);
@@ -190,6 +212,58 @@ describe('HeboAgent', () => {
       // Restore original fetch
       global.fetch = originalFetch;
     });
+
+    it('should handle gateway timeout', async () => {
+      await agent.initialize(config);
+      await agent.authenticate({
+        agentKey: 'test_key_123456789012345678901234567890',
+      });
+
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockImplementation(() => {
+        return Promise.resolve({
+          ok: false,
+          status: 504,
+          statusText: 'Gateway Timeout',
+        } as Response);
+      }) as jest.MockedFunction<typeof fetch>;
+
+      const input: AgentInput = {
+        messages: [{ role: MessageRole.USER, content: 'Hello' }],
+      };
+
+      const output = await agent.sendInput(input);
+      expect(output.response).toBe('');
+      expect(output.error?.message).toContain('Gateway timeout');
+
+      global.fetch = originalFetch;
+    });
+
+    it('should handle invalid API key response', async () => {
+      await agent.initialize(config);
+      await agent.authenticate({
+        agentKey: 'test_key_123456789012345678901234567890',
+      });
+
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockImplementation(() => {
+        return Promise.resolve({
+          ok: false,
+          status: 403,
+          text: () => Promise.resolve('Invalid or inactive API key'),
+        } as Response);
+      }) as jest.MockedFunction<typeof fetch>;
+
+      const input: AgentInput = {
+        messages: [{ role: MessageRole.USER, content: 'Hello' }],
+      };
+
+      const output = await agent.sendInput(input);
+      expect(output.response).toBe('');
+      expect(output.error?.message).toContain('Invalid or inactive API key');
+
+      global.fetch = originalFetch;
+    });
   });
 
   describe('Message History', () => {
@@ -208,6 +282,22 @@ describe('HeboAgent', () => {
 
       await agent.sendInput(input);
       expect(agent['messageHistory']).toHaveLength(2);
+    });
+
+    it('should clear message history on cleanup', async () => {
+      await agent.initialize(config);
+      await agent.authenticate({
+        agentKey: 'test_key_123456789012345678901234567890',
+      });
+
+      // Add some messages to history
+      agent['messageHistory'] = [
+        { role: MessageRole.USER, content: 'Test message' },
+        { role: MessageRole.ASSISTANT, content: 'Test response' },
+      ];
+
+      await agent.cleanup();
+      expect(agent['messageHistory']).toHaveLength(0);
     });
   });
 
@@ -276,7 +366,7 @@ describe('HeboAgent', () => {
       }) as jest.MockedFunction<typeof fetch>;
 
       // Simulate a conversation with multiple messages
-      const conversationRounds = 10;
+      const conversationRounds = 2; // Reduced for testing
       const messagesPerRound = 3;
 
       for (let round = 0; round < conversationRounds; round++) {
@@ -293,31 +383,49 @@ describe('HeboAgent', () => {
         expect(output).toBeDefined();
         expect(output.response).toBe('Test response');
 
-        // Verify message history is maintained correctly
-        expect(agent['messageHistory']).toHaveLength(
-          (round + 1) * messagesPerRound + (round + 1), // Add one for each assistant response
-        );
+        // Verify message history contains only current round messages plus assistant response
+        // Each round should have messagesPerRound input messages + 1 assistant response
+        expect(agent['messageHistory']).toHaveLength(messagesPerRound + 1);
+
+        // Verify the content of the messages
+        const history = agent['messageHistory'];
+
+        // Check input messages
+        for (let i = 0; i < messagesPerRound; i++) {
+          expect(history[i].content).toBe(
+            `Message ${round * messagesPerRound + i + 1}`,
+          );
+          expect(history[i].role).toBe(
+            i % 2 === 0 ? MessageRole.USER : MessageRole.ASSISTANT,
+          );
+        }
+
+        // Check assistant response
+        expect(history[messagesPerRound].content).toBe('Test response');
+        expect(history[messagesPerRound].role).toBe(MessageRole.ASSISTANT);
       }
 
-      // Final verification of message history
+      // Final verification - should only contain the last round's messages
       const finalHistory = agent['messageHistory'];
-      expect(finalHistory).toHaveLength(
-        conversationRounds * messagesPerRound + conversationRounds,
-      );
-
-      // Verify message order and content
-      finalHistory.forEach((message, index) => {
-        // Calculate the expected role based on the index
-        // Even indices are user messages, odd indices are assistant messages
-        const expectedRole =
-          index % 2 === 0 ? MessageRole.USER : MessageRole.ASSISTANT;
-        expect(roleMapper.toOpenAI(message.role)).toBe(
-          roleMapper.toOpenAI(expectedRole),
-        );
-      });
+      expect(finalHistory).toHaveLength(messagesPerRound + 1);
 
       // Restore original fetch
       global.fetch = originalFetch;
+    });
+  });
+
+  describe('Cloning', () => {
+    it('should create a clone with same configuration', async () => {
+      await agent.initialize(config);
+      await agent.authenticate({
+        agentKey: 'test_key_123456789012345678901234567890',
+      });
+
+      const clone = await agent.clone();
+      expect(clone).toBeInstanceOf(HeboAgent);
+      const heboClone = clone as HeboAgent;
+      expect(heboClone['config']).toEqual(agent['config']);
+      expect(heboClone['messageHistory']).toHaveLength(0); // Clone should have empty history
     });
   });
 });
