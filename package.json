@@ -4,7 +4,7 @@
   "description": "A CLI tool for evaluating and testing language models",
   "main": "dist/index.js",
   "bin": {
-    "hebo-eval": "dist/cli.js"
+    "hebo-eval": "./dist/cli.js"
   },
   "type": "module",
   "exports": {
