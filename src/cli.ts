@@ -11,7 +11,6 @@ import { readFileSync } from 'fs';
 import { EmbeddingConfig } from './embeddings/types/embedding.types.js';
 import { ReportGenerator } from './report/report-generator.js';
 import { join } from 'path';
-import { fileURLToPath } from 'url';
 import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
 import { IAgent } from './agents/interfaces/agent.interface.js';
 import { createAgent } from './agents/factory/agent.factory.js';
@@ -270,6 +269,4 @@ export const run = () => {
   program.parse();
 };
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  run();
-}
+run();
