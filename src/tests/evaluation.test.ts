@@ -28,6 +28,10 @@ describe('EvaluationExecutor', () => {
     // Setup mock agent
     mockAgent = {
       sendInput: jest.fn(),
+      getConfig: jest.fn().mockReturnValue({
+        provider: 'test-provider',
+        model: 'test-model',
+      }),
     } as unknown as jest.Mocked<IAgent>;
 
     // Setup mock config

@@ -9,6 +9,18 @@ export interface AgentConfig {
    * @example "myfirstagent:next", "myfirstagent:v1"
    */
   model: string;
+
+  /**
+   * The provider to use for the agent
+   * @example "hebo", "openai"
+   */
+  provider: string;
+
+  /**
+   * The base URL for the agent's API
+   * @example "https://api.hebo.ai", "https://api.openai.com/v1"
+   */
+  baseUrl?: string;
 }
 
 /**
@@ -52,7 +64,7 @@ export interface ApiKeyAuthConfig {
   /**
    * The API key to be used for authentication
    */
-  apiKey: string;
+  agentKey: string;
 
   /**
    * The header name where the API key should be sent

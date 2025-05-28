@@ -2,10 +2,6 @@
 
 import { Command } from 'commander';
 import { version } from './utils/package-info.js';
-import {
-  HeboAgent,
-  HeboAgentConfig,
-} from './agents/implementations/hebo-agent.js';
 import { ScoringService } from './scoring/scoring.service.js';
 import { EvaluationExecutor } from './evaluation/evaluation-executor.js';
 import { EvaluationConfig } from './evaluation/types/evaluation.types.js';
@@ -18,6 +14,8 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
 import { IAgent } from './agents/interfaces/agent.interface.js';
+import { createAgent } from './agents/factory/agent.factory.js';
+import { getProviderBaseUrl } from './utils/provider-config.js';
 
 /**
  * Main CLI entry point for Hebo Eval
@@ -25,7 +23,6 @@ import { IAgent } from './agents/interfaces/agent.interface.js';
  */
 
 export const program = new Command();
-const logger = Logger.getInstance();
 
 /**
  * Interface for run command options
@@ -37,6 +34,7 @@ interface RunCommandOptions {
   format: string;
   stopOnError: boolean;
   maxConcurrency: string;
+  verbose: boolean;
 }
 
 /**
@@ -44,7 +42,10 @@ interface RunCommandOptions {
  */
 interface CliConfig {
   embedding: EmbeddingConfig;
-  agent: HeboAgentConfig;
+  agent: {
+    agentKey: string;
+    provider: string;
+  };
 }
 
 /**
@@ -58,13 +59,10 @@ function loadConfig(configPath: string): CliConfig {
     const configContent = readFileSync(resolvedPath, 'utf-8');
     const parsed = JSON.parse(configContent) as CliConfig;
     return parsed;
-  } catch (error) {
-    logger.error(`Failed to load config from ${configPath}:`, {
-      error: error instanceof Error ? error : String(error),
-    });
-    throw new Error(
-      `Failed to load config from ${configPath}: ${error instanceof Error ? error.message : String(error)}`,
-    );
+  } catch (error: unknown) {
+    const errorMessage = `Failed to load config from ${configPath}: ${error instanceof Error ? error.message : String(error)}`;
+    Logger.error(errorMessage);
+    throw new Error(errorMessage);
   }
 }
 
@@ -92,23 +90,27 @@ program
   .option(
     '-t, --threshold <number>',
     'Score threshold for passing (0-1)',
-    '0.7',
+    '0.3',
   )
-  .option(
-    '-f, --format <format>',
-    'Output format (json|markdown|text)',
-    'markdown',
-  )
+  .option('-f, --format <format>', 'Output format (json|markdown|text)', 'text')
   .option('-s, --stop-on-error', 'Stop processing on first error', false)
   .option(
     '-m, --max-concurrency <number>',
     'Maximum number of concurrent test executions',
     '5',
   )
+  .option(
+    '-v, --verbose',
+    'Show verbose output including test results and provider information',
+    false,
+  )
   .action(async (agent: string, options: RunCommandOptions) => {
     let heboAgent: IAgent | undefined;
     let embeddingProvider: IEmbeddingProvider | undefined;
     try {
+      // Configure logger verbosity
+      Logger.configure({ verbose: options.verbose });
+
       // Load configuration from file, environment, or defaults
       let config;
       if (options.config) {
@@ -118,15 +120,14 @@ program
         config = {
           embedding: EmbeddingProviderFactory.loadFromEnv(),
           agent: {
-            apiKey: process.env.HEBO_API_KEY,
-            baseUrl:
-              process.env.HEBO_BASE_URL || 'https://api.hebo.ai/v1/embeddings',
+            agentKey: process.env.HEBO_AGENT_API_KEY,
+            provider: process.env.HEBO_AGENT_PROVIDER || 'hebo', // Default to hebo if not specified
           },
         };
 
-        //Validate embedding configurationb
+        //Validate embedding configuration
         if (!config.embedding || Object.keys(config.embedding).length === 0) {
-          logger.warn(
+          Logger.warn(
             'No embedding configuration found in environment variables',
           );
         }
@@ -134,26 +135,59 @@ program
       // Validate required configuration
       if (
         !config.agent ||
-        !('apiKey' in config.agent) ||
-        !config.agent.apiKey
+        !('agentKey' in config.agent) ||
+        !config.agent.agentKey
       ) {
         throw new Error(
-          'HEBO_API_KEY environment variable or config file is required',
+          'HEBO_AGENT_API_KEY or HEBO_API_KEY environment variable or config file is required',
         );
       }
 
-      // Initialize agent
-      heboAgent = new HeboAgent({
+      Logger.info(
+        `Initializing agent: ${agent} with provider: ${config.agent.provider}`,
+      );
+
+      // Initialize agent using factory
+      heboAgent = createAgent({
         model: agent,
-        baseUrl: config.agent.baseUrl,
+        baseUrl: getProviderBaseUrl(config.agent.provider),
+        provider: config.agent.provider,
       });
-      await heboAgent.initialize({ model: agent });
-      await heboAgent.authenticate({ apiKey: config.agent.apiKey });
+      await heboAgent.initialize({
+        model: agent,
+        provider: config.agent.provider,
+      });
+      await heboAgent.authenticate({ agentKey: config.agent.agentKey });
+
+      Logger.info('Initializing scoring service...');
 
       // Initialize scoring service with embedding provider.
-      embeddingProvider = EmbeddingProviderFactory.createProvider({
-        defaultProvider: 'litellm',
-        ...config.embedding,
+      let embeddingSystemConfig;
+      if ('defaultProvider' in config.embedding) {
+        // Already an EmbeddingSystemConfig
+        embeddingSystemConfig = config.embedding;
+      } else if ('provider' in config.embedding) {
+        // Convert EmbeddingConfig to EmbeddingSystemConfig
+        embeddingSystemConfig = {
+          defaultProvider: config.embedding.provider,
+          model: config.embedding.model,
+          baseUrl: config.embedding.baseUrl,
+          apiKey: config.embedding.apiKey,
+        };
+      } else {
+        throw new Error(
+          'Invalid embedding configuration: missing provider information',
+        );
+      }
+
+      embeddingProvider = EmbeddingProviderFactory.createProvider(
+        embeddingSystemConfig,
+      );
+      await embeddingProvider.initialize({
+        provider: embeddingSystemConfig.defaultProvider,
+        model: embeddingSystemConfig.model,
+        baseUrl: embeddingSystemConfig.baseUrl,
+        apiKey: embeddingSystemConfig.apiKey,
       });
       const scoringService = new ScoringService(embeddingProvider);
 
@@ -171,22 +205,54 @@ program
         maxConcurrency,
       };
 
+      Logger.info('Starting evaluation...');
+
       // Create and run evaluation
       const executor = new EvaluationExecutor(scoringService, evalConfig);
       const report = await executor.evaluateFromDirectory(
         heboAgent,
         options.directory || join(process.cwd(), 'examples'),
-        options.stopOnError,
+        options.stopOnError || false,
       );
 
       // Output results using the configured format
       const reportGenerator = new ReportGenerator(evalConfig);
       const formattedReport = reportGenerator.generateReport(report);
       console.log(formattedReport);
+
+      // Log any errors that occurred during evaluation
+      if (report.results.some((r) => r.error)) {
+        Logger.warn('Some test cases failed during evaluation');
+        report.results.forEach((r) => {
+          if (r.error) {
+            Logger.error(`${r.testCase.id} failed: ${r.error}`);
+          }
+        });
+        Logger.info('Evaluation completed with errors');
+      } else {
+        Logger.success('Evaluation completed successfully!');
+      }
+
+      Logger.info('Evaluation completed');
     } catch (error) {
-      logger.error('Evaluation failed:', {
-        error: error instanceof Error ? error : String(error),
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      // Format the error message based on its type
+      if (errorMessage.includes('HEBO_API_KEY')) {
+        Logger.error(
+          'The HEBO_API_KEY is required but not found.\n\n' +
+            'To fix this, either:\n' +
+            '1. Set the HEBO_API_KEY environment variable:\n' +
+            '   export HEBO_API_KEY=your_api_key_here\n\n' +
+            '2. Or provide a config file with the --config option:\n' +
+            '   hebo-eval run <agent> --config path/to/config.json\n\n' +
+            'For more information, visit: https://docs.hebo.ai',
+        );
+      } else {
+        Logger.error(errorMessage);
+      }
+
       process.exit(1);
     } finally {
       // Always attempt to free resources

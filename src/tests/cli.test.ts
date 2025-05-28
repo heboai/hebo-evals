@@ -81,7 +81,10 @@ describe('CLI Commands', () => {
       mockCleanup = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
 
       // Update the mock instance's methods
-      const mockInstance = new HeboAgent({ model: 'test-model' });
+      const mockInstance = new HeboAgent({
+        model: 'test-model',
+        provider: 'hebo',
+      });
       mockInstance.initialize = mockInitialize;
       mockInstance.authenticate = mockAuthenticate;
       mockInstance.cleanup = mockCleanup;

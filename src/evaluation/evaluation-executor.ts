@@ -1,19 +1,22 @@
-import { AgentInput } from '../agents/types/agent.types';
-import { IAgent } from '../agents/interfaces/agent.interface';
-import { Logger } from '../utils/logger';
+import { AgentInput } from '../agents/types/agent.types.js';
+import { IAgent } from '../agents/interfaces/agent.interface.js';
+import { Logger } from '../utils/logger.js';
 import { performance } from 'perf_hooks';
-import { TestCase } from '../core/types/message.types';
-import { TestCaseLoader } from '../parser/loader';
-import { ScoringService } from '../scoring/scoring.service';
-import { ReportGenerator } from '../report/report-generator';
-import { EvaluationConfig, EvaluationReport } from './types/evaluation.types';
-import { TestCaseEvaluation } from './types/test-case.types';
+import { TestCase } from '../core/types/message.types.js';
+import { TestCaseLoader } from '../parser/loader.js';
+import { ScoringService } from '../scoring/scoring.service.js';
+import { ReportGenerator } from '../report/report-generator.js';
+import {
+  EvaluationConfig,
+  EvaluationReport,
+} from './types/evaluation.types.js';
+import { TestCaseEvaluation } from './types/test-case.types.js';
+import { formatTestCasePlain } from '../utils/formatter.js';
 
 /**
  * Service for executing test cases against an agent
  */
 export class EvaluationExecutor {
-  private logger: Logger;
   private testCaseLoader: TestCaseLoader;
   private scoringService: ScoringService;
   private reportGenerator: ReportGenerator;
@@ -21,7 +24,6 @@ export class EvaluationExecutor {
   private readonly maxConcurrency: number;
 
   constructor(scoringService: ScoringService, config: EvaluationConfig) {
-    this.logger = Logger.getInstance();
     this.testCaseLoader = new TestCaseLoader();
     this.scoringService = scoringService;
     this.reportGenerator = new ReportGenerator(config);
@@ -42,6 +44,9 @@ export class EvaluationExecutor {
     stopOnError: boolean = true,
   ): Promise<EvaluationReport> {
     const startTime = performance.now();
+    Logger.info(
+      `Starting evaluation with provider: ${agent.getConfig().provider}`,
+    );
 
     // First load the test cases
     const loadResult = await this.testCaseLoader.loadFromDirectory(
@@ -63,6 +68,13 @@ export class EvaluationExecutor {
     const failedTests = totalTests - passedTests;
     const passRate = totalTests > 0 ? passedTests / totalTests : 0;
 
+    Logger.info(`Evaluation completed in ${duration.toFixed(2)}s`, {
+      totalTests,
+      passedTests,
+      failedTests,
+      passRate: (passRate * 100).toFixed(2) + '%',
+    });
+
     const report: EvaluationReport = {
       totalTests,
       passedTests,
@@ -71,14 +83,20 @@ export class EvaluationExecutor {
       results: results.map((result) => ({
         testCase: {
           id: result.testCaseId,
-          input: result.testCase.messageBlocks
-            .slice(0, -1)
-            .map((m: { content: string }) => m.content)
-            .join('\n'),
-          expected:
-            result.testCase.messageBlocks[
-              result.testCase.messageBlocks.length - 1
-            ].content,
+          input: formatTestCasePlain({
+            id: result.testCaseId,
+            name: result.testCaseId,
+            messageBlocks: result.testCase.messageBlocks.slice(0, -1),
+          }),
+          expected: formatTestCasePlain({
+            id: result.testCaseId,
+            name: result.testCaseId,
+            messageBlocks: [
+              result.testCase.messageBlocks[
+                result.testCase.messageBlocks.length - 1
+              ],
+            ],
+          }),
         },
         score: result.score,
         passed: result.success,
@@ -105,14 +123,14 @@ export class EvaluationExecutor {
     directoryPath: string,
     stopOnError: boolean = true,
   ): Promise<TestCaseEvaluation[]> {
-    this.logger.info(`Loading test cases from directory: ${directoryPath}`);
+    Logger.info(`Loading test cases from directory: ${directoryPath}`);
     const loadResult = await this.testCaseLoader.loadFromDirectory(
       directoryPath,
       stopOnError,
     );
 
     if (loadResult.errors.length > 0) {
-      this.logger.warn(
+      Logger.warn(
         `Encountered ${loadResult.errors.length} errors while loading test cases:`,
         {
           errors: loadResult.errors,
@@ -121,11 +139,11 @@ export class EvaluationExecutor {
     }
 
     if (loadResult.testCases.length === 0) {
-      this.logger.warn('No test cases were loaded successfully');
+      Logger.warn('No test cases were loaded successfully');
       return [];
     }
 
-    this.logger.info(
+    Logger.info(
       `Successfully loaded ${loadResult.testCases.length} test cases`,
     );
     return this.executeTestCases(agent, loadResult.testCases);
@@ -142,28 +160,46 @@ export class EvaluationExecutor {
     testCase: TestCase,
   ): Promise<TestCaseEvaluation> {
     const startTime = performance.now();
+    const agentConfig = agent.getConfig();
+    Logger.debug(
+      `Executing test case ${testCase.id} with provider: ${agentConfig.provider}`,
+    );
+
     try {
       if (testCase.messageBlocks.length < 2) {
         throw new Error(
           'Test case must have at least 2 message blocks: input and expected output',
         );
       }
-      const input: AgentInput = {
-        messages: testCase.messageBlocks.slice(0, -1).map((block) => ({
-          role: block.role,
-          content: block.content,
-        })),
-      };
+
+      // Get input messages based on provider
+      let inputMessages;
+      // Send all messages except the last one (expected response) for both providers
+      inputMessages = testCase.messageBlocks.slice(0, -1);
+      Logger.debug(
+        `Using message format: sending ${inputMessages.length} messages of conversation history`,
+      );
 
       // Get the expected response from the last message block
       const expectedResponse =
         testCase.messageBlocks[testCase.messageBlocks.length - 1];
 
+      const input: AgentInput = {
+        messages: inputMessages,
+      };
+
       // Execute the test
+      Logger.debug(`Sending input to ${agentConfig.provider} agent`);
       const response = await agent.sendInput(input);
       const executionTime = performance.now() - startTime;
 
+      // Only calculate similarity score if we have a valid response
+      if (!response.response || response.response.trim().length === 0) {
+        throw new Error('Agent returned an empty response');
+      }
+
       // Calculate semantic similarity score
+      Logger.debug('Calculating similarity score');
       const score = await this.scoringService.scoreStrings(
         response.response.trim(),
         expectedResponse.content.trim(),
@@ -171,6 +207,12 @@ export class EvaluationExecutor {
 
       // Consider it a success if score is above threshold (0.7 by default)
       const isMatch = score >= this.threshold;
+
+      Logger.debug(`Test case ${testCase.id} completed`, {
+        success: isMatch,
+        score,
+        executionTime: executionTime.toFixed(2) + 'ms',
+      });
 
       return {
         testCaseId: testCase.id,
@@ -183,13 +225,19 @@ export class EvaluationExecutor {
       };
     } catch (error) {
       const executionTime = performance.now() - startTime;
+      Logger.error(`Error executing test case ${testCase.id}:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        provider: agentConfig.provider,
+        executionTime: executionTime.toFixed(2) + 'ms',
+      });
+
       return {
         testCaseId: testCase.id,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         score: 0,
         executionTime,
-        response: '',
+        response: error instanceof Error ? error.message : 'Unknown error',
         testCase,
       };
     }
@@ -206,14 +254,20 @@ export class EvaluationExecutor {
     testCases: TestCase[],
   ): Promise<TestCaseEvaluation[]> {
     const results: TestCaseEvaluation[] = [];
+    const agentConfig = agent.getConfig();
+    Logger.info(
+      `Executing ${testCases.length} test cases with provider: ${agentConfig.provider}`,
+    );
+
     try {
       for (const testCase of testCases) {
         try {
           results.push(await this.executeTestCase(agent, testCase));
         } catch (error) {
-          this.logger.error(
-            `Error executing test case ${testCase.id}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          );
+          Logger.error(`Error executing test case ${testCase.id}:`, {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            provider: agentConfig.provider,
+          });
           results.push({
             testCaseId: testCase.id,
             success: false,
@@ -226,11 +280,12 @@ export class EvaluationExecutor {
         }
       }
     } catch (error) {
-      this.logger.error(
-        `Fatal error in executeTestCases: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-      throw error; // Re-throw fatal errors that affect the entire execution
+      Logger.error('Fatal error during test execution:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        provider: agentConfig.provider,
+      });
     }
+
     return results;
   }
 
@@ -238,7 +293,7 @@ export class EvaluationExecutor {
    * Executes test cases in parallel with a maximum concurrency
    * @param agent The agent to test
    * @param testCases The test cases to execute
-   * @param maxConcurrency Maximum number of concurrent executions
+   * @param maxConcurrency The maximum number of concurrent executions
    * @returns Promise that resolves with the evaluation results
    */
   private async executeTestCasesInParallel(
@@ -246,48 +301,42 @@ export class EvaluationExecutor {
     testCases: TestCase[],
     maxConcurrency: number,
   ): Promise<TestCaseEvaluation[]> {
-    const chunks: TestCase[][] = [];
-    for (let i = 0; i < testCases.length; i += maxConcurrency) {
-      chunks.push(testCases.slice(i, i + maxConcurrency));
-    }
-
     const results: TestCaseEvaluation[] = [];
-    this.logger.info(
-      `Starting parallel execution of ${testCases.length} test cases with concurrency ${maxConcurrency}`,
+    const agentConfig = agent.getConfig();
+    Logger.info(
+      `Executing ${testCases.length} test cases in parallel with max concurrency ${maxConcurrency}`,
+      {
+        provider: agentConfig.provider,
+      },
     );
 
-    for (const chunk of chunks) {
-      this.logger.debug(
-        `Executing chunk of ${chunk.length} test cases (${results.length}/${testCases.length} completed)`,
+    // Start loading indicator
+    Logger.startLoading('Running test cases', testCases.length);
+
+    // Process test cases in chunks to limit concurrency
+    for (let i = 0; i < testCases.length; i += maxConcurrency) {
+      const chunk = testCases.slice(i, i + maxConcurrency);
+      const chunkPromises = chunk.map((testCase) =>
+        this.executeTestCase(agent, testCase),
       );
-      // Process each test case with error handling
-      const chunkPromises = chunk.map(async (testCase) => {
-        try {
-          return await this.executeTestCase(agent, testCase);
-        } catch (error) {
-          this.logger.error(
-            `Error executing test case ${testCase.id}: ${
-              error instanceof Error ? error.message : 'Unknown error'
-            }`,
-          );
-          return {
-            testCaseId: testCase.id,
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-            score: 0,
-            executionTime: 0,
-            response: '',
-            testCase,
-          };
-        }
-      });
-      const chunkResults = await Promise.all(chunkPromises);
-      results.push(...chunkResults);
+
+      try {
+        const chunkResults = await Promise.all(chunkPromises);
+        results.push(...chunkResults);
+        // Update loading progress after each chunk
+        Logger.updateLoadingProgress(results.length);
+      } catch (error) {
+        Logger.error('Error executing test case chunk:', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          provider: agentConfig.provider,
+          chunkIndex: i,
+        });
+      }
     }
 
-    this.logger.info(
-      `Completed parallel execution of ${testCases.length} test cases`,
-    );
+    // Stop loading indicator
+    Logger.stopLoading();
+
     return results;
   }
 }
