@@ -122,7 +122,7 @@ export class HeboAgent extends BaseAgent {
     };
 
     // Log message preparation only in verbose mode
-    if (Logger.isVerbose()) {
+    if ((Logger.isVerbose as () => boolean)()) {
       console.log('\n=== Message Preparation ===');
       console.log('Input Messages:', JSON.stringify(input.messages, null, 2));
       console.log(
@@ -242,7 +242,7 @@ export class HeboAgent extends BaseAgent {
           : `${this.baseUrl}/api/responses`;
 
       // Log the request details only in verbose mode
-      if (Logger.isVerbose()) {
+      if ((Logger.isVerbose as () => boolean)()) {
         console.log('\n=== Hebo API Request ===');
         console.log('Endpoint:', endpoint);
         console.log('Headers:', JSON.stringify(headers, null, 2));
