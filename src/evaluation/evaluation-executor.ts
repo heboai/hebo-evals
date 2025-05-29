@@ -27,7 +27,7 @@ export class EvaluationExecutor {
     this.testCaseLoader = new TestCaseLoader();
     this.scoringService = scoringService;
     this.reportGenerator = new ReportGenerator(config);
-    this.threshold = config.threshold ?? 0.7;
+    this.threshold = config.threshold ?? 0.8;
     this.maxConcurrency = config.maxConcurrency ?? 5;
   }
 
