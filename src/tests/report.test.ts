@@ -7,7 +7,7 @@ import {
 describe('ReportGenerator', () => {
   let reportGenerator: ReportGenerator;
   const defaultConfig: EvaluationConfig = {
-    threshold: 0.7,
+    threshold: 0.8,
     outputFormat: 'markdown',
     maxConcurrency: 5,
   };

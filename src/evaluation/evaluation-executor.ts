@@ -27,7 +27,7 @@ export class EvaluationExecutor {
     this.testCaseLoader = new TestCaseLoader();
     this.scoringService = scoringService;
     this.reportGenerator = new ReportGenerator(config);
-    this.threshold = config.threshold ?? 0.7;
+    this.threshold = config.threshold ?? 0.8;
     this.maxConcurrency = config.maxConcurrency ?? 5;
   }
 
@@ -205,7 +205,7 @@ export class EvaluationExecutor {
         expectedResponse.content.trim(),
       );
 
-      // Consider it a success if score is above threshold (0.7 by default)
+      // Consider it a success if score is above threshold (0.8 by default)
       const isMatch = score >= this.threshold;
 
       Logger.debug(`Test case ${testCase.id} completed`, {
