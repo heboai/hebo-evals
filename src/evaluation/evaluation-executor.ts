@@ -205,7 +205,7 @@ export class EvaluationExecutor {
         expectedResponse.content.trim(),
       );
 
-      // Consider it a success if score is above threshold (0.7 by default)
+      // Consider it a success if score is above threshold (0.8 by default)
       const isMatch = score >= this.threshold;
 
       Logger.debug(`Test case ${testCase.id} completed`, {

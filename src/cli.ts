@@ -89,7 +89,7 @@ program
   .option(
     '-t, --threshold <number>',
     'Score threshold for passing (0-1)',
-    '0.3',
+    '0.8',
   )
   .option('-f, --format <format>', 'Output format (json|markdown|text)', 'text')
   .option('-s, --stop-on-error', 'Stop processing on first error', false)
