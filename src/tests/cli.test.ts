@@ -98,7 +98,7 @@ describe('CLI Commands', () => {
         .option(
           '-t, --threshold <number>',
           'Score threshold for passing (0-1)',
-          '0.7',
+          '0.8',
         )
         .option(
           '-f, --format <format>',

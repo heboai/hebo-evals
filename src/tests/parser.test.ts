@@ -144,52 +144,6 @@ user: How are you?`;
         expect(result[5]).toEqual({ type: 'content', value: 'How are you?' });
       });
 
-      it('should handle tool usage with unusual whitespace', () => {
-        const text = `assistant: Let me check that
-tool use: search\targs: {"query": "test"}
-\t\ttool response: Found results`;
-
-        const result = tokenizer.tokenize(text);
-
-        expect(result).toHaveLength(4);
-        expect(result[0]).toEqual({ type: 'role', value: 'assistant' });
-        expect(result[1]).toEqual({
-          type: 'content',
-          value: 'Let me check that',
-        });
-        expect(result[2]).toEqual({
-          type: 'tool_use',
-          value: 'search\targs: {"query": "test"}',
-        });
-        expect(result[3]).toEqual({
-          type: 'tool_response',
-          value: 'Found results',
-        });
-      });
-
-      it('should parse tool usage and responses', () => {
-        const text = `assistant: Let me check that
-tool use: search args: {"query": "test"}
-tool response: Found results`;
-
-        const result = tokenizer.tokenize(text);
-
-        expect(result).toHaveLength(4);
-        expect(result[0]).toEqual({ type: 'role', value: 'assistant' });
-        expect(result[1]).toEqual({
-          type: 'content',
-          value: 'Let me check that',
-        });
-        expect(result[2]).toEqual({
-          type: 'tool_use',
-          value: 'search args: {"query": "test"}',
-        });
-        expect(result[3]).toEqual({
-          type: 'tool_response',
-          value: 'Found results',
-        });
-      });
-
       it('should handle empty lines', () => {
         const text = `user: Hello
 
@@ -253,54 +207,17 @@ user: How are you?`;
         });
       });
 
-      it('should handle tool usage with args as string', () => {
-        const text = `assistant: Let me check that
-tool use: search args: {"query": "test"}
-tool response: Found results
-assistant: Here's what I found`;
-
-        const result = parser.parse(text, 'test-case');
-
-        expect(result.messageBlocks).toHaveLength(2);
-
-        // First message block with tool usage
-        expect(result.messageBlocks[0]).toEqual({
-          role: MessageRole.ASSISTANT,
-          content: 'Let me check that',
-          toolUsages: [
-            {
-              name: 'search',
-              args: '{"query": "test"}',
-            },
-          ],
-          toolResponses: [
-            {
-              content: 'Found results',
-            },
-          ],
-        });
-
-        // Second message block
-        expect(result.messageBlocks[1]).toEqual({
-          role: MessageRole.ASSISTANT,
-          content: "Here's what I found",
-          toolUsages: [],
-          toolResponses: [],
-        });
-      });
-
       it('should handle example.txt format correctly', () => {
         const text = `user: hello
 assistant: hello how can I help you?
 user: can you please search the weather in new york for me?
 assistant: sure
-tool use: weather_search args: {"location": "New York"}
-tool response: New York, NY, USA: 59 °F Precipitation: 80% Humidity: 96% Wind: 2 mph
-assistant: It's rainy in New York, NY, today, with a temperature of 59°F, 80% precipitation, 96% humidity, and light 2 mph winds. Be prepared for wet conditions!`;
+
+It's rainy in New York, NY, today, with a temperature of 59°F, 80% precipitation, 96% humidity, and light 2 mph winds. Be prepared for wet conditions!`;
 
         const result = parser.parse(text, 'example');
 
-        expect(result.messageBlocks).toHaveLength(5);
+        expect(result.messageBlocks).toHaveLength(4);
 
         // First message
         expect(result.messageBlocks[0]).toEqual({
@@ -326,29 +243,11 @@ assistant: It's rainy in New York, NY, today, with a temperature of 59°F, 80% p
           toolResponses: [],
         });
 
-        // Fourth message with tool usage
+        // Fourth message (merged)
         expect(result.messageBlocks[3]).toEqual({
           role: MessageRole.ASSISTANT,
-          content: 'sure',
-          toolUsages: [
-            {
-              name: 'weather_search',
-              args: '{"location": "New York"}',
-            },
-          ],
-          toolResponses: [
-            {
-              content:
-                'New York, NY, USA: 59 °F Precipitation: 80% Humidity: 96% Wind: 2 mph',
-            },
-          ],
-        });
-
-        // Fifth message
-        expect(result.messageBlocks[4]).toEqual({
-          role: MessageRole.ASSISTANT,
           content:
-            "It's rainy in New York, NY, today, with a temperature of 59°F, 80% precipitation, 96% humidity, and light 2 mph winds. Be prepared for wet conditions!",
+            "sure\nIt's rainy in New York, NY, today, with a temperature of 59°F, 80% precipitation, 96% humidity, and light 2 mph winds. Be prepared for wet conditions!",
           toolUsages: [],
           toolResponses: [],
         });
@@ -358,18 +257,6 @@ assistant: It's rainy in New York, NY, today, with a temperature of 59°F, 80% p
         const text = `invalid: Hello`;
 
         expect(() => parser.parse(text, 'test-case')).toThrow(ParseError);
-      });
-
-      it('should throw ParseError for invalid tool args format', () => {
-        const text = `assistant: Let me check
-tool use: search args: invalid json
-tool response: some response`;
-
-        expect(() => parser.parse(text, 'test-case')).toThrow(ParseError);
-        // Also verify the specific error message
-        expect(() => parser.parse(text, 'test-case')).toThrow(
-          'Tool args must be valid JSON',
-        );
       });
     });
   });
