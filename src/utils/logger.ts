@@ -305,11 +305,13 @@ export class Logger {
   static testResult(
     id: string,
     passed: boolean,
-    error?: string,
-    score?: number,
-    executionTime?: number,
-    testCase?: { input: string; expected: string },
-    response?: string,
+    details: {
+      error?: string;
+      score?: number;
+      executionTime?: number;
+      testCase?: { input: string; expected: string };
+      response?: string;
+    } = {},
   ): void {
     const color = passed ? COLORS.test.pass : COLORS.test.fail;
     const status = passed ? 'Passed' : 'Failed';
@@ -319,11 +321,11 @@ export class Logger {
     Logger.testResults.push({
       id,
       passed,
-      error,
-      score: score ?? 0,
-      executionTime: executionTime ?? 0,
-      testCase: testCase ?? { input: '', expected: '' },
-      response: response ?? '',
+      error: details.error,
+      score: details.score ?? 0,
+      executionTime: details.executionTime ?? 0,
+      testCase: details.testCase ?? { input: '', expected: '' },
+      response: details.response ?? '',
       formattedResult: formattedString,
     });
   }

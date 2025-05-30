@@ -202,13 +202,11 @@ export class EvaluationExecutor {
       const isMatch = score >= this.threshold;
 
       // Log test result using the new format
-      Logger.testResult(
-        testCase.id,
-        isMatch,
-        isMatch ? undefined : 'Response mismatch',
+      Logger.testResult(testCase.id, isMatch, {
+        error: isMatch ? undefined : 'Response mismatch',
         score,
         executionTime,
-        {
+        testCase: {
           input: formatTestCasePlain({
             id: testCase.id,
             name: testCase.id,
@@ -222,8 +220,8 @@ export class EvaluationExecutor {
             ],
           }),
         },
-        response.response,
-      );
+        response: response.response,
+      });
 
       return {
         testCaseId: testCase.id,
@@ -238,13 +236,11 @@ export class EvaluationExecutor {
       const executionTime = performance.now() - startTime;
 
       // Log test result using the new format
-      Logger.testResult(
-        testCase.id,
-        false,
-        error instanceof Error ? error.message : 'Unknown error',
-        0,
+      Logger.testResult(testCase.id, false, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        score: 0,
         executionTime,
-        {
+        testCase: {
           input: formatTestCasePlain({
             id: testCase.id,
             name: testCase.id,
@@ -258,8 +254,8 @@ export class EvaluationExecutor {
             ],
           }),
         },
-        error instanceof Error ? error.message : 'Unknown error',
-      );
+        response: error instanceof Error ? error.message : 'Unknown error',
+      });
 
       return {
         testCaseId: testCase.id,

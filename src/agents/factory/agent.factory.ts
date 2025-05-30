@@ -32,9 +32,14 @@ export function createAgent(config: AgentConfig): IAgent {
   }
 
   // Validate OpenAI models
-  if (provider === 'openai' && !model.startsWith('gpt-')) {
+  if (
+    provider === 'openai' &&
+    !/^(gpt-|o\d+(?:-mini|-nano|-turbo|-high)?|text-|dall-e-|whisper-)/i.test(
+      model,
+    )
+  ) {
     throw new Error(
-      `Configuration error: OpenAI models must start with 'gpt-' (e.g., 'gpt-4'). Received: ${config.model}`,
+      `Configuration error: OpenAI model '${config.model}' is not supported. Please refer to the OpenAI docs for valid model names.`,
     );
   }
 
