@@ -21,6 +21,12 @@ export interface AgentConfig {
    * @example "https://api.hebo.ai", "https://api.openai.com/v1"
    */
   baseUrl?: string;
+
+  /**
+   * The API key for the agent
+   * @example "sk-...", "hebo-..."
+   */
+  apiKey?: string;
 }
 
 /**

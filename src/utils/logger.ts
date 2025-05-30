@@ -1,17 +1,4 @@
 /**
- * Box drawing characters for consistent styling
- */
-const BOX = {
-  TOP_LEFT: '┌',
-  TOP_RIGHT: '┐',
-  BOTTOM_LEFT: '└',
-  BOTTOM_RIGHT: '┘',
-  HORIZONTAL: '─',
-  VERTICAL: '│',
-  SPACE: ' ',
-};
-
-/**
  * Icons for different message types
  */
 const ICONS = {
@@ -20,47 +7,41 @@ const ICONS = {
   info: 'ℹ️',
   warning: '⚠️',
   debug: '🔍',
+  test: {
+    pass: '✓',
+    fail: '✗',
+    skip: '!',
+  },
 };
 
 /**
  * Colors for different message types
  */
-const COLORS = {
+export const COLORS = {
   error: '\x1b[31m', // Red
   success: '\x1b[32m', // Green
   info: '\x1b[36m', // Cyan
   warning: '\x1b[33m', // Yellow
   debug: '\x1b[35m', // Magenta
+  test: {
+    pass: '\x1b[32m', // Green
+    fail: '\x1b[31m', // Red
+    skip: '\x1b[33m', // Yellow
+  },
   reset: '\x1b[0m', // Reset
+  loading: '\x1b[38;2;255;196;76m', // #ffc44c
 };
 
 /**
- * Rainbow colors for loading indicator
+ * Progress bar characters
  */
-const RAINBOW_COLORS = [
-  '\x1b[31m', // Red
-  '\x1b[33m', // Yellow
-  '\x1b[32m', // Green
-  '\x1b[36m', // Cyan
-  '\x1b[34m', // Blue
-  '\x1b[35m', // Magenta
-];
-
-/**
- * Loading indicator characters for spinner animation
- */
-const LOADING_CHARS = [
-  '⚡',
-  '✨',
-  '🌟',
-  '💫',
-  '⭐',
-  '🌠',
-  '⚡',
-  '✨',
-  '🌟',
-  '💫',
-];
+const PROGRESS_BAR = {
+  LEFT: '[',
+  RIGHT: ']',
+  FILLED: '█',
+  EMPTY: '░',
+  WIDTH: 30,
+};
 
 /**
  * Message types for different styles
@@ -75,6 +56,10 @@ interface LoggerConfig {
    * Whether to show verbose output including test results and provider information
    */
   verbose: boolean;
+  /**
+   * Path to debug log file for storing suppressed messages
+   */
+  debugLogFile?: string;
 }
 
 /**
@@ -83,14 +68,25 @@ interface LoggerConfig {
 export class Logger {
   private static instance: Logger | null = null;
   private static loadingInterval: NodeJS.Timeout | null = null;
-  private static loadingIndex: number = 0;
   private static loadingMessage: string = '';
   private static loadingTotal: number = 0;
   private static loadingCurrent: number = 0;
-  private static colorIndex: number = 0;
   private static config: LoggerConfig = {
     verbose: false,
   };
+  private static testResults: Array<{
+    id: string;
+    passed: boolean;
+    error?: string;
+    score: number;
+    executionTime: number;
+    testCase: {
+      input: string;
+      expected: string;
+    };
+    response: string;
+    formattedResult: string;
+  }> = [];
 
   private constructor() {}
 
@@ -126,27 +122,25 @@ export class Logger {
     Logger.loadingMessage = message;
     Logger.loadingTotal = total;
     Logger.loadingCurrent = 0;
-    Logger.loadingIndex = 0;
-    Logger.colorIndex = 0;
 
     // Clear any existing loading indicator
     Logger.stopLoading();
 
     // Start new loading indicator
     Logger.loadingInterval = setInterval(() => {
-      const color = RAINBOW_COLORS[Logger.colorIndex];
-      const spinner = LOADING_CHARS[Logger.loadingIndex];
-      const progress = `${Logger.loadingCurrent}/${Logger.loadingTotal}`;
-      const percentage = Math.round(
-        (Logger.loadingCurrent / Logger.loadingTotal) * 100,
-      );
+      const progress = Logger.loadingCurrent / Logger.loadingTotal;
+      const filledWidth = Math.floor(progress * PROGRESS_BAR.WIDTH);
+      const emptyWidth = PROGRESS_BAR.WIDTH - filledWidth;
+
+      // Create the progress bar with the specified color
+      const filledBar =
+        COLORS.loading + PROGRESS_BAR.FILLED.repeat(filledWidth) + COLORS.reset;
+      const emptyBar = PROGRESS_BAR.EMPTY.repeat(emptyWidth);
+      const percentage = Math.round(progress * 100);
 
       process.stdout.write(
-        `\r${color}${spinner} ${Logger.loadingMessage} ${progress} (${percentage}%)${COLORS.reset}`,
+        `\r${Logger.loadingMessage} ${PROGRESS_BAR.LEFT}${filledBar}${emptyBar}${PROGRESS_BAR.RIGHT} ${percentage}%`,
       );
-
-      Logger.loadingIndex = (Logger.loadingIndex + 1) % LOADING_CHARS.length;
-      Logger.colorIndex = (Logger.colorIndex + 1) % RAINBOW_COLORS.length;
     }, 100);
   }
 
@@ -170,36 +164,17 @@ export class Logger {
   }
 
   /**
-   * Creates a boxed message with consistent styling
+   * Creates a formatted message with consistent styling
    * @param content The message content
    * @param type The type of message
    * @returns The formatted message
    */
   private static formatMessage(content: string, type: MessageType): string {
     const lines = content.split('\n');
-    const maxLength = Math.max(...lines.map((line) => line.length));
-    const padding = 2;
-    const width = maxLength + padding * 2;
-
-    const top = `${BOX.TOP_LEFT}${BOX.HORIZONTAL.repeat(width)}${BOX.TOP_RIGHT}`;
-    const bottom = `${BOX.BOTTOM_LEFT}${BOX.HORIZONTAL.repeat(width)}${BOX.BOTTOM_RIGHT}`;
-
-    const formattedLines = lines.map((line) => {
-      const paddedLine = line.padEnd(maxLength);
-      return `${BOX.VERTICAL}${BOX.SPACE.repeat(padding)}${paddedLine}${BOX.SPACE.repeat(padding)}${BOX.VERTICAL}`;
-    });
-
-    // Add a separator between lines for better readability
-    const separator = `${BOX.VERTICAL}${BOX.HORIZONTAL.repeat(width)}${BOX.VERTICAL}`;
-
     return [
       '',
       `${COLORS[type]}${ICONS[type]} ${type.charAt(0).toUpperCase() + type.slice(1)}${COLORS.reset}`,
-      top,
-      ...formattedLines.flatMap((line, index) =>
-        index < formattedLines.length - 1 ? [line, separator] : [line],
-      ),
-      bottom,
+      ...lines.map((line) => `${COLORS[type]}${line}${COLORS.reset}`),
       '',
     ].join('\n');
   }
@@ -211,6 +186,27 @@ export class Logger {
    */
   static error(message: unknown, meta?: Record<string, unknown>): void {
     const messageStr = typeof message === 'string' ? message : String(message);
+
+    // Always show critical errors
+    if (
+      messageStr.includes('API key') ||
+      messageStr.includes('Configuration error') ||
+      messageStr.includes('Authentication failed')
+    ) {
+      console.error(Logger.formatMessage(messageStr, 'error'));
+      if (meta) {
+        console.error(JSON.stringify(meta, null, 2));
+      }
+      return;
+    }
+
+    // For non-critical errors, log to debug if not in verbose mode
+    if (!Logger.config.verbose) {
+      Logger.debug(messageStr, meta);
+      return;
+    }
+
+    // In verbose mode, show all errors
     console.error(Logger.formatMessage(messageStr, 'error'));
     if (meta) {
       console.error(JSON.stringify(meta, null, 2));
@@ -224,6 +220,15 @@ export class Logger {
    */
   static warn(message: unknown, meta?: Record<string, unknown>): void {
     const messageStr = typeof message === 'string' ? message : String(message);
+
+    // Skip redundant evaluation status messages
+    if (
+      messageStr.includes('Some test cases failed') ||
+      messageStr.includes('Evaluation completed with errors')
+    ) {
+      return;
+    }
+
     console.warn(Logger.formatMessage(messageStr, 'warning'));
     if (meta) {
       console.warn(JSON.stringify(meta, null, 2));
@@ -236,12 +241,22 @@ export class Logger {
    * @param meta Optional metadata to include
    */
   static info(message: unknown, meta?: Record<string, unknown>): void {
-    // Skip verbose messages if not in verbose mode
-    if (!Logger.config.verbose && meta && (meta.provider || meta.totalTests)) {
+    const messageStr = typeof message === 'string' ? message : String(message);
+
+    // Skip non-verbose messages and redundant status messages
+    if (
+      (!Logger.config.verbose &&
+        (messageStr.includes('Initializing') ||
+          messageStr.includes('Starting evaluation') ||
+          messageStr.includes('Evaluation completed') ||
+          messageStr.includes('Executing') ||
+          meta?.provider)) ||
+      messageStr.includes('Evaluation completed')
+    ) {
       return;
     }
 
-    const messageStr = typeof message === 'string' ? message : String(message);
+    // Show all messages in verbose mode
     console.log(Logger.formatMessage(messageStr, 'info'));
     if (meta) {
       console.log(JSON.stringify(meta, null, 2));
@@ -275,5 +290,108 @@ export class Logger {
         console.debug(JSON.stringify(meta, null, 2));
       }
     }
+  }
+
+  /**
+   * Logs a test result
+   * @param id Test case ID
+   * @param passed Whether the test passed
+   * @param error Optional error message
+   * @param score Test score
+   * @param executionTime Execution time in milliseconds
+   * @param testCase Optional test case information
+   * @param response Optional response information
+   */
+  static testResult(
+    id: string,
+    passed: boolean,
+    details: {
+      error?: string;
+      score?: number;
+      executionTime?: number;
+      testCase?: { input: string; expected: string };
+      response?: string;
+    } = {},
+  ): void {
+    const color = passed ? COLORS.test.pass : COLORS.test.fail;
+    const status = passed ? 'Passed' : 'Failed';
+    const formattedString = `${color}${status}${COLORS.reset} ${id}`;
+
+    // Store the result for the final summary
+    Logger.testResults.push({
+      id,
+      passed,
+      error: details.error,
+      score: details.score ?? 0,
+      executionTime: details.executionTime ?? 0,
+      testCase: details.testCase ?? { input: '', expected: '' },
+      response: details.response ?? '',
+      formattedResult: formattedString,
+    });
+  }
+
+  /**
+   * Logs a test summary
+   * @param total Total number of tests
+   * @param passed Number of passed tests
+   * @param failed Number of failed tests
+   * @param duration Total execution time in seconds
+   */
+  static testSummary(
+    total: number,
+    passed: number,
+    failed: number,
+    duration: number,
+  ): void {
+    // Clear any existing output
+    process.stdout.write('\r\x1b[K');
+
+    // Print a blank line for separation
+    console.log('\n');
+
+    // Log concise results for all tests
+    Logger.testResults.forEach((result) => {
+      console.log(result.formattedResult);
+    });
+
+    // Log detailed information for failed tests first
+    if (failed > 0) {
+      console.log('\nFailed Tests');
+      console.log('------------');
+      Logger.testResults
+        .filter((result) => !result.passed)
+        .forEach((result) => {
+          console.log(`\n${result.id}`);
+          console.log(`Status: ${COLORS.test.fail}Failed${COLORS.reset}`);
+          if (result.score !== undefined) {
+            console.log(`Score: ${result.score.toFixed(3)}`);
+          }
+          if (result.executionTime) {
+            console.log(`Time: ${result.executionTime.toFixed(2)}ms`);
+          }
+          console.log('\nInput:');
+          console.log(result.testCase.input);
+          console.log('\nExpected Output:');
+          console.log(result.testCase.expected);
+          console.log('\nActual Response:');
+          console.log(result.response);
+          if (result.error) {
+            console.log('\nError:');
+            console.log(result.error);
+          }
+          console.log('\n---\n');
+        });
+    }
+
+    // Print the summary statistics
+    console.log('Test Summary');
+    console.log('============');
+    console.log(`Total: ${total}`);
+    console.log(`${COLORS.test.pass}Passed: ${passed}${COLORS.reset}`);
+    console.log(`${COLORS.test.fail}Failed: ${failed}${COLORS.reset}`);
+    console.log(`Duration: ${duration.toFixed(2)}s`);
+
+    // Clear test results after summary
+    Logger.testResults = [];
   }
 }

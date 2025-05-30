@@ -44,9 +44,6 @@ export class EvaluationExecutor {
     stopOnError: boolean = true,
   ): Promise<EvaluationReport> {
     const startTime = performance.now();
-    Logger.info(
-      `Starting evaluation with provider: ${agent.getConfig().provider}`,
-    );
 
     // First load the test cases
     const loadResult = await this.testCaseLoader.loadFromDirectory(
@@ -68,12 +65,8 @@ export class EvaluationExecutor {
     const failedTests = totalTests - passedTests;
     const passRate = totalTests > 0 ? passedTests / totalTests : 0;
 
-    Logger.info(`Evaluation completed in ${duration.toFixed(2)}s`, {
-      totalTests,
-      passedTests,
-      failedTests,
-      passRate: (passRate * 100).toFixed(2) + '%',
-    });
+    // Log test summary using the new format
+    Logger.testSummary(totalTests, passedTests, failedTests, duration);
 
     const report: EvaluationReport = {
       totalTests,
@@ -208,10 +201,26 @@ export class EvaluationExecutor {
       // Consider it a success if score is above threshold (0.8 by default)
       const isMatch = score >= this.threshold;
 
-      Logger.debug(`Test case ${testCase.id} completed`, {
-        success: isMatch,
+      // Log test result using the new format
+      Logger.testResult(testCase.id, isMatch, {
+        error: isMatch ? undefined : 'Response mismatch',
         score,
-        executionTime: executionTime.toFixed(2) + 'ms',
+        executionTime,
+        testCase: {
+          input: formatTestCasePlain({
+            id: testCase.id,
+            name: testCase.id,
+            messageBlocks: testCase.messageBlocks.slice(0, -1),
+          }),
+          expected: formatTestCasePlain({
+            id: testCase.id,
+            name: testCase.id,
+            messageBlocks: [
+              testCase.messageBlocks[testCase.messageBlocks.length - 1],
+            ],
+          }),
+        },
+        response: response.response,
       });
 
       return {
@@ -225,10 +234,27 @@ export class EvaluationExecutor {
       };
     } catch (error) {
       const executionTime = performance.now() - startTime;
-      Logger.error(`Error executing test case ${testCase.id}:`, {
+
+      // Log test result using the new format
+      Logger.testResult(testCase.id, false, {
         error: error instanceof Error ? error.message : 'Unknown error',
-        provider: agentConfig.provider,
-        executionTime: executionTime.toFixed(2) + 'ms',
+        score: 0,
+        executionTime,
+        testCase: {
+          input: formatTestCasePlain({
+            id: testCase.id,
+            name: testCase.id,
+            messageBlocks: testCase.messageBlocks.slice(0, -1),
+          }),
+          expected: formatTestCasePlain({
+            id: testCase.id,
+            name: testCase.id,
+            messageBlocks: [
+              testCase.messageBlocks[testCase.messageBlocks.length - 1],
+            ],
+          }),
+        },
+        response: error instanceof Error ? error.message : 'Unknown error',
       });
 
       return {
@@ -302,12 +328,10 @@ export class EvaluationExecutor {
     maxConcurrency: number,
   ): Promise<TestCaseEvaluation[]> {
     const results: TestCaseEvaluation[] = [];
-    const agentConfig = agent.getConfig();
+    let completedTests = 0;
+
     Logger.info(
       `Executing ${testCases.length} test cases in parallel with max concurrency ${maxConcurrency}`,
-      {
-        provider: agentConfig.provider,
-      },
     );
 
     // Start loading indicator
@@ -317,18 +341,20 @@ export class EvaluationExecutor {
     for (let i = 0; i < testCases.length; i += maxConcurrency) {
       const chunk = testCases.slice(i, i + maxConcurrency);
       const chunkPromises = chunk.map((testCase) =>
-        this.executeTestCase(agent, testCase),
+        this.executeTestCase(agent, testCase).then((result) => {
+          // Update loading progress after each test case completes
+          completedTests++;
+          Logger.updateLoadingProgress(completedTests);
+          return result;
+        }),
       );
 
       try {
         const chunkResults = await Promise.all(chunkPromises);
         results.push(...chunkResults);
-        // Update loading progress after each chunk
-        Logger.updateLoadingProgress(results.length);
       } catch (error) {
         Logger.error('Error executing test case chunk:', {
           error: error instanceof Error ? error.message : 'Unknown error',
-          provider: agentConfig.provider,
           chunkIndex: i,
         });
       }

@@ -45,26 +45,35 @@ export class EmbeddingProviderFactory {
   static createProvider(config: EmbeddingSystemConfig): IEmbeddingProvider {
     const providerConfig = this.getProviderConfig(config);
 
-    switch (providerConfig.provider) {
+    // Validate provider
+    const provider = providerConfig.provider;
+    if (!['openai', 'hebo'].includes(provider)) {
+      throw new Error(
+        `Configuration error: Unsupported embedding provider: ${String(provider)}. Supported providers are: openai, hebo`,
+      );
+    }
+
+    // Validate API key
+    if (!config.apiKey) {
+      throw new Error(
+        `Configuration error: API key is required for ${String(provider)} embedding provider`,
+      );
+    }
+
+    switch (provider) {
       case 'openai':
-        if (!config.apiKey) {
-          throw new Error('API key is required');
-        }
         return new OpenAIEmbeddingProvider(
           providerConfig as OpenAIEmbeddingConfig,
           config.apiKey,
         );
       case 'hebo':
-        if (!config.apiKey) {
-          throw new Error('API key is required');
-        }
         return new HeboEmbeddingProvider(
           providerConfig as HeboEmbeddingConfig,
           config.apiKey,
         );
       default:
         throw new Error(
-          `Unsupported provider: ${providerConfig.provider as string}`,
+          `Configuration error: Unsupported provider: ${String(provider)}`,
         );
     }
   }

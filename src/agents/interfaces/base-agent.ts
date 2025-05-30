@@ -113,6 +113,26 @@ export abstract class BaseAgent implements IAgent {
     if (!authConfig.agentKey) {
       throw new Error('API key is required for authentication');
     }
+
+    // Validate provider-key combination
+    if (
+      this.config.provider.toLowerCase() === 'hebo' &&
+      authConfig.agentKey.startsWith('sk-')
+    ) {
+      throw new Error(
+        `Configuration error: You are using an OpenAI API key (starts with 'sk-') with the Hebo provider. Please use a Hebo API key or switch to the OpenAI provider.`,
+      );
+    }
+
+    if (
+      this.config.provider.toLowerCase() === 'openai' &&
+      !authConfig.agentKey.startsWith('sk-')
+    ) {
+      throw new Error(
+        `Configuration error: You are using a non-OpenAI API key with the OpenAI provider. Please use an OpenAI API key (starts with 'sk-') or switch to the Hebo provider.`,
+      );
+    }
+
     return Promise.resolve();
   }
 
