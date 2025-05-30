@@ -1,17 +1,4 @@
 /**
- * Box drawing characters for consistent styling
- */
-const BOX = {
-  TOP_LEFT: '┌',
-  TOP_RIGHT: '┐',
-  BOTTOM_LEFT: '└',
-  BOTTOM_RIGHT: '┘',
-  HORIZONTAL: '─',
-  VERTICAL: '│',
-  SPACE: ' ',
-};
-
-/**
  * Icons for different message types
  */
 const ICONS = {
@@ -186,36 +173,17 @@ export class Logger {
   }
 
   /**
-   * Creates a boxed message with consistent styling
+   * Creates a formatted message with consistent styling
    * @param content The message content
    * @param type The type of message
    * @returns The formatted message
    */
   private static formatMessage(content: string, type: MessageType): string {
     const lines = content.split('\n');
-    const maxLength = Math.max(...lines.map((line) => line.length));
-    const padding = 2;
-    const width = maxLength + padding * 2;
-
-    const top = `${BOX.TOP_LEFT}${BOX.HORIZONTAL.repeat(width)}${BOX.TOP_RIGHT}`;
-    const bottom = `${BOX.BOTTOM_LEFT}${BOX.HORIZONTAL.repeat(width)}${BOX.BOTTOM_RIGHT}`;
-
-    const formattedLines = lines.map((line) => {
-      const paddedLine = line.padEnd(maxLength);
-      return `${BOX.VERTICAL}${BOX.SPACE.repeat(padding)}${paddedLine}${BOX.SPACE.repeat(padding)}${BOX.VERTICAL}`;
-    });
-
-    // Add a separator between lines for better readability
-    const separator = `${BOX.VERTICAL}${BOX.HORIZONTAL.repeat(width)}${BOX.VERTICAL}`;
-
     return [
       '',
       `${COLORS[type]}${ICONS[type]} ${type.charAt(0).toUpperCase() + type.slice(1)}${COLORS.reset}`,
-      top,
-      ...formattedLines.flatMap((line, index) =>
-        index < formattedLines.length - 1 ? [line, separator] : [line],
-      ),
-      bottom,
+      ...lines.map((line) => `${COLORS[type]}${line}${COLORS.reset}`),
       '',
     ].join('\n');
   }
@@ -263,11 +231,10 @@ export class Logger {
   static warn(message: unknown, meta?: Record<string, unknown>): void {
     const messageStr = typeof message === 'string' ? message : String(message);
 
-    // Skip non-critical warning messages if not in verbose mode
+    // Skip redundant evaluation status messages
     if (
-      !Logger.config.verbose &&
-      (messageStr.includes('Some test cases failed') ||
-        messageStr.includes('Evaluation completed with errors'))
+      messageStr.includes('Some test cases failed') ||
+      messageStr.includes('Evaluation completed with errors')
     ) {
       return;
     }
@@ -286,14 +253,15 @@ export class Logger {
   static info(message: unknown, meta?: Record<string, unknown>): void {
     const messageStr = typeof message === 'string' ? message : String(message);
 
-    // Skip non-verbose messages if not in verbose mode
+    // Skip non-verbose messages and redundant status messages
     if (
-      !Logger.config.verbose &&
-      (messageStr.includes('Initializing') ||
-        messageStr.includes('Starting evaluation') ||
-        messageStr.includes('Evaluation completed') ||
-        messageStr.includes('Executing') ||
-        meta?.provider)
+      (!Logger.config.verbose &&
+        (messageStr.includes('Initializing') ||
+          messageStr.includes('Starting evaluation') ||
+          messageStr.includes('Evaluation completed') ||
+          messageStr.includes('Executing') ||
+          meta?.provider)) ||
+      messageStr.includes('Evaluation completed')
     ) {
       return;
     }

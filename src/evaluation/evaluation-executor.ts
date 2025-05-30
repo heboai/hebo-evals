@@ -44,9 +44,6 @@ export class EvaluationExecutor {
     stopOnError: boolean = true,
   ): Promise<EvaluationReport> {
     const startTime = performance.now();
-    Logger.info(
-      `Starting evaluation with provider: ${agent.getConfig().provider}`,
-    );
 
     // First load the test cases
     const loadResult = await this.testCaseLoader.loadFromDirectory(
@@ -335,14 +332,10 @@ export class EvaluationExecutor {
     maxConcurrency: number,
   ): Promise<TestCaseEvaluation[]> {
     const results: TestCaseEvaluation[] = [];
-    const agentConfig = agent.getConfig();
     let completedTests = 0;
 
     Logger.info(
       `Executing ${testCases.length} test cases in parallel with max concurrency ${maxConcurrency}`,
-      {
-        provider: agentConfig.provider,
-      },
     );
 
     // Start loading indicator
@@ -366,7 +359,6 @@ export class EvaluationExecutor {
       } catch (error) {
         Logger.error('Error executing test case chunk:', {
           error: error instanceof Error ? error.message : 'Unknown error',
-          provider: agentConfig.provider,
           chunkIndex: i,
         });
       }

@@ -88,7 +88,7 @@ describe('Embedding System', () => {
       };
 
       expect(() => EmbeddingProviderFactory.createProvider(config)).toThrow(
-        'Unsupported provider',
+        'Configuration error: Unsupported embedding provider: invalid. Supported providers are: openai, hebo',
       );
     });
 
