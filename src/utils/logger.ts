@@ -69,6 +69,14 @@ interface LoggerConfig {
    * Whether to show verbose output including test results and provider information
    */
   verbose: boolean;
+  /**
+   * Whether to force display of all error messages regardless of verbose mode
+   */
+  forceShowErrors: boolean;
+  /**
+   * Path to debug log file for storing suppressed messages
+   */
+  debugLogFile?: string;
 }
 
 /**
@@ -84,6 +92,7 @@ export class Logger {
   private static colorIndex: number = 0;
   private static config: LoggerConfig = {
     verbose: false,
+    forceShowErrors: false,
   };
   private static testResults: Array<{
     id: string;
@@ -219,15 +228,27 @@ export class Logger {
   static error(message: unknown, meta?: Record<string, unknown>): void {
     const messageStr = typeof message === 'string' ? message : String(message);
 
-    // Skip non-critical error messages if not in verbose mode
+    // Always show critical errors or if forceShowErrors is enabled
     if (
-      !Logger.config.verbose &&
-      (messageStr.includes('failed:') ||
-        messageStr.includes('Error executing test case'))
+      Logger.config.forceShowErrors ||
+      messageStr.includes('API key') ||
+      messageStr.includes('Configuration error') ||
+      messageStr.includes('Authentication failed')
     ) {
+      console.error(Logger.formatMessage(messageStr, 'error'));
+      if (meta) {
+        console.error(JSON.stringify(meta, null, 2));
+      }
       return;
     }
 
+    // For non-critical errors, log to debug if not in verbose mode
+    if (!Logger.config.verbose) {
+      Logger.debug(messageStr, meta);
+      return;
+    }
+
+    // In verbose mode, show all errors
     console.error(Logger.formatMessage(messageStr, 'error'));
     if (meta) {
       console.error(JSON.stringify(meta, null, 2));
@@ -265,23 +286,19 @@ export class Logger {
   static info(message: unknown, meta?: Record<string, unknown>): void {
     const messageStr = typeof message === 'string' ? message : String(message);
 
-    // Skip verbose messages if not in verbose mode, or skip provider info if in verbose mode
+    // Skip non-verbose messages if not in verbose mode
     if (
       !Logger.config.verbose &&
-      (meta?.provider ||
-        meta?.totalTests ||
-        messageStr.includes('Initializing') ||
+      (messageStr.includes('Initializing') ||
         messageStr.includes('Starting evaluation') ||
-        messageStr.includes('Evaluation completed'))
+        messageStr.includes('Evaluation completed') ||
+        messageStr.includes('Executing') ||
+        meta?.provider)
     ) {
       return;
     }
 
-    // Skip provider info message specifically when in verbose mode
-    if (Logger.config.verbose && meta?.provider) {
-      return;
-    }
-
+    // Show all messages in verbose mode
     console.log(Logger.formatMessage(messageStr, 'info'));
     if (meta) {
       console.log(JSON.stringify(meta, null, 2));
