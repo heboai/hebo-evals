@@ -68,12 +68,8 @@ export class EvaluationExecutor {
     const failedTests = totalTests - passedTests;
     const passRate = totalTests > 0 ? passedTests / totalTests : 0;
 
-    Logger.info(`Evaluation completed in ${duration.toFixed(2)}s`, {
-      totalTests,
-      passedTests,
-      failedTests,
-      passRate: (passRate * 100).toFixed(2) + '%',
-    });
+    // Log test summary using the new format
+    Logger.testSummary(totalTests, passedTests, failedTests, duration);
 
     const report: EvaluationReport = {
       totalTests,
@@ -208,11 +204,29 @@ export class EvaluationExecutor {
       // Consider it a success if score is above threshold (0.8 by default)
       const isMatch = score >= this.threshold;
 
-      Logger.debug(`Test case ${testCase.id} completed`, {
-        success: isMatch,
+      // Log test result using the new format
+      Logger.testResult(
+        testCase.id,
+        isMatch,
+        isMatch ? undefined : 'Response mismatch',
         score,
-        executionTime: executionTime.toFixed(2) + 'ms',
-      });
+        executionTime,
+        {
+          input: formatTestCasePlain({
+            id: testCase.id,
+            name: testCase.id,
+            messageBlocks: testCase.messageBlocks.slice(0, -1),
+          }),
+          expected: formatTestCasePlain({
+            id: testCase.id,
+            name: testCase.id,
+            messageBlocks: [
+              testCase.messageBlocks[testCase.messageBlocks.length - 1],
+            ],
+          }),
+        },
+        response.response,
+      );
 
       return {
         testCaseId: testCase.id,
@@ -225,11 +239,30 @@ export class EvaluationExecutor {
       };
     } catch (error) {
       const executionTime = performance.now() - startTime;
-      Logger.error(`Error executing test case ${testCase.id}:`, {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        provider: agentConfig.provider,
-        executionTime: executionTime.toFixed(2) + 'ms',
-      });
+
+      // Log test result using the new format
+      Logger.testResult(
+        testCase.id,
+        false,
+        error instanceof Error ? error.message : 'Unknown error',
+        0,
+        executionTime,
+        {
+          input: formatTestCasePlain({
+            id: testCase.id,
+            name: testCase.id,
+            messageBlocks: testCase.messageBlocks.slice(0, -1),
+          }),
+          expected: formatTestCasePlain({
+            id: testCase.id,
+            name: testCase.id,
+            messageBlocks: [
+              testCase.messageBlocks[testCase.messageBlocks.length - 1],
+            ],
+          }),
+        },
+        error instanceof Error ? error.message : 'Unknown error',
+      );
 
       return {
         testCaseId: testCase.id,
@@ -303,6 +336,8 @@ export class EvaluationExecutor {
   ): Promise<TestCaseEvaluation[]> {
     const results: TestCaseEvaluation[] = [];
     const agentConfig = agent.getConfig();
+    let completedTests = 0;
+
     Logger.info(
       `Executing ${testCases.length} test cases in parallel with max concurrency ${maxConcurrency}`,
       {
@@ -317,14 +352,17 @@ export class EvaluationExecutor {
     for (let i = 0; i < testCases.length; i += maxConcurrency) {
       const chunk = testCases.slice(i, i + maxConcurrency);
       const chunkPromises = chunk.map((testCase) =>
-        this.executeTestCase(agent, testCase),
+        this.executeTestCase(agent, testCase).then((result) => {
+          // Update loading progress after each test case completes
+          completedTests++;
+          Logger.updateLoadingProgress(completedTests);
+          return result;
+        }),
       );
 
       try {
         const chunkResults = await Promise.all(chunkPromises);
         results.push(...chunkResults);
-        // Update loading progress after each chunk
-        Logger.updateLoadingProgress(results.length);
       } catch (error) {
         Logger.error('Error executing test case chunk:', {
           error: error instanceof Error ? error.message : 'Unknown error',

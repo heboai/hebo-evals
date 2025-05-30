@@ -214,11 +214,6 @@ program
         options.stopOnError || false,
       );
 
-      // Output results using the configured format
-      const reportGenerator = new ReportGenerator(evalConfig);
-      const formattedReport = reportGenerator.generateReport(report);
-      console.log(formattedReport);
-
       // Log any errors that occurred during evaluation
       if (report.results.some((r) => r.error)) {
         Logger.warn('Some test cases failed during evaluation');

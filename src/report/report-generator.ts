@@ -2,13 +2,18 @@ import {
   EvaluationConfig,
   EvaluationReport,
   EvaluationResult,
-} from '../evaluation/types/evaluation.types';
+} from '../evaluation/types/evaluation.types.js';
+import { COLORS } from '../utils/logger.js';
 
 /**
- * Service for generating evaluation reports in various formats
+ * Generates reports in various formats from evaluation results
  */
 export class ReportGenerator {
-  constructor(private config: EvaluationConfig) {}
+  private config: EvaluationConfig;
+
+  constructor(config: EvaluationConfig) {
+    this.config = config;
+  }
 
   /**
    * Generates a report from evaluation results
@@ -40,47 +45,13 @@ export class ReportGenerator {
    */
   private generateMarkdownReport(results: EvaluationReport): string {
     const lines: string[] = [
-      '# Evaluation Report',
-      '',
-      `## Summary`,
-      `- Total Tests: ${results.totalTests}`,
-      `- Passed: ${results.passedTests}`,
-      `- Failed: ${results.failedTests}`,
-      `- Pass Rate: ${(results.passRate * 100).toFixed(2)}%`,
-      `- Duration: ${results.duration.toFixed(2)}s`,
-      '',
-      `## Detailed Results`,
-      '',
+      'Test Summary',
+      '============',
+      `Total: ${results.totalTests}`,
+      `${COLORS.test.pass}Passed: ${results.passedTests}${COLORS.reset}`,
+      `${COLORS.test.fail}Failed: ${results.failedTests}${COLORS.reset}`,
+      `Duration: ${results.duration.toFixed(2)}s`,
     ];
-
-    results.results.forEach((result: EvaluationResult, index: number) => {
-      lines.push(
-        `### Test Case ${index + 1}`,
-        '',
-        `- **ID**: ${result.testCase.id}`,
-        `- **Status**: ${result.passed ? '✅ Passed' : '❌ Failed'}`,
-        `- **Score**: ${(result.score * 100).toFixed(2)}%`,
-        '',
-        `#### Input`,
-        '```',
-        result.testCase.input,
-        '```',
-        '',
-        `#### Expected Output`,
-        '```',
-        result.testCase.expected,
-        '```',
-        '',
-        `#### Actual Response`,
-        '```',
-        result.response,
-        '```',
-        '',
-        result.error ? `#### Error\n${result.error}\n` : '',
-        '---',
-        '',
-      );
-    });
 
     return lines.join('\n');
   }
@@ -90,43 +61,13 @@ export class ReportGenerator {
    */
   private generateTextReport(results: EvaluationReport): string {
     const lines: string[] = [
-      'Evaluation Report',
-      '===============',
-      '',
-      'Summary',
-      '-------',
-      `Total Tests: ${results.totalTests}`,
-      `Passed: ${results.passedTests}`,
-      `Failed: ${results.failedTests}`,
-      `Pass Rate: ${(results.passRate * 100).toFixed(2)}%`,
+      'Test Summary',
+      '============',
+      `Total: ${results.totalTests}`,
+      `${COLORS.test.pass}Passed: ${results.passedTests}${COLORS.reset}`,
+      `${COLORS.test.fail}Failed: ${results.failedTests}${COLORS.reset}`,
       `Duration: ${results.duration.toFixed(2)}s`,
-      '',
-      'Detailed Results',
-      '---------------',
-      '',
     ];
-
-    results.results.forEach((result: EvaluationResult, index: number) => {
-      lines.push(
-        `Test Case ${index + 1}`,
-        `ID: ${result.testCase.id}`,
-        `Status: ${result.passed ? 'Passed' : 'Failed'}`,
-        `Score: ${(result.score * 100).toFixed(2)}%`,
-        '',
-        'Input:',
-        result.testCase.input,
-        '',
-        'Expected Output:',
-        result.testCase.expected,
-        '',
-        'Actual Response:',
-        result.response,
-        '',
-        result.error ? `Error:\n${result.error}\n` : '',
-        '---',
-        '',
-      );
-    });
 
     return lines.join('\n');
   }
