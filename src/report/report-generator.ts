@@ -1,7 +1,6 @@
 import {
   EvaluationConfig,
   EvaluationReport,
-  EvaluationResult,
 } from '../evaluation/types/evaluation.types.js';
 import { COLORS } from '../utils/logger.js';
 

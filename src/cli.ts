@@ -9,7 +9,6 @@ import { Logger } from './utils/logger.js';
 import { EmbeddingProviderFactory } from './embeddings/config/embedding.config.js';
 import { readFileSync } from 'fs';
 import { EmbeddingConfig } from './embeddings/types/embedding.types.js';
-import { ReportGenerator } from './report/report-generator.js';
 import { join } from 'path';
 import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
 import { IAgent } from './agents/interfaces/agent.interface.js';

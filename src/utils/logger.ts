@@ -46,18 +46,6 @@ export const COLORS = {
 };
 
 /**
- * Rainbow colors for loading indicator
- */
-const RAINBOW_COLORS = [
-  '\x1b[31m', // Red
-  '\x1b[33m', // Yellow
-  '\x1b[32m', // Green
-  '\x1b[36m', // Cyan
-  '\x1b[34m', // Blue
-  '\x1b[35m', // Magenta
-];
-
-/**
  * Progress bar characters
  */
 const PROGRESS_BAR = {
@@ -67,22 +55,6 @@ const PROGRESS_BAR = {
   EMPTY: '░',
   WIDTH: 30,
 };
-
-/**
- * Loading indicator characters for spinner animation
- */
-const LOADING_CHARS = [
-  '⚡',
-  '✨',
-  '🌟',
-  '💫',
-  '⭐',
-  '🌠',
-  '⚡',
-  '✨',
-  '🌟',
-  '💫',
-];
 
 /**
  * Message types for different styles
@@ -364,7 +336,6 @@ export class Logger {
     testCase?: { input: string; expected: string },
     response?: string,
   ): void {
-    const icon = passed ? ICONS.test.pass : ICONS.test.fail;
     const color = passed ? COLORS.test.pass : COLORS.test.fail;
     const status = passed ? 'Passed' : 'Failed';
     const formattedString = `${color}${status}${COLORS.reset} ${id}`;
