@@ -57,10 +57,6 @@ interface LoggerConfig {
    */
   verbose: boolean;
   /**
-   * Whether to force display of all error messages regardless of verbose mode
-   */
-  forceShowErrors: boolean;
-  /**
    * Path to debug log file for storing suppressed messages
    */
   debugLogFile?: string;
@@ -72,14 +68,11 @@ interface LoggerConfig {
 export class Logger {
   private static instance: Logger | null = null;
   private static loadingInterval: NodeJS.Timeout | null = null;
-  private static loadingIndex: number = 0;
   private static loadingMessage: string = '';
   private static loadingTotal: number = 0;
   private static loadingCurrent: number = 0;
-  private static colorIndex: number = 0;
   private static config: LoggerConfig = {
     verbose: false,
-    forceShowErrors: false,
   };
   private static testResults: Array<{
     id: string;
@@ -129,8 +122,6 @@ export class Logger {
     Logger.loadingMessage = message;
     Logger.loadingTotal = total;
     Logger.loadingCurrent = 0;
-    Logger.loadingIndex = 0;
-    Logger.colorIndex = 0;
 
     // Clear any existing loading indicator
     Logger.stopLoading();
@@ -196,9 +187,8 @@ export class Logger {
   static error(message: unknown, meta?: Record<string, unknown>): void {
     const messageStr = typeof message === 'string' ? message : String(message);
 
-    // Always show critical errors or if forceShowErrors is enabled
+    // Always show critical errors
     if (
-      Logger.config.forceShowErrors ||
       messageStr.includes('API key') ||
       messageStr.includes('Configuration error') ||
       messageStr.includes('Authentication failed')

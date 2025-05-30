@@ -109,7 +109,6 @@ program
       // Configure logger verbosity
       Logger.configure({
         verbose: options.verbose,
-        forceShowErrors: true, // Always show errors
       });
 
       // Load configuration from file, environment, or defaults
