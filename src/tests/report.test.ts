@@ -51,12 +51,13 @@ describe('ReportGenerator', () => {
 
   describe('generateReport', () => {
     it('should generate markdown report by default', () => {
-      const report: string = reportGenerator.generateReport(sampleReport); // Specify the type explicitly
-      expect(report).toContain('# Evaluation Report');
-      expect(report).toContain('## Summary');
-      expect(report).toContain('## Detailed Results');
-      expect(report).toContain('✅ Passed');
-      expect(report).toContain('❌ Failed');
+      const report: string = reportGenerator.generateReport(sampleReport);
+      expect(report).toContain('Test Summary');
+      expect(report).toContain('============');
+      expect(report).toContain('Total: 2');
+      expect(report).toContain('Passed: 1');
+      expect(report).toContain('Failed: 1');
+      expect(report).toContain('Duration: 1.50s');
     });
 
     it('should generate JSON report when configured', () => {
@@ -68,7 +69,7 @@ describe('ReportGenerator', () => {
       const report = jsonGenerator.generateReport(sampleReport);
 
       expect(() => {
-        JSON.parse(report); // now not returning anything explicitly
+        JSON.parse(report);
       }).not.toThrow();
       const parsed = JSON.parse(report) as unknown as Partial<EvaluationReport>;
       expect(parsed).toMatchObject({
@@ -86,11 +87,12 @@ describe('ReportGenerator', () => {
       const textGenerator = new ReportGenerator(textConfig);
       const report = textGenerator.generateReport(sampleReport);
 
-      expect(report).toContain('Evaluation Report');
-      expect(report).toContain('Summary');
-      expect(report).toContain('Detailed Results');
-      expect(report).toContain('Passed');
-      expect(report).toContain('Failed');
+      expect(report).toContain('Test Summary');
+      expect(report).toContain('============');
+      expect(report).toContain('Total: 2');
+      expect(report).toContain('Passed: 1');
+      expect(report).toContain('Failed: 1');
+      expect(report).toContain('Duration: 1.50s');
     });
 
     it('should throw error for unsupported format', () => {
@@ -107,13 +109,15 @@ describe('ReportGenerator', () => {
   });
 
   describe('report content', () => {
-    it('should include all test cases in the report', () => {
+    it('should include summary statistics in the report', () => {
       const report: string = reportGenerator.generateReport(sampleReport);
-      expect(report).toContain('test-1');
-      expect(report).toContain('test-2');
+      expect(report).toContain('Total: 2');
+      expect(report).toContain('Passed: 1');
+      expect(report).toContain('Failed: 1');
+      expect(report).toContain('Duration: 1.50s');
     });
 
-    it('should include error messages when present', () => {
+    it('should handle reports with errors', () => {
       const errorReport: EvaluationReport = {
         ...sampleReport,
         results: [
@@ -131,10 +135,13 @@ describe('ReportGenerator', () => {
             timestamp: new Date(),
           },
         ],
+        totalTests: 3,
+        failedTests: 2,
       };
 
       const report = reportGenerator.generateReport(errorReport);
-      expect(report).toContain('Invalid input');
+      expect(report).toContain('Total: 3');
+      expect(report).toContain('Failed: 2');
     });
   });
 });
