@@ -1,5 +1,5 @@
 import { readFile, readdir } from 'fs/promises';
-import { join, extname, basename } from 'path';
+import { join, extname, basename, relative, dirname } from 'path';
 import { Parser } from './parser.js';
 import { TestCase } from '../core/types/message.types.js';
 
@@ -33,9 +33,11 @@ export interface LoadResult {
  */
 export class TestCaseLoader {
   private parser: Parser;
+  private rootDirectory: string;
 
-  constructor() {
+  constructor(rootDirectory: string = process.cwd()) {
     this.parser = new Parser();
+    this.rootDirectory = rootDirectory;
   }
 
   /**
@@ -58,8 +60,8 @@ export class TestCaseLoader {
 
       for (const file of files) {
         try {
-          const testCase = await this.loadFile(file);
-          result.testCases.push(testCase);
+          const testCases = await this.loadFile(file);
+          result.testCases.push(...testCases);
         } catch (error) {
           result.errors.push({
             filePath: file,
@@ -117,22 +119,30 @@ export class TestCaseLoader {
   }
 
   /**
-   * Loads a single test case file
+   * Loads test cases from a single file
    * @param filePath The path to the test case file
-   * @returns Promise that resolves with the parsed test case
+   * @returns Promise that resolves with an array of parsed test cases
    */
-  public async loadFile(filePath: string): Promise<TestCase> {
+  public async loadFile(filePath: string): Promise<TestCase[]> {
     const content = await readFile(filePath, 'utf-8');
-    const name = this.getTestCaseName(filePath);
-    return this.parser.parse(content, name);
+    const { baseName, hierarchicalId } = this.getTestCaseInfo(filePath);
+    return this.parser.parseMultiple(content, baseName, hierarchicalId);
   }
 
   /**
-   * Gets the test case name from a file path
+   * Gets the test case name and hierarchical ID from a file path
    * @param filePath The path to the test case file
-   * @returns The test case name
+   * @returns Object containing the base name and hierarchical ID
    */
-  private getTestCaseName(filePath: string): string {
-    return basename(filePath, '.txt');
+  private getTestCaseInfo(filePath: string): {
+    baseName: string;
+    hierarchicalId: string;
+  } {
+    const baseName = basename(filePath, '.txt');
+    const relativePath = relative(this.rootDirectory, dirname(filePath));
+    const hierarchicalId = relativePath
+      ? `${relativePath}/${baseName}`
+      : baseName;
+    return { baseName, hierarchicalId };
   }
 }

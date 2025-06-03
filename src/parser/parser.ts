@@ -18,14 +18,56 @@ export class Parser {
   }
 
   /**
+   * Parses multiple test cases from text
+   * @param text The text to parse
+   * @param baseName The base name for the test cases
+   * @param hierarchicalId The hierarchical ID based on folder structure
+   * @returns Array of parsed test cases
+   * @throws ParseError if parsing fails
+   */
+  public parseMultiple(
+    text: string,
+    baseName: string,
+    hierarchicalId: string,
+  ): TestCase[] {
+    // Split the text by test case separator (---)
+    const testCaseTexts = text.split(/^---$/m).filter((t) => t.trim());
+
+    if (testCaseTexts.length === 0) {
+      throw new ParseError('No test cases found in file');
+    }
+
+    // Only add index suffix if there are multiple test cases
+    const shouldAddIndex = testCaseTexts.length > 1;
+
+    return testCaseTexts.map((testCaseText, index) => {
+      // Extract title if present
+      const titleMatch = testCaseText.match(/^#\s*(.+)$/m);
+      const title = titleMatch
+        ? titleMatch[1].trim()
+        : shouldAddIndex
+          ? `${baseName}_${index + 1}`
+          : baseName;
+
+      // Create full ID by combining hierarchical ID with title
+      const fullId = `${hierarchicalId}/${title}`;
+
+      return this.parse(testCaseText, title, fullId);
+    });
+  }
+
+  /**
    * Parses a test case from text
    * @param text The text to parse
    * @param name The name of the test case
+   * @param id The unique identifier for the test case (defaults to name if not provided)
    * @returns The parsed test case
    * @throws ParseError if parsing fails
    */
-  public parse(text: string, name: string): TestCase {
-    const elements = this.parser.tokenize(text);
+  public parse(text: string, name: string, id: string = name): TestCase {
+    // Remove title if present
+    const cleanText = text.replace(/^#\s*.+$/m, '').trim();
+    const elements = this.parser.tokenize(cleanText);
     const messageBlocks: BaseMessage[] = [];
     let currentBlock: BaseMessage | null = null;
 
@@ -130,7 +172,7 @@ export class Parser {
     this.validateTestCase(messageBlocks);
 
     return {
-      id: name,
+      id,
       name,
       messageBlocks,
     };
