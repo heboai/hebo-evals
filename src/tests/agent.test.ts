@@ -441,13 +441,21 @@ describe('HeboAgent', () => {
       expect(heboClone['messageHistory']).toHaveLength(0); // Clone should have empty history
     });
   });
+});
 
-  describe('Pass System Messages', () => {
+describe('OpenAIAgent', () => {
+  let agent: OpenAIAgent;
+  const config: AgentConfig = {
+    model: 'gpt-3.5-turbo',
+    provider: 'openai',
+  };
+
+  beforeEach(() => {
+    agent = new OpenAIAgent(config);
+  });
+
+  describe('System Message Handling', () => {
     it('should pass system messages to instruction field', async () => {
-      const agent = new OpenAIAgent({
-        model: 'gpt-3.5-turbo',
-        provider: 'openai',
-      });
       await agent.initialize({
         model: 'gpt-3.5-turbo',
         provider: 'openai',

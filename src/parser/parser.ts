@@ -223,11 +223,6 @@ export class Parser {
           }
         }
       }
-
-      // Log warning about system messages
-      console.warn(
-        'Warning: System messages are only fully supported by OpenAI agents. Other agents may ignore them.',
-      );
     }
 
     // Validate that all messages have a role

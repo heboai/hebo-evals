@@ -108,25 +108,23 @@ export class HeboAgent extends BaseAgent {
     // Clear previous message history before processing new input
     this.clearMessageHistory();
 
-    // Filter out system messages and log warning if any are found
-    const systemMessages = input.messages.filter(
-      (msg) => msg.role === MessageRole.SYSTEM,
-    );
+    // Separate system messages and process them
+    const { systemMessages, nonSystemMessages, instructions } =
+      this.separateSystemMessages(input.messages);
 
+    // Log warning if system messages are found
     if (systemMessages.length > 0) {
-      console.warn(
-        `[HeboAgent] Warning: ${systemMessages.length} system message(s) found and will be ignored. System messages are not supported by Hebo agents.`,
+      Logger.warn(
+        `[HeboAgent] Warning: system message(s) found and will be ignored. System messages are not supported by Hebo agents.`,
       );
     }
 
-    // Add only non-system messages to history
-    for (const msg of input.messages) {
-      if (msg.role !== MessageRole.SYSTEM) {
-        this.messageHistory.push({
-          role: msg.role,
-          content: msg.content,
-        });
-      }
+    // Add non-system messages to history
+    for (const msg of nonSystemMessages) {
+      this.messageHistory.push({
+        role: msg.role,
+        content: msg.content,
+      });
     }
 
     const request: ResponseRequest = {
@@ -138,10 +136,8 @@ export class HeboAgent extends BaseAgent {
     };
 
     // Add system messages to instructions field if present
-    if (systemMessages.length > 0) {
-      request.instructions = systemMessages
-        .map((msg) => msg.content)
-        .join('\n');
+    if (instructions) {
+      request.instructions = instructions;
     }
 
     // Log message preparation only in verbose mode
@@ -190,9 +186,7 @@ export class HeboAgent extends BaseAgent {
       // Extract the response content from the choices array (for Hebo API format)
       else if (response.choices && response.choices.length > 0) {
         const choice = response.choices[0];
-        if (choice.message && choice.message.content) {
-          finalResponse = choice.message.content;
-        }
+        finalResponse = choice.message?.content || '';
       }
 
       if (!finalResponse) {
@@ -268,7 +262,7 @@ export class HeboAgent extends BaseAgent {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': this.agentKey,
+          ...this.getAuthHeaders(),
         },
         body: JSON.stringify(request),
         signal: controller.signal,
