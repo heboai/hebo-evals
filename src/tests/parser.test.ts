@@ -161,6 +161,25 @@ user: How are you?`;
         expect(result[4]).toEqual({ type: 'role', value: 'user' });
         expect(result[5]).toEqual({ type: 'content', value: 'How are you?' });
       });
+
+      it('should handle system messages', () => {
+        const text = `system: You are a helpful assistant
+user: Hello
+assistant: Hi there`;
+
+        const result = tokenizer.tokenize(text);
+
+        expect(result).toHaveLength(6);
+        expect(result[0]).toEqual({ type: 'role', value: 'system' });
+        expect(result[1]).toEqual({
+          type: 'content',
+          value: 'You are a helpful assistant',
+        });
+        expect(result[2]).toEqual({ type: 'role', value: 'user' });
+        expect(result[3]).toEqual({ type: 'content', value: 'Hello' });
+        expect(result[4]).toEqual({ type: 'role', value: 'assistant' });
+        expect(result[5]).toEqual({ type: 'content', value: 'Hi there' });
+      });
     });
   });
 
@@ -205,6 +224,32 @@ user: How are you?`;
           toolUsages: [],
           toolResponses: [],
         });
+      });
+
+      it('should parse system messages correctly', () => {
+        const text = `system: You are a helpful assistant
+user: Hello
+assistant: Hi there`;
+
+        const result = parser.parse(text, 'test-case');
+
+        expect(result.messageBlocks).toHaveLength(3);
+        expect(result.messageBlocks[0]).toEqual({
+          role: MessageRole.SYSTEM,
+          content: 'You are a helpful assistant',
+          toolUsages: [],
+          toolResponses: [],
+        });
+      });
+
+      it('should throw error if system message appears after other messages', () => {
+        const text = `user: Hello
+system: You are a helpful assistant
+assistant: Hi there`;
+
+        expect(() => parser.parse(text, 'test-case')).toThrow(
+          'System messages must appear at the start of the conversation',
+        );
       });
 
       it('should handle example.txt format correctly', () => {

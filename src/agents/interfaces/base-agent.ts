@@ -5,6 +5,7 @@ import {
   AgentOutput,
   AgentAuthConfig,
 } from '../types/agent.types';
+import { BaseMessage, MessageRole } from '../../core/types/message.types.js';
 
 /**
  * Abstract base class for agent implementations
@@ -153,6 +154,41 @@ export abstract class BaseAgent implements IAgent {
     } = this.authConfig;
     return {
       [headerName]: headerFormat.replace('{agentKey}', agentKey),
+    };
+  }
+
+  /**
+   * Separates system messages from other messages and processes them
+   * @param messages Array of messages to process
+   * @returns Object containing separated messages and instructions
+   */
+  protected separateSystemMessages(messages: BaseMessage[]): {
+    systemMessages: BaseMessage[];
+    nonSystemMessages: BaseMessage[];
+    instructions?: string;
+  } {
+    // Filter out system messages
+    const systemMessages = messages.filter(
+      (msg) => msg.role === MessageRole.SYSTEM,
+    );
+    const nonSystemMessages = messages.filter(
+      (msg) => msg.role !== MessageRole.SYSTEM,
+    );
+
+    // Process system messages into instructions if present
+    let instructions: string | undefined;
+    if (systemMessages.length > 0) {
+      // Combine all system messages with proper spacing
+      instructions = systemMessages
+        .map((msg) => msg.content.trim())
+        .filter(Boolean) // Remove empty messages
+        .join('\n'); // Add newline between messages
+    }
+
+    return {
+      systemMessages,
+      nonSystemMessages,
+      instructions,
     };
   }
 
