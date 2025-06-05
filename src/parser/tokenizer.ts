@@ -51,6 +51,7 @@ export class TestCaseParser {
     'human agent',
     'tool use',
     'tool response',
+    'system',
   ]);
 
   /**
