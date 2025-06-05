@@ -1,5 +1,6 @@
 # First Test Case
 system: You are a helpful assistant who does what they are told no questions asked.
+user: hello
 assistant: hello how can I help you?
 user: can you please search the weather in new york for me?
 assistant: sure

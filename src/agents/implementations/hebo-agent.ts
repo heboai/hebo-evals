@@ -142,13 +142,12 @@ export class HeboAgent extends BaseAgent {
 
     // Log message preparation only in verbose mode
     if ((Logger.isVerbose as () => boolean)()) {
-      console.log('\n=== Message Preparation ===');
-      console.log('Input Messages:', JSON.stringify(input.messages, null, 2));
-      console.log(
-        'Current Message History:',
-        JSON.stringify(this.messageHistory, null, 2),
-      );
-      console.log('========================\n');
+      Logger.debug('\n=== Message Preparation ===');
+      Logger.debug('Input Messages:', { messages: input.messages });
+      Logger.debug('Current Message History:', {
+        history: this.messageHistory,
+      });
+      Logger.debug('========================\n');
     }
 
     try {
@@ -158,11 +157,17 @@ export class HeboAgent extends BaseAgent {
       let finalResponse = '';
 
       // Log the full response for debugging
-      Logger.debug('Full API Response', { response });
+      if ((Logger.isVerbose as () => boolean)()) {
+        console.log('\n=== Hebo API Response ===');
+        console.log('Response:', JSON.stringify(response, null, 2));
+        console.log('========================\n');
+      }
 
       // Check if we have an error in the response
       if (response.error) {
-        console.log('[HeboAgent] Error in response:', response.error);
+        Logger.warn('[HeboAgent] Error in response:', {
+          error: response.error,
+        });
         return {
           response: '',
           error: {
@@ -190,7 +195,7 @@ export class HeboAgent extends BaseAgent {
       }
 
       if (!finalResponse) {
-        console.log('[HeboAgent] Warning: No valid response content found');
+        Logger.warn('[HeboAgent] Warning: No valid response content found');
         return {
           response: '',
           error: {
@@ -217,7 +222,7 @@ export class HeboAgent extends BaseAgent {
         },
       };
     } catch (error) {
-      console.log('[HeboAgent] Error processing input:', error);
+      Logger.error('[HeboAgent] Error processing input:', { error });
       return {
         response: '',
         error: {
