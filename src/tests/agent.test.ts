@@ -8,6 +8,7 @@ import {
 import { HeboAgent } from '../agents/implementations/hebo-agent.js';
 import { BaseMessage, MessageRole } from '../core/types/message.types.js';
 import { roleMapper } from '../core/utils/role-mapper.js';
+import { OpenAIAgent } from '../agents/implementations/openai-agent.js';
 
 /**
  * Test implementation of BaseAgent for testing abstract functionality
@@ -326,12 +327,18 @@ describe('HeboAgent', () => {
             Promise.resolve({
               id: 'test-id',
               model: config.model,
-              choices: [
+              status: 'completed',
+              output: [
                 {
-                  message: {
-                    role: 'assistant',
-                    content: 'Test response',
-                  },
+                  type: 'message',
+                  status: 'completed',
+                  role: 'assistant',
+                  content: [
+                    {
+                      type: 'output_text',
+                      text: 'Test response',
+                    },
+                  ],
                 },
               ],
               usage: {
@@ -346,12 +353,18 @@ describe('HeboAgent', () => {
                 JSON.stringify({
                   id: 'test-id',
                   model: config.model,
-                  choices: [
+                  status: 'completed',
+                  output: [
                     {
-                      message: {
-                        role: 'assistant',
-                        content: 'Test response',
-                      },
+                      type: 'message',
+                      status: 'completed',
+                      role: 'assistant',
+                      content: [
+                        {
+                          type: 'output_text',
+                          text: 'Test response',
+                        },
+                      ],
                     },
                   ],
                   usage: {
@@ -426,6 +439,71 @@ describe('HeboAgent', () => {
       const heboClone = clone as HeboAgent;
       expect(heboClone['config']).toEqual(agent['config']);
       expect(heboClone['messageHistory']).toHaveLength(0); // Clone should have empty history
+    });
+  });
+
+  describe('Pass System Messages', () => {
+    it('should pass system messages to instruction field', async () => {
+      const agent = new OpenAIAgent({
+        model: 'gpt-3.5-turbo',
+        provider: 'openai',
+      });
+      await agent.initialize({
+        model: 'gpt-3.5-turbo',
+        provider: 'openai',
+      });
+      await agent.authenticate({
+        agentKey: 'sk-test123456789012345678901234567890',
+      });
+
+      const input: AgentInput = {
+        messages: [
+          {
+            role: MessageRole.SYSTEM,
+            content: 'You are a helpful assistant',
+          },
+          {
+            role: MessageRole.USER,
+            content: 'Hello',
+          },
+        ],
+      };
+
+      // Mock the fetch call
+      const mockFetch = jest.fn().mockImplementation(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              id: 'test-id',
+              object: 'chat.completion',
+              created: 1234567890,
+              model: 'gpt-3.5-turbo',
+              choices: [
+                {
+                  index: 0,
+                  message: {
+                    role: 'assistant',
+                    content: 'Hi there!',
+                  },
+                },
+              ],
+            }),
+        }),
+      );
+      global.fetch = mockFetch as unknown as typeof fetch;
+
+      await agent.sendInput(input);
+
+      // Verify that the request included the system message in the instruction field
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          body: expect.stringContaining(
+            '"instructions":"You are a helpful assistant"',
+          ),
+        }),
+      );
     });
   });
 });

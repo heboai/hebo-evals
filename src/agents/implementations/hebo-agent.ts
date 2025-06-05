@@ -9,6 +9,7 @@ import { roleMapper } from '../../core/utils/role-mapper.js';
 import { AgentAuthConfig } from '../types/agent.types.js';
 import { IAgent } from '../interfaces/agent.interface.js';
 import { Logger } from '../../utils/logger.js';
+import { MessageRole } from '../../core/types/message.types.js';
 
 /**
  * Configuration specific to Hebo agent
@@ -107,19 +108,41 @@ export class HeboAgent extends BaseAgent {
     // Clear previous message history before processing new input
     this.clearMessageHistory();
 
-    // Add only the current test case messages to history
+    // Filter out system messages and log warning if any are found
+    const systemMessages = input.messages.filter(
+      (msg) => msg.role === MessageRole.SYSTEM,
+    );
+
+    if (systemMessages.length > 0) {
+      console.warn(
+        `[HeboAgent] Warning: ${systemMessages.length} system message(s) found and will be ignored. System messages are not supported by Hebo agents.`,
+      );
+    }
+
+    // Add only non-system messages to history
     for (const msg of input.messages) {
-      this.messageHistory.push({
-        role: msg.role,
-        content: msg.content,
-      });
+      if (msg.role !== MessageRole.SYSTEM) {
+        this.messageHistory.push({
+          role: msg.role,
+          content: msg.content,
+        });
+      }
     }
 
     const request: ResponseRequest = {
       model: this.config.model,
-      store: this.store,
-      messages: this.messageHistory,
+      messages: this.messageHistory.map((msg) => ({
+        role: roleMapper.toOpenAI(msg.role),
+        content: msg.content,
+      })),
     };
+
+    // Add system messages to instructions field if present
+    if (systemMessages.length > 0) {
+      request.instructions = systemMessages
+        .map((msg) => msg.content)
+        .join('\n');
+    }
 
     // Log message preparation only in verbose mode
     if ((Logger.isVerbose as () => boolean)()) {
@@ -137,54 +160,11 @@ export class HeboAgent extends BaseAgent {
 
       // Add assistant's response to history
       let finalResponse = '';
-      if (response.choices.length > 0 && response.choices[0].message) {
-        const message = response.choices[0].message;
 
-        if (!message.content && !message.function_call) {
-          console.log('[HeboAgent] Warning: Empty response received from API');
-          return {
-            response: '',
-            error: {
-              message: 'Empty response received from API',
-              details: response,
-            },
-          };
-        }
+      // Log the full response for debugging
+      Logger.debug('Full API Response', { response });
 
-        // Convert function_call back to tool usage format
-        const toolUsages = message.function_call
-          ? [
-              {
-                name: message.function_call.name,
-                args: message.function_call.arguments,
-              },
-            ]
-          : [];
-
-        // Add assistant's response to history
-        this.messageHistory.push({
-          role: roleMapper.toRole(message.role),
-          content: message.content || '',
-          toolUsages,
-          toolResponses: [],
-        });
-
-        // Format the response
-        finalResponse = message.content || '';
-        if (message.function_call) {
-          finalResponse += `\ntool use: ${message.function_call.name} args: ${message.function_call.arguments}`;
-        }
-      } else {
-        console.log('[HeboAgent] Warning: No message in response choices');
-        return {
-          response: '',
-          error: {
-            message: 'No message in response choices',
-            details: response,
-          },
-        };
-      }
-
+      // Check if we have an error in the response
       if (response.error) {
         console.log('[HeboAgent] Error in response:', response.error);
         return {
@@ -196,6 +176,40 @@ export class HeboAgent extends BaseAgent {
           },
         };
       }
+
+      // Extract the response content from the choices array
+      if (!response.choices || response.choices.length === 0) {
+        console.log('[HeboAgent] Warning: No choices in response');
+        return {
+          response: '',
+          error: {
+            message: 'No choices in response',
+            details: response,
+          },
+        };
+      }
+
+      const choice = response.choices[0];
+      if (!choice.message || !choice.message.content) {
+        console.log('[HeboAgent] Warning: Invalid message format:', choice);
+        return {
+          response: '',
+          error: {
+            message: 'Invalid message format in response',
+            details: choice,
+          },
+        };
+      }
+
+      finalResponse = choice.message.content;
+
+      // Add assistant's response to history
+      this.messageHistory.push({
+        role: roleMapper.toRole(choice.message.role),
+        content: finalResponse,
+        toolUsages: [],
+        toolResponses: [],
+      });
 
       return {
         response: finalResponse,
@@ -236,10 +250,7 @@ export class HeboAgent extends BaseAgent {
     const timeoutId = setTimeout(() => controller.abort(), 100000); // 100 seconds timeout
 
     try {
-      const endpoint =
-        this.provider === 'openai'
-          ? 'https://api.openai.com/v1/responses'
-          : `${this.baseUrl}/api/responses`;
+      const endpoint = `${this.baseUrl}/api/responses`;
 
       // Log the request details only in verbose mode
       if ((Logger.isVerbose as () => boolean)()) {
@@ -252,7 +263,10 @@ export class HeboAgent extends BaseAgent {
 
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': this.agentKey,
+        },
         body: JSON.stringify(request),
         signal: controller.signal,
       });

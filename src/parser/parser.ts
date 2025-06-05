@@ -202,11 +202,39 @@ export class Parser {
       throw new ParseError('Test case must contain at least one message block');
     }
 
+    // Check for system messages
+    const systemMessages = messageBlocks.filter(
+      (block) => block.role === MessageRole.SYSTEM,
+    );
+
+    // Validate system message position
+    if (systemMessages.length > 0) {
+      const firstNonSystemIndex = messageBlocks.findIndex(
+        (block) => block.role !== MessageRole.SYSTEM,
+      );
+
+      // Ensure all system messages are at the start
+      if (firstNonSystemIndex > -1) {
+        for (let i = firstNonSystemIndex; i < messageBlocks.length; i++) {
+          if (messageBlocks[i].role === MessageRole.SYSTEM) {
+            throw new ParseError(
+              'System messages must appear at the start of the conversation',
+            );
+          }
+        }
+      }
+
+      // Log warning about system messages
+      console.warn(
+        'Warning: System messages are only fully supported by OpenAI agents. Other agents may ignore them.',
+      );
+    }
+
     // Validate that all messages have a role
     for (const block of messageBlocks) {
       if (!block.role) {
         throw new ParseError(
-          'All messages must have a role marker (e.g. "user:", "assistant:", "human agent:")',
+          'All messages must have a role marker (e.g. "user:", "assistant:", "human agent:", "system:")',
         );
       }
 

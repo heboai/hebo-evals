@@ -25,19 +25,32 @@ export interface ResponseRequest {
   model: string;
 
   /**
-   * The messages to send to the API
+   * The messages to send to the API (for Hebo API)
    */
-  messages: OpenAIMessage[];
+  messages?: Array<{
+    role: string;
+    content: string;
+  }>;
 
   /**
-   * Whether to store the conversation
+   * The input messages to send to the API (for OpenAI API)
+   */
+  input?: OpenAIMessage[];
+
+  /**
+   * Whether to store the conversation (for OpenAI API)
    */
   store?: boolean;
 
   /**
-   * The ID of the previous response
+   * The ID of the previous response (for OpenAI API)
    */
   previous_response_id?: string;
+
+  /**
+   * System instructions to guide the model's behavior
+   */
+  instructions?: string;
 }
 
 /**
@@ -67,65 +80,59 @@ export interface Response {
   /**
    * The ID of the previous response
    */
-  previous_response_id?: string;
+  previous_response_id: string | null;
 
   /**
-   * The choices returned by the API
+   * The choices array containing the response messages
    */
-  choices: {
-    /**
-     * The index of the choice
-     */
+  choices?: Array<{
     index: number;
-
-    /**
-     * The message returned by the API
-     */
-    message: OpenAIMessage;
-
-    /**
-     * The reason why the response finished
-     */
-    finish_reason?: string;
-  }[];
+    message: {
+      role: string;
+      content: string;
+      name: string | null;
+      function_call: any | null;
+    };
+    finish_reason: string;
+    logprobs: any | null;
+  }>;
 
   /**
-   * The token usage information
+   * The output array containing the response messages (for OpenAI API)
    */
-  usage?: {
-    /**
-     * The number of tokens used in the prompt
-     */
-    prompt_tokens: number;
+  output?: Array<{
+    type: string;
+    id: string;
+    status: string;
+    role: string;
+    content: Array<{
+      type: string;
+      text: string;
+      annotations: unknown[];
+    }>;
+  }>;
 
-    /**
-     * The number of tokens used in the completion
-     */
-    completion_tokens: number;
+  /**
+   * The status of the response (for OpenAI API)
+   */
+  status?: string;
 
-    /**
-     * The total number of tokens used
-     */
-    total_tokens: number;
+  /**
+   * Error information if any
+   */
+  error: null | {
+    message: string;
+    type: string;
+    code?: string;
   };
 
   /**
-   * Optional error information
+   * Token usage information
    */
-  error?: {
-    /**
-     * The error message
-     */
-    message: string;
-
-    /**
-     * The type of error
-     */
-    type: string;
-
-    /**
-     * The error code
-     */
-    code?: string;
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    tool_usage?: any;
   };
 }

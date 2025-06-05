@@ -9,6 +9,7 @@ import { roleMapper } from '../../core/utils/role-mapper.js';
 import { AgentAuthConfig } from '../types/agent.types.js';
 import { IAgent } from '../interfaces/agent.interface.js';
 import { Logger } from '../../utils/logger.js';
+import { MessageRole } from '../../core/types/message.types.js';
 
 /**
  * Configuration specific to OpenAI agent
@@ -108,8 +109,19 @@ export class OpenAIAgent extends BaseAgent {
    * Processes the input and returns the agent's response
    */
   protected async processInput(input: AgentInput): Promise<AgentOutput> {
-    // Add all messages to history
-    for (const msg of input.messages) {
+    // Clear previous message history
+    this.messageHistory = [];
+
+    // Extract system messages
+    const systemMessages = input.messages.filter(
+      (msg) => msg.role === MessageRole.SYSTEM,
+    );
+    const nonSystemMessages = input.messages.filter(
+      (msg) => msg.role !== MessageRole.SYSTEM,
+    );
+
+    // Add non-system messages to history
+    for (const msg of nonSystemMessages) {
       this.messageHistory.push({
         role: msg.role,
         content: msg.content,
@@ -118,13 +130,32 @@ export class OpenAIAgent extends BaseAgent {
 
     const request: ResponseRequest = {
       model: this.config.model,
-      messages: this.messageHistory,
+      input: this.messageHistory,
+      store: this.store,
     };
+
+    // Add system messages to instructions field if present
+    if (systemMessages.length > 0) {
+      // Combine all system messages with proper spacing
+      const combinedInstructions = systemMessages
+        .map((msg) => msg.content.trim())
+        .filter(Boolean) // Remove empty messages
+        .join('\n\n'); // Add double newline between messages
+
+      if (combinedInstructions) {
+        request.instructions = combinedInstructions;
+        Logger.debug('System instructions added to request', {
+          instructions: combinedInstructions,
+        });
+      }
+    }
 
     // Only add store and previous_response_id for Hebo provider
     if (this.provider === 'hebo') {
       request.store = this.store;
-      request.previous_response_id = this.previousResponseId;
+      if (this.previousResponseId) {
+        request.previous_response_id = this.previousResponseId;
+      }
     }
 
     try {
@@ -133,56 +164,11 @@ export class OpenAIAgent extends BaseAgent {
 
       // Add assistant's response to history
       let finalResponse = '';
-      if (response.choices.length > 0 && response.choices[0].message) {
-        const message = response.choices[0].message;
 
-        if (!message.content && !message.function_call) {
-          console.log(
-            '[OpenAIAgent] Warning: Empty response received from API',
-          );
-          return {
-            response: '',
-            error: {
-              message: 'Empty response received from API',
-              details: response,
-            },
-          };
-        }
+      // Log the full response for debugging
+      Logger.debug('Full API Response', { response });
 
-        // Convert function_call back to tool usage format
-        const toolUsages = message.function_call
-          ? [
-              {
-                name: message.function_call.name,
-                args: message.function_call.arguments,
-              },
-            ]
-          : [];
-
-        // Add assistant's response to history
-        this.messageHistory.push({
-          role: roleMapper.toRole(message.role),
-          content: message.content || '',
-          toolUsages,
-          toolResponses: [],
-        });
-
-        // Format the response
-        finalResponse = message.content || '';
-        if (message.function_call) {
-          finalResponse += `\ntool use: ${message.function_call.name} args: ${message.function_call.arguments}`;
-        }
-      } else {
-        console.log('[OpenAIAgent] Warning: No message in response choices');
-        return {
-          response: '',
-          error: {
-            message: 'No message in response choices',
-            details: response,
-          },
-        };
-      }
-
+      // Check if we have an error in the response
       if (response.error) {
         console.log('[OpenAIAgent] Error in response:', response.error);
         return {
@@ -194,6 +180,74 @@ export class OpenAIAgent extends BaseAgent {
           },
         };
       }
+
+      // Check if response is completed
+      if (response.status !== 'completed') {
+        console.log(
+          '[OpenAIAgent] Warning: Response not completed:',
+          response.status,
+        );
+        return {
+          response: '',
+          error: {
+            message: `Response not completed: ${response.status}`,
+            details: response,
+          },
+        };
+      }
+
+      // Extract the response content from the output array
+      if (!response.output || response.output.length === 0) {
+        console.log('[OpenAIAgent] Warning: No output in response');
+        return {
+          response: '',
+          error: {
+            message: 'No output in response',
+            details: response,
+          },
+        };
+      }
+
+      const output = response.output[0];
+      if (output.type !== 'message' || output.status !== 'completed') {
+        console.log(
+          '[OpenAIAgent] Warning: Invalid output type or status:',
+          output,
+        );
+        return {
+          response: '',
+          error: {
+            message: `Invalid output type or status: ${output.type} ${output.status}`,
+            details: output,
+          },
+        };
+      }
+
+      // Extract the text content from the content array
+      const content = output.content[0];
+      if (content.type !== 'output_text') {
+        console.log(
+          '[OpenAIAgent] Warning: Invalid content type:',
+          content.type,
+        );
+        return {
+          response: '',
+          error: {
+            message: `Invalid content type: ${content.type}`,
+            details: content,
+          },
+        };
+      }
+
+      finalResponse = content.text;
+
+      // Add assistant's response to history
+      this.messageHistory.push({
+        role: roleMapper.toRole(output.role),
+        content: finalResponse,
+        toolUsages: [],
+        toolResponses: [],
+      });
 
       return {
         response: finalResponse,
@@ -234,7 +288,14 @@ export class OpenAIAgent extends BaseAgent {
     const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
 
     try {
-      const endpoint = `${this.baseUrl}/chat/completions`;
+      const endpoint = `${this.baseUrl}/responses`;
+      if ((Logger.isVerbose as () => boolean)()) {
+        console.log('\n=== OpenAI API Request ===');
+        console.log('Endpoint:', endpoint);
+        console.log('Headers:', JSON.stringify(headers, null, 2));
+        console.log('Request Body:', JSON.stringify(request, null, 2));
+        console.log('========================\n');
+      }
       Logger.debug(`Making request to OpenAI API endpoint: ${endpoint}`);
 
       const response = await fetch(endpoint, {
@@ -270,10 +331,24 @@ export class OpenAIAgent extends BaseAgent {
         const errorBody = await response
           .text()
           .catch(() => 'No error details available');
+
+        // Clear previousResponseId if it's not found
+        if (errorBody.includes('previous_response_not_found')) {
+          this.previousResponseId = undefined;
+        }
+
         throw new Error(`OpenAI API error: ${errorBody}`);
       }
 
       const data = await response.json();
+
+      // Add detailed logging of the response
+      if ((Logger.isVerbose as () => boolean)()) {
+        console.log('\n=== OpenAI API Response ===');
+        console.log('Response:', JSON.stringify(data, null, 2));
+        console.log('========================\n');
+      }
+
       return data as Response;
     } catch (error) {
       clearTimeout(timeoutId);
