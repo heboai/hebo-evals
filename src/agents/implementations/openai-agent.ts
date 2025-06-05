@@ -173,14 +173,24 @@ export class OpenAIAgent extends BaseAgent {
     }
 
     const output = response.output[0];
-    const content = output.content[0];
-
-    if (content.type !== 'output_text') {
-      Logger.warn('Invalid content type', { type: content.type });
+    if (output.type !== 'message' || output.status !== 'completed') {
+      Logger.warn('Invalid output type or status', { output });
       return {
         text: '',
         error: {
-          message: `Invalid content type: ${content.type}`,
+          message: `Invalid output type or status: ${output.type} ${output.status}`,
+          details: output,
+        },
+      };
+    }
+
+    const content = output.content[0];
+    if (!content || content.type !== 'output_text') {
+      Logger.warn('Invalid content type', { content });
+      return {
+        text: '',
+        error: {
+          message: `Invalid content type: ${content?.type ?? 'undefined'}`,
           details: content,
         },
       };
@@ -193,6 +203,9 @@ export class OpenAIAgent extends BaseAgent {
    * Processes the input and returns the agent's response
    */
   protected async processInput(input: AgentInput): Promise<AgentOutput> {
+    // Clear message history at the start of each test case
+    this.messageHistory = [];
+
     // Separate system messages and process them
     const { nonSystemMessages, instructions } = this.separateSystemMessages(
       input.messages,
@@ -276,8 +289,11 @@ export class OpenAIAgent extends BaseAgent {
         toolResponses: [],
       });
 
+      // Format the response with role prefix
+      const formattedResponse = `assistant: ${finalResponse}`;
+
       return {
-        response: finalResponse,
+        response: formattedResponse,
         metadata: {
           id: response.id,
           model: response.model,
