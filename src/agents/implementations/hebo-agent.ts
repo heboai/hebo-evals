@@ -177,35 +177,38 @@ export class HeboAgent extends BaseAgent {
         };
       }
 
-      // Extract the response content from the choices array
-      if (!response.choices || response.choices.length === 0) {
-        console.log('[HeboAgent] Warning: No choices in response');
+      // Extract the response content from the output array (for OpenAI API format)
+      if (response.output && response.output.length > 0) {
+        const output = response.output[0];
+        if (output.type === 'message' && output.status === 'completed') {
+          const content = output.content[0];
+          if (content.type === 'output_text') {
+            finalResponse = content.text;
+          }
+        }
+      }
+      // Extract the response content from the choices array (for Hebo API format)
+      else if (response.choices && response.choices.length > 0) {
+        const choice = response.choices[0];
+        if (choice.message && choice.message.content) {
+          finalResponse = choice.message.content;
+        }
+      }
+
+      if (!finalResponse) {
+        console.log('[HeboAgent] Warning: No valid response content found');
         return {
           response: '',
           error: {
-            message: 'No choices in response',
+            message: 'No valid response content found',
             details: response,
           },
         };
       }
 
-      const choice = response.choices[0];
-      if (!choice.message || !choice.message.content) {
-        console.log('[HeboAgent] Warning: Invalid message format:', choice);
-        return {
-          response: '',
-          error: {
-            message: 'Invalid message format in response',
-            details: choice,
-          },
-        };
-      }
-
-      finalResponse = choice.message.content;
-
       // Add assistant's response to history
       this.messageHistory.push({
-        role: roleMapper.toRole(choice.message.role),
+        role: MessageRole.ASSISTANT,
         content: finalResponse,
         toolUsages: [],
         toolResponses: [],

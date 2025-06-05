@@ -91,10 +91,17 @@ export interface Response {
       role: string;
       content: string;
       name: string | null;
-      function_call: any | null;
+      function_call: {
+        name: string;
+        arguments: string;
+      } | null;
     };
     finish_reason: string;
-    logprobs: any | null;
+    logprobs: {
+      token_logprobs: number[];
+      top_logprobs: Record<string, number>[];
+      text_offset: number[];
+    } | null;
   }>;
 
   /**
@@ -133,6 +140,9 @@ export interface Response {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
-    tool_usage?: any;
+    tool_usage?: {
+      name: string;
+      tokens: number;
+    }[];
   };
 }
