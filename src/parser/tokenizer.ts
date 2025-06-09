@@ -32,6 +32,8 @@ export interface TestCaseElement {
     listType?: 'ordered' | 'unordered' | 'task';
     isNested?: boolean;
     language?: string;
+    marker?: string;
+    indentLevel?: number;
   };
 }
 
@@ -162,11 +164,21 @@ export class TestCaseParser {
     {
       pattern: TestCaseParser.PATTERNS.MARKDOWN_LIST,
       handle: (line: string, elements: TestCaseElement[]) => {
+        const match = line.match(TestCaseParser.PATTERNS.MARKDOWN_LIST);
+        if (!match) return;
+        const indent = match[1];
+        const marker = match[2];
+        const listType = /^\d+\.$/.test(marker) ? 'ordered' : 'unordered';
+        const isNested = indent.length > 0;
         elements.push({
           type: 'markdown',
           value: line,
           metadata: {
             markdownType: 'list',
+            listType,
+            isNested,
+            marker,
+            indentLevel: indent.length,
           },
         });
       },
