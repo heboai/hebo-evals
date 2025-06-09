@@ -7,12 +7,32 @@ export interface TestCaseElement {
   /**
    * The type of the element
    */
-  type: 'role' | 'content' | 'tool_use' | 'tool_response' | 'args';
+  type: 'role' | 'content' | 'tool_use' | 'tool_response' | 'args' | 'markdown';
 
   /**
    * The value of the element
    */
   value: string;
+
+  /**
+   * Optional metadata for the element
+   */
+  metadata?: {
+    markdownType?:
+      | 'header'
+      | 'list'
+      | 'code'
+      | 'blockquote'
+      | 'table'
+      | 'horizontal_rule'
+      | 'task_list'
+      | 'code_block_start'
+      | 'code_block_end';
+    level?: number; // For headers (1-6)
+    listType?: 'ordered' | 'unordered' | 'task';
+    isNested?: boolean;
+    language?: string;
+  };
 }
 
 /**
@@ -29,7 +49,7 @@ interface PatternHandlerConfig {
 }
 
 /**
- * Parser for test case text files
+ * Parser for test case text
  */
 export class TestCaseParser {
   /**
@@ -40,6 +60,18 @@ export class TestCaseParser {
     TOOL_USE: /^tool use:/i,
     TOOL_RESPONSE: /^\s*tool response:/i,
     ARGS: /^args:/i,
+    // Markdown patterns
+    MARKDOWN_HEADER: /^(#{1,6})\s+(.+)$/,
+    MARKDOWN_LIST: /^(\s*)([*+-]|\d+\.)\s+(.+)$/,
+    MARKDOWN_TASK_LIST: /^(\s*)[*+-]\s+\[([ xX])\]\s+(.+)$/,
+    MARKDOWN_CODE_BLOCK: /^```([\w-]*)\n([\s\S]*?)```$/,
+    MARKDOWN_INLINE_CODE: /`([^`]+)`/,
+    MARKDOWN_BOLD: /\*\*([^*]+)\*\*/,
+    MARKDOWN_ITALIC: /\*([^*]+)\*/,
+    MARKDOWN_BLOCKQUOTE: /^>\s+(.+)$/,
+    MARKDOWN_HORIZONTAL_RULE: /^([*\-_])\s*\1\s*\1$/,
+    MARKDOWN_TABLE: /^\|(.+)\|$/,
+    MARKDOWN_TABLE_SEPARATOR: /^\|([:\-|]+)\|$/,
   };
 
   /**
@@ -92,7 +124,7 @@ export class TestCaseParser {
       pattern: TestCaseParser.PATTERNS.ROLE,
       handle: (line: string, elements: TestCaseElement[]) => {
         const match = line.match(/^\s*(\w+):/i);
-        if (!match) return; // This should never happen due to pattern matching
+        if (!match) return;
 
         const role = match[1];
         const normalizedRole = role.toLowerCase().trim();
@@ -106,14 +138,74 @@ export class TestCaseParser {
         }
 
         elements.push({ type: 'role', value: normalizedRole });
-        // Get the content after the role marker, preserving whitespace except for the space after the colon and line endings
         const content = line
           .substring(match[0].length)
-          .replace(/^\s+/, '') // Remove space after colon
-          .replace(/[\r\n]+$/, ''); // Remove line endings
+          .replace(/^\s+/, '')
+          .replace(/[\r\n]+$/, '');
         elements.push({
           type: 'content',
           value: content,
+        });
+      },
+    },
+    {
+      pattern: TestCaseParser.PATTERNS.MARKDOWN_HEADER,
+      handle: (line: string, elements: TestCaseElement[]) => {
+        elements.push({
+          type: 'markdown',
+          value: line,
+          metadata: {
+            markdownType: 'header',
+            level: (line.match(/^#+/) || [''])[0].length,
+          },
+        });
+      },
+    },
+    {
+      pattern: TestCaseParser.PATTERNS.MARKDOWN_LIST,
+      handle: (line: string, elements: TestCaseElement[]) => {
+        elements.push({
+          type: 'markdown',
+          value: line,
+          metadata: {
+            markdownType: 'list',
+          },
+        });
+      },
+    },
+    {
+      pattern: TestCaseParser.PATTERNS.MARKDOWN_TASK_LIST,
+      handle: (line: string, elements: TestCaseElement[]) => {
+        elements.push({
+          type: 'markdown',
+          value: line,
+          metadata: {
+            markdownType: 'task_list',
+          },
+        });
+      },
+    },
+    {
+      pattern: TestCaseParser.PATTERNS.MARKDOWN_BLOCKQUOTE,
+      handle: (line: string, elements: TestCaseElement[]) => {
+        elements.push({
+          type: 'markdown',
+          value: line,
+          metadata: {
+            markdownType: 'blockquote',
+          },
+        });
+      },
+    },
+    {
+      pattern: TestCaseParser.PATTERNS.MARKDOWN_HORIZONTAL_RULE,
+      handle: (line: string, elements: TestCaseElement[]) => {
+        elements.push({
+          type: 'markdown',
+          value: line,
+          metadata: {
+            markdownType: 'horizontal_rule',
+          },
         });
       },
     },
@@ -128,18 +220,69 @@ export class TestCaseParser {
     const lines = text.split('\n');
     const elements: TestCaseElement[] = [];
     let currentRole: string | null = null;
+    let currentContent: string[] = [];
+    let inCodeBlock = false;
+    let codeBlockLines: string[] = [];
+    let codeBlockLanguage = '';
 
-    for (const line of lines) {
-      if (line.trim() === '') continue;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Handle code blocks
+      if (line.startsWith('```')) {
+        if (!inCodeBlock) {
+          // Start of code block
+          inCodeBlock = true;
+          codeBlockLanguage = line.slice(3);
+          codeBlockLines = [line];
+        } else {
+          // End of code block
+          inCodeBlock = false;
+          codeBlockLines.push(line);
+          elements.push({
+            type: 'markdown',
+            value: codeBlockLines.join('\n'),
+            metadata: {
+              markdownType: 'code',
+              language: codeBlockLanguage.trim(),
+            },
+          });
+          codeBlockLines = [];
+          codeBlockLanguage = '';
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeBlockLines.push(line);
+        continue;
+      }
+
+      if (line.trim() === '') {
+        if (currentContent.length > 0) {
+          elements.push({
+            type: 'content',
+            value: currentContent.join('\n'),
+          });
+          currentContent = [];
+        }
+        continue;
+      }
 
       let handled = false;
       for (const { pattern, handle } of this.patternHandlers) {
         if (pattern.test(line)) {
+          if (currentContent.length > 0) {
+            elements.push({
+              type: 'content',
+              value: currentContent.join('\n'),
+            });
+            currentContent = [];
+          }
           handle(line, elements);
           handled = true;
-          // Update current role if this was a role marker
           if (pattern === TestCaseParser.PATTERNS.ROLE) {
-            const match = line.match(/^\s*(\w+):/i);
+            const match = line.match(/^[\s]*(\w+):/i);
             if (match) {
               currentRole = match[1].toLowerCase().trim();
             }
@@ -149,18 +292,22 @@ export class TestCaseParser {
       }
 
       if (!handled) {
-        // If no pattern matches but we have a current role, treat as content
         if (currentRole) {
-          elements.push({
-            type: 'content',
-            value: line.trim(),
-          });
+          currentContent.push(line);
         } else {
           throw new ParseError(
             'All messages must have a role marker (e.g. "user:", "assistant:", "human agent:", "tool use:", "tool response:")',
           );
         }
       }
+    }
+
+    // Add any remaining content
+    if (currentContent.length > 0) {
+      elements.push({
+        type: 'content',
+        value: currentContent.join('\n'),
+      });
     }
 
     // Validate the parsed elements

@@ -103,7 +103,10 @@ export class TestCaseLoader {
         if (entry.isDirectory()) {
           const subFiles = await this.getTestFiles(fullPath);
           files.push(...subFiles);
-        } else if (entry.isFile() && extname(entry.name) === '.txt') {
+        } else if (
+          entry.isFile() &&
+          (extname(entry.name) === '.txt' || extname(entry.name) === '.md')
+        ) {
           files.push(fullPath);
         }
       }
@@ -138,7 +141,8 @@ export class TestCaseLoader {
     baseName: string;
     hierarchicalId: string;
   } {
-    const baseName = basename(filePath, '.txt');
+    const ext = extname(filePath);
+    const baseName = basename(filePath, ext);
     const relativePath = relative(this.rootDirectory, dirname(filePath));
     const hierarchicalId = relativePath
       ? `${relativePath}/${baseName}`

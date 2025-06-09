@@ -1,4 +1,4 @@
-import { TestCaseParser } from './tokenizer.js';
+import { TestCaseParser, TestCaseElement } from './tokenizer.js';
 import {
   MessageRole,
   BaseMessage,
@@ -41,8 +41,8 @@ export class Parser {
     const shouldAddIndex = testCaseTexts.length > 1;
 
     return testCaseTexts.map((testCaseText, index) => {
-      // Extract title if present
-      const titleMatch = testCaseText.match(/^#\s*(.+)$/m);
+      // Extract title if present (supports both # and ## for h1 and h2)
+      const titleMatch = testCaseText.match(/^#{1,2}\s*(.+)$/m);
       const title = titleMatch
         ? titleMatch[1].trim()
         : shouldAddIndex
@@ -65,11 +65,12 @@ export class Parser {
    * @throws ParseError if parsing fails
    */
   public parse(text: string, name: string, id: string = name): TestCase {
-    // Remove title if present
-    const cleanText = text.replace(/^#\s*.+$/m, '').trim();
+    // Remove title if present (supports both # and ## for h1 and h2)
+    const cleanText = text.replace(/^#{1,2}\s*.+$/m, '').trim();
     const elements = this.parser.tokenize(cleanText);
     const messageBlocks: BaseMessage[] = [];
     let currentBlock: BaseMessage | null = null;
+    let currentContent: string[] = [];
 
     for (let i = 0; i < elements.length; i++) {
       const element = elements[i];
@@ -78,6 +79,10 @@ export class Parser {
         case 'role': {
           // Save previous block if exists
           if (currentBlock) {
+            if (currentContent.length > 0) {
+              currentBlock.content = currentContent.join('\n');
+              currentContent = [];
+            }
             messageBlocks.push(currentBlock);
           }
 
@@ -96,12 +101,17 @@ export class Parser {
           if (!currentBlock) {
             throw new ParseError('Content found without a role');
           }
+          currentContent.push(element.value);
+          break;
+        }
 
-          // Append content with proper spacing
-          if (currentBlock.content) {
-            currentBlock.content += '\n';
+        case 'markdown': {
+          if (!currentBlock) {
+            throw new ParseError('Markdown content found without a role');
           }
-          currentBlock.content += element.value;
+          // Format the markdown element and add it to current content
+          const formattedMarkdown = this.formatMarkdownElement(element);
+          currentContent.push(formattedMarkdown);
           break;
         }
 
@@ -165,6 +175,9 @@ export class Parser {
 
     // Add the last block if exists
     if (currentBlock) {
+      if (currentContent.length > 0) {
+        currentBlock.content = currentContent.join('\n');
+      }
       messageBlocks.push(currentBlock);
     }
 
@@ -176,6 +189,136 @@ export class Parser {
       name,
       messageBlocks,
     };
+  }
+
+  /**
+   * Preserves Markdown formatting in content
+   * @param content The content to format
+   * @returns The formatted content
+   */
+  private preserveMarkdownFormatting(content: string): string {
+    // Preserve line breaks
+    let formatted = content.replace(/\n/g, '\n');
+
+    // Process headers (h1-h6)
+    formatted = formatted.replace(
+      /^(#{1,6})\s+(.+)$/gm,
+      (match, hashes, text) => {
+        return `${hashes} ${text.trim()}`;
+      },
+    );
+
+    // Process lists
+    // Unordered lists
+    formatted = formatted.replace(
+      /^(\s*)[*+-]\s+(.+)$/gm,
+      (match, indent, text) => {
+        return `${indent}* ${text.trim()}`;
+      },
+    );
+
+    // Ordered lists
+    formatted = formatted.replace(
+      /^(\s*)\d+\.\s+(.+)$/gm,
+      (match, indent, text) => {
+        return `${indent}1. ${text.trim()}`;
+      },
+    );
+
+    // Task lists
+    formatted = formatted.replace(
+      /^(\s*)[*+-]\s+\[([ xX])\]\s+(.+)$/gm,
+      (match, indent, checked, text) => {
+        return `${indent}* [${checked}] ${text.trim()}`;
+      },
+    );
+
+    // Process code blocks
+    formatted = formatted.replace(
+      /```([\w-]*)\n([\s\S]*?)```/g,
+      (match, lang, code) => {
+        return `\`\`\`${lang}\n${code.trim()}\n\`\`\``;
+      },
+    );
+
+    // Process inline code
+    formatted = formatted.replace(/`([^`]+)`/g, '`$1`');
+
+    // Process blockquotes
+    formatted = formatted.replace(/^>\s+(.+)$/gm, '> $1');
+
+    // Process horizontal rules
+    formatted = formatted.replace(/^([*\-_])\s*\1\s*\1$/gm, '---');
+
+    // Process tables
+    formatted = formatted.replace(/^\|(.+)\|$/gm, (match, content) => {
+      return `|${content.trim()}|`;
+    });
+
+    // Process table separators
+    formatted = formatted.replace(/^\|([:\-|]+)\|$/gm, (match, content) => {
+      return `|${content.trim()}|`;
+    });
+
+    // Process bold and italic
+    formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '**$1**');
+    formatted = formatted.replace(/\*([^*]+)\*/g, '*$1*');
+
+    // Process links
+    formatted = formatted.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '[$1]($2)');
+
+    return formatted;
+  }
+
+  /**
+   * Formats a markdown element based on its type and metadata
+   * @param element The markdown element to format
+   * @returns The formatted markdown string
+   */
+  private formatMarkdownElement(element: TestCaseElement): string {
+    if (element.type === 'markdown') {
+      // Preserve exact formatting for headers
+      if (element.value.match(/^#{1,6}\s/)) {
+        return element.value;
+      }
+
+      // Preserve exact formatting for lists
+      if (element.value.match(/^[-*+]\s/)) {
+        return element.value;
+      }
+
+      // Preserve exact formatting for task lists
+      if (element.value.match(/^[-*+]\s\[[ x]\]\s/)) {
+        return element.value;
+      }
+
+      // Preserve exact formatting for code blocks
+      if (element.value.match(/^```\w*$/)) {
+        return element.value;
+      }
+
+      // Preserve exact formatting for blockquotes
+      if (element.value.match(/^>\s/)) {
+        return element.value;
+      }
+
+      // Preserve exact formatting for tables
+      if (element.value.match(/^\|.+\|$/)) {
+        return element.value;
+      }
+
+      // Preserve exact formatting for horizontal rules
+      if (element.value.match(/^[-*_]{3,}$/)) {
+        return element.value;
+      }
+
+      // Preserve exact formatting for inline formatting
+      if (element.value.match(/[*_`]|\[.+\]\(.+\)/)) {
+        return element.value;
+      }
+    }
+
+    return element.value;
   }
 
   /**
@@ -199,56 +342,20 @@ export class Parser {
    */
   private validateTestCase(messageBlocks: BaseMessage[]): void {
     if (messageBlocks.length === 0) {
-      throw new ParseError('Test case must contain at least one message block');
+      throw new ParseError('Test case must contain at least one message');
     }
 
-    // Check for system messages
-    const systemMessages = messageBlocks.filter(
-      (block) => block.role === MessageRole.SYSTEM,
-    );
-
-    // Validate system message position
-    if (systemMessages.length > 0) {
-      const firstNonSystemIndex = messageBlocks.findIndex(
-        (block) => block.role !== MessageRole.SYSTEM,
-      );
-
-      // Ensure all system messages are at the start
-      if (firstNonSystemIndex > -1) {
-        for (let i = firstNonSystemIndex; i < messageBlocks.length; i++) {
-          if (messageBlocks[i].role === MessageRole.SYSTEM) {
-            throw new ParseError(
-              'System messages must appear at the start of the conversation',
-            );
-          }
-        }
-      }
-    }
-
-    // Validate that all messages have a role
+    // Validate that system messages only appear at the start
+    let foundNonSystemMessage = false;
     for (const block of messageBlocks) {
-      if (!block.role) {
-        throw new ParseError(
-          'All messages must have a role marker (e.g. "user:", "assistant:", "human agent:", "system:")',
-        );
-      }
-
-      // Validate tool usage and response sequence
-      if (block.toolUsages && block.toolUsages.length > 0) {
-        // Tool usage must be from assistant or human agent
-        if (
-          block.role !== MessageRole.ASSISTANT &&
-          block.role !== MessageRole.HUMAN_AGENT
-        ) {
+      if (block.role === MessageRole.SYSTEM) {
+        if (foundNonSystemMessage) {
           throw new ParseError(
-            'Tool usage must be from assistant or human agent message',
+            'System messages must appear at the start of the conversation',
           );
         }
-
-        // Tool usage must be followed by tool response
-        if (!block.toolResponses || block.toolResponses.length === 0) {
-          throw new ParseError('Tool usage must be followed by tool response');
-        }
+      } else {
+        foundNonSystemMessage = true;
       }
     }
   }
