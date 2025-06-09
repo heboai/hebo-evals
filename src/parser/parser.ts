@@ -210,12 +210,12 @@ export class Parser {
       }
 
       // Preserve exact formatting for task lists
-      if (element.value.match(/^[-*+]\s\[[ x]\]\s/)) {
+      if (element.value.match(/^[-*+]\s\[[ xX]\]\s/)) {
         return element.value;
       }
 
       // Preserve exact formatting for code blocks
-      if (element.value.match(/^```\w*$/)) {
+      if (element.value.match(/^```(?:\w|-)*$/)) {
         return element.value;
       }
 
@@ -235,7 +235,11 @@ export class Parser {
       }
 
       // Preserve exact formatting for inline formatting
-      if (element.value.match(/[*_`]|\[.+\]\(.+\)/)) {
+      if (
+        element.value.match(
+          /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/,
+        )
+      ) {
         return element.value;
       }
     }
