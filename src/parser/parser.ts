@@ -203,7 +203,7 @@ export class Parser {
     // Process headers (h1-h6)
     formatted = formatted.replace(
       /^(#{1,6})\s+(.+)$/gm,
-      (match, hashes, text) => {
+      (match, hashes: string, text: string) => {
         return `${hashes} ${text.trim()}`;
       },
     );
@@ -212,7 +212,7 @@ export class Parser {
     // Unordered lists
     formatted = formatted.replace(
       /^(\s*)[*+-]\s+(.+)$/gm,
-      (match, indent, text) => {
+      (match, indent: string, text: string) => {
         return `${indent}* ${text.trim()}`;
       },
     );
@@ -220,7 +220,7 @@ export class Parser {
     // Ordered lists
     formatted = formatted.replace(
       /^(\s*)\d+\.\s+(.+)$/gm,
-      (match, indent, text) => {
+      (match, indent: string, text: string) => {
         return `${indent}1. ${text.trim()}`;
       },
     );
@@ -228,7 +228,7 @@ export class Parser {
     // Task lists
     formatted = formatted.replace(
       /^(\s*)[*+-]\s+\[([ xX])\]\s+(.+)$/gm,
-      (match, indent, checked, text) => {
+      (match, indent: string, checked: string, text: string) => {
         return `${indent}* [${checked}] ${text.trim()}`;
       },
     );
@@ -236,7 +236,7 @@ export class Parser {
     // Process code blocks
     formatted = formatted.replace(
       /```([\w-]*)\n([\s\S]*?)```/g,
-      (match, lang, code) => {
+      (match, lang: string, code: string) => {
         return `\`\`\`${lang}\n${code.trim()}\n\`\`\``;
       },
     );
@@ -251,14 +251,17 @@ export class Parser {
     formatted = formatted.replace(/^([*\-_])\s*\1\s*\1$/gm, '---');
 
     // Process tables
-    formatted = formatted.replace(/^\|(.+)\|$/gm, (match, content) => {
+    formatted = formatted.replace(/^\|(.+)\|$/gm, (match, content: string) => {
       return `|${content.trim()}|`;
     });
 
     // Process table separators
-    formatted = formatted.replace(/^\|([:\-|]+)\|$/gm, (match, content) => {
-      return `|${content.trim()}|`;
-    });
+    formatted = formatted.replace(
+      /^\|([:\-|]+)\|$/gm,
+      (match, content: string) => {
+        return `|${content.trim()}|`;
+      },
+    );
 
     // Process bold and italic
     formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '**$1**');
