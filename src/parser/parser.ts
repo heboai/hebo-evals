@@ -6,6 +6,7 @@ import {
 } from '../core/types/message.types.js';
 import { roleMapper } from '../core/utils/role-mapper.js';
 import { ParseError } from './errors.js';
+import { markdownHandlers } from './markdown-handlers';
 
 /**
  * Parser for test case text files
@@ -191,7 +192,6 @@ export class Parser {
     };
   }
 
-
   /**
    * Formats a markdown element based on its type and metadata
    * @param element The markdown element to format
@@ -280,5 +280,27 @@ export class Parser {
         foundNonSystemMessage = true;
       }
     }
+  }
+
+  /**
+   * Preserves Markdown formatting in content
+   * @param content The content to format
+   * @returns The formatted content
+   */
+  private preserveMarkdownFormatting(content: string): string {
+    // Preserve line breaks
+    let formatted = content.replace(/\n/g, '\n');
+
+    // Apply each markdown handler
+    for (const handler of markdownHandlers) {
+      formatted = formatted.replace(
+        handler.pattern,
+        (match: string, ...args: string[]) => {
+          return handler.handle([match, ...args]);
+        },
+      );
+    }
+
+    return formatted;
   }
 }

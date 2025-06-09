@@ -70,8 +70,6 @@ export class TestCaseParser {
     MARKDOWN_ITALIC: /\*([^*]+)\*/,
     MARKDOWN_BLOCKQUOTE: /^>\s+(.+)$/,
     MARKDOWN_HORIZONTAL_RULE: /^([*\-_])\s*\1\s*\1$/,
-    MARKDOWN_TABLE: /^\|(.+)\|$/,
-    MARKDOWN_TABLE_SEPARATOR: /^\|([:\-|]+)\|$/,
   };
 
   /**
@@ -336,3 +334,16 @@ export class TestCaseParser {
     }
   }
 }
+
+export const MarkdownPatterns = {
+  // Markdown patterns
+  MARKDOWN_HEADER: /^(#{1,6})\s+(.+)$/,
+  MARKDOWN_LIST: /^(\s*)([*+-]|\d+\.)\s+(.+)$/,
+  MARKDOWN_TASK_LIST: /^(\s*)[*+-]\s+\[([ xX])\]\s+(.+)$/,
+  MARKDOWN_CODE_BLOCK: /^```([\w-]*)\n([\s\S]*?)```$/,
+  MARKDOWN_INLINE_CODE: /`([^`]+)`/,
+  MARKDOWN_BOLD: /\*\*([^*]+)\*\*/,
+  MARKDOWN_ITALIC: /\*([^*]+)\*/,
+  MARKDOWN_BLOCKQUOTE: /^>\s+(.+)$/,
+  MARKDOWN_HORIZONTAL_RULE: /^([*\-_])\s*\1\s*\1$/,
+};
