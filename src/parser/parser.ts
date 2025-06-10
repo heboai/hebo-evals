@@ -1,4 +1,4 @@
-import { TestCaseParser, TestCaseElement } from './tokenizer.js';
+import { TestCaseParser } from './tokenizer.js';
 import {
   MessageRole,
   BaseMessage,
