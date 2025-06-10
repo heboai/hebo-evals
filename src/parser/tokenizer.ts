@@ -186,7 +186,6 @@ export class TestCaseParser {
     let currentContent: string[] = [];
     let inCodeBlock = false;
     let codeBlockLines: string[] = [];
-    let codeBlockLanguage = '';
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
