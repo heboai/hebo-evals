@@ -1,4 +1,17 @@
-import { MarkdownPatterns } from './tokenizer';
+/**
+ * Regular expression patterns for markdown elements
+ */
+export const MarkdownPatterns = {
+  MARKDOWN_HEADER: /^(#{1,6})\s+(.+)$/,
+  MARKDOWN_LIST: /^(\s*)([*+-]|\d+\.)\s+(.+)$/,
+  MARKDOWN_TASK_LIST: /^(\s*)[*+-]\s+\[([ xX])\]\s+(.+)$/,
+  MARKDOWN_CODE_BLOCK: /^```([\w-]*)\n([\s\S]*?)```$/,
+  MARKDOWN_INLINE_CODE: /`([^`]+)`/,
+  MARKDOWN_BOLD: /\*\*([^*]+)\*\*/,
+  MARKDOWN_ITALIC: /\*([^*]+)\*/,
+  MARKDOWN_BLOCKQUOTE: /^>\s+(.+)$/,
+  MARKDOWN_HORIZONTAL_RULE: /^([*\-_])\s*\1\s*\1$/,
+};
 
 /**
  * Interface for markdown format handlers

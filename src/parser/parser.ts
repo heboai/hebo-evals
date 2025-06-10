@@ -6,7 +6,7 @@ import {
 } from '../core/types/message.types.js';
 import { roleMapper } from '../core/utils/role-mapper.js';
 import { ParseError } from './errors.js';
-import { markdownHandlers } from './markdown-handlers';
+import { markdownHandlers } from './markdown-handlers.js';
 
 /**
  * Parser for test case text files
@@ -106,16 +106,6 @@ export class Parser {
           break;
         }
 
-        case 'markdown': {
-          if (!currentBlock) {
-            throw new ParseError('Markdown content found without a role');
-          }
-          // Format the markdown element and add it to current content
-          const formattedMarkdown = this.formatMarkdownElement(element);
-          currentContent.push(formattedMarkdown);
-          break;
-        }
-
         case 'tool_use': {
           if (!currentBlock) {
             throw new ParseError('Tool use found without a role');
@@ -198,53 +188,8 @@ export class Parser {
    * @returns The formatted markdown string
    */
   private formatMarkdownElement(element: TestCaseElement): string {
-    if (element.type === 'markdown') {
-      // Preserve exact formatting for headers
-      if (element.value.match(/^#{1,6}\s/)) {
-        return element.value;
-      }
-
-      // Preserve exact formatting for lists
-      if (element.value.match(/^[-*+]\s/)) {
-        return element.value;
-      }
-
-      // Preserve exact formatting for task lists
-      if (element.value.match(/^[-*+]\s\[[ xX]\]\s/)) {
-        return element.value;
-      }
-
-      // Preserve exact formatting for code blocks
-      if (element.value.match(/^```(?:\w|-)*$/)) {
-        return element.value;
-      }
-
-      // Preserve exact formatting for blockquotes
-      if (element.value.match(/^>\s/)) {
-        return element.value;
-      }
-
-      // Preserve exact formatting for tables
-      if (element.value.match(/^\|.+\|$/)) {
-        return element.value;
-      }
-
-      // Preserve exact formatting for horizontal rules
-      if (element.value.match(/^[-*_]{3,}$/)) {
-        return element.value;
-      }
-
-      // Preserve exact formatting for inline formatting
-      if (
-        element.value.match(
-          /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/,
-        )
-      ) {
-        return element.value;
-      }
-    }
-
-    return element.value;
+    // Apply markdown formatting to the content
+    return this.preserveMarkdownFormatting(element.value);
   }
 
   /**
