@@ -226,6 +226,7 @@ export class TestCaseParser {
       }
 
       let handled = false;
+      let roleMatch: RegExpMatchArray | null = null;
       for (const { pattern, handle } of this.patternHandlers) {
         if (pattern.test(line)) {
           if (currentContent.length > 0) {
@@ -238,9 +239,9 @@ export class TestCaseParser {
           handle(line, elements);
           handled = true;
           if (pattern === TestCaseParser.PATTERNS.ROLE) {
-            const match = line.match(/^[\s]*(\w+):/i);
-            if (match) {
-              currentRole = match[1].toLowerCase().trim();
+            roleMatch = line.match(/^[\s]*(\w+):/i);
+            if (roleMatch) {
+              currentRole = roleMatch[1].toLowerCase().trim();
             }
           }
           break;
