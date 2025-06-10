@@ -6,7 +6,6 @@ import {
 } from '../core/types/message.types.js';
 import { roleMapper } from '../core/utils/role-mapper.js';
 import { ParseError } from './errors.js';
-import { markdownHandlers } from './markdown-handlers.js';
 
 /**
  * Parser for test case text files
@@ -102,6 +101,7 @@ export class Parser {
           if (!currentBlock) {
             throw new ParseError('Content found without a role');
           }
+          // Preserve content exactly as is
           currentContent.push(element.value);
           break;
         }
@@ -183,16 +183,6 @@ export class Parser {
   }
 
   /**
-   * Formats a markdown element based on its type and metadata
-   * @param element The markdown element to format
-   * @returns The formatted markdown string
-   */
-  private formatMarkdownElement(element: TestCaseElement): string {
-    // Apply markdown formatting to the content
-    return this.preserveMarkdownFormatting(element.value);
-  }
-
-  /**
    * Parses a role string into a MessageRole enum value
    * @param role The role string to parse
    * @returns The parsed MessageRole
@@ -229,27 +219,5 @@ export class Parser {
         foundNonSystemMessage = true;
       }
     }
-  }
-
-  /**
-   * Preserves Markdown formatting in content
-   * @param content The content to format
-   * @returns The formatted content
-   */
-  private preserveMarkdownFormatting(content: string): string {
-    // Preserve line breaks
-    let formatted = content.replace(/\n/g, '\n');
-
-    // Apply each markdown handler
-    for (const handler of markdownHandlers) {
-      formatted = formatted.replace(
-        handler.pattern,
-        (match: string, ...args: string[]) => {
-          return handler.handle([match, ...args]);
-        },
-      );
-    }
-
-    return formatted;
   }
 }

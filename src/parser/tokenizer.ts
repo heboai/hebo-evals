@@ -1,5 +1,4 @@
 import { ParseError } from './errors.js';
-import { MarkdownPatterns } from './markdown-handlers.js';
 
 /**
  * Represents an element in the test case text
@@ -41,16 +40,6 @@ export class TestCaseParser {
     TOOL_USE: /^tool use:/i,
     TOOL_RESPONSE: /^\s*tool response:/i,
     ARGS: /^args:/i,
-    // Markdown patterns
-    MARKDOWN_HEADER: MarkdownPatterns.MARKDOWN_HEADER,
-    MARKDOWN_LIST: MarkdownPatterns.MARKDOWN_LIST,
-    MARKDOWN_TASK_LIST: MarkdownPatterns.MARKDOWN_TASK_LIST,
-    MARKDOWN_CODE_BLOCK: MarkdownPatterns.MARKDOWN_CODE_BLOCK,
-    MARKDOWN_INLINE_CODE: MarkdownPatterns.MARKDOWN_INLINE_CODE,
-    MARKDOWN_BOLD: MarkdownPatterns.MARKDOWN_BOLD,
-    MARKDOWN_ITALIC: MarkdownPatterns.MARKDOWN_ITALIC,
-    MARKDOWN_BLOCKQUOTE: MarkdownPatterns.MARKDOWN_BLOCKQUOTE,
-    MARKDOWN_HORIZONTAL_RULE: MarkdownPatterns.MARKDOWN_HORIZONTAL_RULE,
   };
 
   /**
@@ -124,51 +113,6 @@ export class TestCaseParser {
         elements.push({
           type: 'content',
           value: content,
-        });
-      },
-    },
-    {
-      pattern: TestCaseParser.PATTERNS.MARKDOWN_HEADER,
-      handle: (line: string, elements: TestCaseElement[]) => {
-        elements.push({
-          type: 'content',
-          value: line,
-        });
-      },
-    },
-    {
-      pattern: TestCaseParser.PATTERNS.MARKDOWN_LIST,
-      handle: (line: string, elements: TestCaseElement[]) => {
-        elements.push({
-          type: 'content',
-          value: line,
-        });
-      },
-    },
-    {
-      pattern: TestCaseParser.PATTERNS.MARKDOWN_TASK_LIST,
-      handle: (line: string, elements: TestCaseElement[]) => {
-        elements.push({
-          type: 'content',
-          value: line,
-        });
-      },
-    },
-    {
-      pattern: TestCaseParser.PATTERNS.MARKDOWN_BLOCKQUOTE,
-      handle: (line: string, elements: TestCaseElement[]) => {
-        elements.push({
-          type: 'content',
-          value: line,
-        });
-      },
-    },
-    {
-      pattern: TestCaseParser.PATTERNS.MARKDOWN_HORIZONTAL_RULE,
-      handle: (line: string, elements: TestCaseElement[]) => {
-        elements.push({
-          type: 'content',
-          value: line,
         });
       },
     },
