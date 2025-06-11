@@ -414,4 +414,181 @@ assistant: I'm good`,
       });
     });
   });
+
+  describe('Markdown Support', () => {
+    let parser: Parser;
+
+    beforeEach(() => {
+      parser = new Parser();
+    });
+
+    it('should parse headers within message content', () => {
+      const text = `user: Here are the headers:
+# Level 1 Header
+## Level 2 Header
+### Level 3 Header
+
+assistant: I see the headers`;
+
+      const result = parser.parse(text, 'header-test');
+      expect(result.messageBlocks).toHaveLength(2);
+      expect(result.messageBlocks[0].content).not.toContain('# Level 1 Header');
+      expect(result.messageBlocks[0].content).toContain('## Level 2 Header');
+      expect(result.messageBlocks[0].content).toContain('### Level 3 Header');
+    });
+
+    it('should parse lists within message content', () => {
+      const text = `user: Here are some lists:
+
+1. Ordered List
+   1. Nested item
+   2. Another nested item
+2. Second item
+
+* Unordered List
+  * Nested item
+  * Another nested item
+
+- [ ] Task List
+- [x] Completed task
+
+assistant: I see the lists`;
+
+      const result = parser.parse(text, 'list-test');
+      expect(result.messageBlocks).toHaveLength(2);
+      const content = result.messageBlocks[0].content;
+      expect(content).toContain('1. Ordered List');
+      expect(content).toContain('* Unordered List');
+      expect(content).toContain('- [ ] Task List');
+      expect(content).toContain('- [x] Completed task');
+    });
+
+    it('should parse code blocks with language specification', () => {
+      const text = `user: Here's some code:
+
+\`\`\`typescript
+function greet(name: string): string {
+  return \`Hello, \${name}!\`;
+}
+\`\`\`
+
+assistant: I see the code`;
+
+      const result = parser.parse(text, 'code-test');
+      expect(result.messageBlocks).toHaveLength(2);
+      const content = result.messageBlocks[0].content;
+      expect(content).toContain('```typescript');
+      expect(content).toContain('function greet');
+      expect(content).toContain('```');
+    });
+
+    it('should parse blockquotes and horizontal rules', () => {
+      const text = `user: Here's a blockquote:
+
+> This is a blockquote
+> It can span multiple lines
+> And can contain **bold** or _italic_ text
+
+---
+
+> Nested blockquotes:
+> > This is a nested blockquote
+
+assistant: I see the blockquotes`;
+
+      const result = parser.parse(text, 'blockquote-test');
+      expect(result.messageBlocks).toHaveLength(2);
+      const content = result.messageBlocks[0].content;
+      expect(content).toContain('> This is a blockquote');
+      expect(content).toContain('---');
+      expect(content).toContain('> > This is a nested blockquote');
+    });
+
+    it('should parse tables', () => {
+      const text = `user: Here's a table:
+
+| Feature | Description | Example |
+|---------|-------------|---------|
+| Headers | Column titles | \`# Header\` |
+| Alignment | Text alignment | \`:---\` for left |
+
+assistant: I see the table`;
+
+      const result = parser.parse(text, 'table-test');
+      expect(result.messageBlocks).toHaveLength(2);
+      const content = result.messageBlocks[0].content;
+      expect(content).toContain('| Feature | Description | Example |');
+      expect(content).toContain('|---------|-------------|---------|');
+    });
+
+    it('should parse inline formatting', () => {
+      const text = `user: Here's some formatted text:
+
+**Bold text** uses double asterisks
+_Italic text_ uses underscores
+***Bold and italic*** can be combined
+[Links](https://example.com) use square brackets
+
+assistant: I see the formatting`;
+
+      const result = parser.parse(text, 'formatting-test');
+      expect(result.messageBlocks).toHaveLength(2);
+      const content = result.messageBlocks[0].content;
+      expect(content).toContain('**Bold text**');
+      expect(content).toContain('_Italic text_');
+      expect(content).toContain('***Bold and italic***');
+      expect(content).toContain('[Links](https://example.com)');
+    });
+
+    it('should handle multiple test cases with Markdown', () => {
+      const text = `# First Test Case
+
+user: Here's a header:
+# Level 1
+
+assistant: I see the header
+
+---
+
+# Second Test Case
+
+user: Here's a list:
+* Item 1
+* Item 2
+
+assistant: I see the list`;
+
+      const results = parser.parseMultiple(text, 'multi-test', 'test');
+      expect(results).toHaveLength(2);
+      expect(results[0].name).toBe('First Test Case');
+      expect(results[1].name).toBe('Second Test Case');
+      expect(results[0].messageBlocks[0].content).toContain('# Level 1');
+      expect(results[1].messageBlocks[0].content).toContain('* Item 1');
+    });
+
+    it('should preserve nested Markdown structures', () => {
+      const text = `user: Here's a complex structure:
+
+> Blockquote with:
+> 1. Ordered list
+>    * Nested unordered list
+>    * With **bold** and _italic_
+> 2. Another item
+>    \`\`\`typescript
+>    const code = "in blockquote";
+>    \`\`\`
+
+assistant: I see the structure`;
+
+      const result = parser.parse(text, 'nested-test');
+      expect(result.messageBlocks).toHaveLength(2);
+      const content = result.messageBlocks[0].content;
+      expect(content).toContain('> Blockquote with:');
+      expect(content).toContain('> 1. Ordered list');
+      expect(content).toContain('>    * Nested unordered list');
+      expect(content).toContain('**bold**');
+      expect(content).toContain('_italic_');
+      expect(content).toContain('>    ```typescript');
+    });
+  });
 });

@@ -29,7 +29,7 @@ interface PatternHandlerConfig {
 }
 
 /**
- * Parser for test case text files
+ * Parser for test case text
  */
 export class TestCaseParser {
   /**
@@ -92,7 +92,7 @@ export class TestCaseParser {
       pattern: TestCaseParser.PATTERNS.ROLE,
       handle: (line: string, elements: TestCaseElement[]) => {
         const match = line.match(/^\s*(\w+):/i);
-        if (!match) return; // This should never happen due to pattern matching
+        if (!match) return;
 
         const role = match[1];
         const normalizedRole = role.toLowerCase().trim();
@@ -106,11 +106,10 @@ export class TestCaseParser {
         }
 
         elements.push({ type: 'role', value: normalizedRole });
-        // Get the content after the role marker, preserving whitespace except for the space after the colon and line endings
         const content = line
           .substring(match[0].length)
-          .replace(/^\s+/, '') // Remove space after colon
-          .replace(/[\r\n]+$/, ''); // Remove line endings
+          .replace(/^\s+/, '')
+          .replace(/[\r\n]+$/, '');
         elements.push({
           type: 'content',
           value: content,
@@ -128,20 +127,65 @@ export class TestCaseParser {
     const lines = text.split('\n');
     const elements: TestCaseElement[] = [];
     let currentRole: string | null = null;
+    let currentContent: string[] = [];
+    let inCodeBlock = false;
+    let codeBlockLines: string[] = [];
 
-    for (const line of lines) {
-      if (line.trim() === '') continue;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Handle code blocks
+      if (line.startsWith('```')) {
+        if (!inCodeBlock) {
+          // Start of code block
+          inCodeBlock = true;
+          codeBlockLines = [line];
+        } else {
+          // End of code block
+          inCodeBlock = false;
+          codeBlockLines.push(line);
+          elements.push({
+            type: 'content',
+            value: codeBlockLines.join('\n'),
+          });
+          codeBlockLines = [];
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeBlockLines.push(line);
+        continue;
+      }
+
+      if (line.trim() === '') {
+        if (currentContent.length > 0) {
+          elements.push({
+            type: 'content',
+            value: currentContent.join('\n'),
+          });
+          currentContent = [];
+        }
+        continue;
+      }
 
       let handled = false;
+      let roleMatch: RegExpMatchArray | null = null;
       for (const { pattern, handle } of this.patternHandlers) {
         if (pattern.test(line)) {
+          if (currentContent.length > 0) {
+            elements.push({
+              type: 'content',
+              value: currentContent.join('\n'),
+            });
+            currentContent = [];
+          }
           handle(line, elements);
           handled = true;
-          // Update current role if this was a role marker
           if (pattern === TestCaseParser.PATTERNS.ROLE) {
-            const match = line.match(/^\s*(\w+):/i);
-            if (match) {
-              currentRole = match[1].toLowerCase().trim();
+            roleMatch = line.match(/^[\s]*(\w+):/i);
+            if (roleMatch) {
+              currentRole = roleMatch[1].toLowerCase().trim();
             }
           }
           break;
@@ -149,18 +193,22 @@ export class TestCaseParser {
       }
 
       if (!handled) {
-        // If no pattern matches but we have a current role, treat as content
         if (currentRole) {
-          elements.push({
-            type: 'content',
-            value: line.trim(),
-          });
+          currentContent.push(line);
         } else {
           throw new ParseError(
             'All messages must have a role marker (e.g. "user:", "assistant:", "human agent:", "tool use:", "tool response:")',
           );
         }
       }
+    }
+
+    // Add any remaining content
+    if (currentContent.length > 0) {
+      elements.push({
+        type: 'content',
+        value: currentContent.join('\n'),
+      });
     }
 
     // Validate the parsed elements

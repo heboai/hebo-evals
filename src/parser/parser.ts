@@ -41,8 +41,8 @@ export class Parser {
     const shouldAddIndex = testCaseTexts.length > 1;
 
     return testCaseTexts.map((testCaseText, index) => {
-      // Extract title if present
-      const titleMatch = testCaseText.match(/^#\s*(.+)$/m);
+      // Extract title if present (supports both # and ## for h1 and h2)
+      const titleMatch = testCaseText.match(/^#{1,2}\s*(.+)$/m);
       const title = titleMatch
         ? titleMatch[1].trim()
         : shouldAddIndex
@@ -65,11 +65,12 @@ export class Parser {
    * @throws ParseError if parsing fails
    */
   public parse(text: string, name: string, id: string = name): TestCase {
-    // Remove title if present
-    const cleanText = text.replace(/^#\s*.+$/m, '').trim();
+    // Remove title if present (supports both # and ## for h1 and h2)
+    const cleanText = text.replace(/^#{1,2}\s*.+$/m, '').trim();
     const elements = this.parser.tokenize(cleanText);
     const messageBlocks: BaseMessage[] = [];
     let currentBlock: BaseMessage | null = null;
+    let currentContent: string[] = [];
 
     for (let i = 0; i < elements.length; i++) {
       const element = elements[i];
@@ -78,6 +79,10 @@ export class Parser {
         case 'role': {
           // Save previous block if exists
           if (currentBlock) {
+            if (currentContent.length > 0) {
+              currentBlock.content = currentContent.join('\n');
+              currentContent = [];
+            }
             messageBlocks.push(currentBlock);
           }
 
@@ -96,12 +101,8 @@ export class Parser {
           if (!currentBlock) {
             throw new ParseError('Content found without a role');
           }
-
-          // Append content with proper spacing
-          if (currentBlock.content) {
-            currentBlock.content += '\n';
-          }
-          currentBlock.content += element.value;
+          // Preserve content exactly as is
+          currentContent.push(element.value);
           break;
         }
 
@@ -165,6 +166,9 @@ export class Parser {
 
     // Add the last block if exists
     if (currentBlock) {
+      if (currentContent.length > 0) {
+        currentBlock.content = currentContent.join('\n');
+      }
       messageBlocks.push(currentBlock);
     }
 
@@ -199,56 +203,20 @@ export class Parser {
    */
   private validateTestCase(messageBlocks: BaseMessage[]): void {
     if (messageBlocks.length === 0) {
-      throw new ParseError('Test case must contain at least one message block');
+      throw new ParseError('Test case must contain at least one message');
     }
 
-    // Check for system messages
-    const systemMessages = messageBlocks.filter(
-      (block) => block.role === MessageRole.SYSTEM,
-    );
-
-    // Validate system message position
-    if (systemMessages.length > 0) {
-      const firstNonSystemIndex = messageBlocks.findIndex(
-        (block) => block.role !== MessageRole.SYSTEM,
-      );
-
-      // Ensure all system messages are at the start
-      if (firstNonSystemIndex > -1) {
-        for (let i = firstNonSystemIndex; i < messageBlocks.length; i++) {
-          if (messageBlocks[i].role === MessageRole.SYSTEM) {
-            throw new ParseError(
-              'System messages must appear at the start of the conversation',
-            );
-          }
-        }
-      }
-    }
-
-    // Validate that all messages have a role
+    // Validate that system messages only appear at the start
+    let foundNonSystemMessage = false;
     for (const block of messageBlocks) {
-      if (!block.role) {
-        throw new ParseError(
-          'All messages must have a role marker (e.g. "user:", "assistant:", "human agent:", "system:")',
-        );
-      }
-
-      // Validate tool usage and response sequence
-      if (block.toolUsages && block.toolUsages.length > 0) {
-        // Tool usage must be from assistant or human agent
-        if (
-          block.role !== MessageRole.ASSISTANT &&
-          block.role !== MessageRole.HUMAN_AGENT
-        ) {
+      if (block.role === MessageRole.SYSTEM) {
+        if (foundNonSystemMessage) {
           throw new ParseError(
-            'Tool usage must be from assistant or human agent message',
+            'System messages must appear at the start of the conversation',
           );
         }
-
-        // Tool usage must be followed by tool response
-        if (!block.toolResponses || block.toolResponses.length === 0) {
-          throw new ParseError('Tool usage must be followed by tool response');
-        }
+      } else {
+        foundNonSystemMessage = true;
       }
     }
   }
