@@ -102,18 +102,31 @@ export class HeboEmbeddingProvider extends BaseEmbeddingProvider {
 
         // Decode base64 embedding into number array
         const base64Embedding = data.data[0].embedding;
-        const buffer = Buffer.from(base64Embedding, 'base64');
-        const floatArray = new Float32Array(buffer.buffer);
-        const embedding = Array.from(floatArray);
 
-        return {
-          embedding,
-          metadata: {
-            model: this.config.model,
-            provider: 'hebo',
-            usage: data.usage,
-          },
-        };
+        // Validate base64 string
+        if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64Embedding)) {
+          throw new Error('Invalid base64 encoding in embedding response');
+        }
+
+        try {
+          const buffer = Buffer.from(base64Embedding, 'base64');
+          const floatArray = new Float32Array(buffer.buffer);
+          const embedding = Array.from(floatArray);
+
+          return {
+            embedding,
+            metadata: {
+              model: this.config.model,
+              provider: 'hebo',
+              usage: data.usage,
+            },
+          };
+        } catch (error) {
+          throw new Error(
+            'Failed to decode base64 embedding: ' +
+              (error instanceof Error ? error.message : String(error)),
+          );
+        }
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
