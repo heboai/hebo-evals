@@ -13,7 +13,7 @@ const MODEL_PATTERNS = {
  * Interface for provider mapping result
  */
 interface ProviderMappingResult {
-  provider: string;
+  provider: ProviderType;
   modelName: string;
 }
 
@@ -33,9 +33,8 @@ export function getProviderFromModel(
         provider === ProviderType.HEBO
           ? fullModelName.replace(pattern, '')
           : fullModelName;
-
       return {
-        provider,
+        provider: provider as ProviderType,
         modelName,
       };
     }

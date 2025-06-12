@@ -140,9 +140,10 @@ export class ConfigLoader {
    * @throws Error if the provider configuration is not found
    */
   public getProviderConfig(provider: string): ProviderConfig {
+    const providerKey = provider.toLowerCase();
     const providerConfig = this.config.providers?.[provider];
     if (!providerConfig) {
-      throw new Error(`Provider configuration not found: ${provider}`);
+      throw new Error(`Provider configuration not found: ${providerKey}`);
     }
     return providerConfig;
   }

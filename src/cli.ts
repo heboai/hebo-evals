@@ -148,6 +148,9 @@ program
         );
       }
 
+      // Ensure embedding configuration is complete
+      configLoader.validateEmbeddingConfig(embeddingConfig.provider);
+
       // Convert EmbeddingConfig to EmbeddingSystemConfig
       const embeddingSystemConfig: EmbeddingSystemConfig = {
         defaultProvider: embeddingConfig.provider,
@@ -216,7 +219,7 @@ program
       // Run evaluation
       await executor.evaluateFromDirectory(
         heboAgent,
-        join(process.cwd(), 'examples'),
+        join(process.cwd(), options.directory ?? 'examples'),
         options.stopOnError,
       );
 

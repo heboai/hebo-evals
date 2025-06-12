@@ -102,12 +102,8 @@ export class HeboEmbeddingProvider extends BaseEmbeddingProvider {
 
         // Decode base64 embedding into number array
         const base64Embedding = data.data[0].embedding;
-        const binaryString = atob(base64Embedding);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        const floatArray = new Float32Array(bytes.buffer);
+        const buffer = Buffer.from(base64Embedding, 'base64');
+        const floatArray = new Float32Array(buffer.buffer);
         const embedding = Array.from(floatArray);
 
         return {
