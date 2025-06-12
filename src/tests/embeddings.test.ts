@@ -84,6 +84,7 @@ describe('Embedding System', () => {
       const config = {
         defaultProvider: 'invalid' as 'openai',
         model: 'test-model',
+        baseUrl: 'http://test-url',
         apiKey: 'test-key',
       };
 
