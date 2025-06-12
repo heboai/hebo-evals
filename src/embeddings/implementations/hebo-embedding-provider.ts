@@ -121,18 +121,31 @@ export class HeboEmbeddingProvider extends BaseEmbeddingProvider {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
-        // If it's not the last attempt, wait and retry
-        if (attempt < maxRetries) {
+        // If it's not the last attempt and it's a retryable error, wait and retry
+        if (
+          attempt < maxRetries &&
+          (lastError.message.includes('status: 5') ||
+            lastError.message.includes('status: 504'))
+        ) {
           Logger.debug(
             `Attempt ${attempt} failed with ${lastError.message}. Retrying in ${retryDelay}ms...`,
           );
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
           continue;
         }
+
+        // If it's the last attempt or a non-retryable error, throw immediately
+        if (
+          attempt === maxRetries ||
+          (!lastError.message.includes('status: 5') &&
+            !lastError.message.includes('status: 504'))
+        ) {
+          throw lastError;
+        }
       }
     }
 
-    // If we get here, all retries failed
+    // This should never be reached due to the throw in the catch block
     throw new Error(
       `Failed to generate embedding after ${maxRetries} attempts. Last error: ${
         lastError?.message || 'Unknown error'

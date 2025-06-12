@@ -40,19 +40,32 @@ export class ConfigLoader {
   public loadConfig(path: string): void {
     try {
       const fileContents = readFileSync(path, 'utf8');
-      const parsedConfig = parse(fileContents);
+      const parsedConfig = parse(fileContents) as Partial<HeboEvalsConfig>;
 
       // Merge with default config, ensuring providers are properly merged
-      const mergedConfig = {
+      const mergedConfig: Partial<HeboEvalsConfig> = {
         ...DEFAULT_CONFIG,
         ...parsedConfig,
         providers: {
-          ...DEFAULT_CONFIG.providers,
-          ...(parsedConfig.providers || {}),
+          [ProviderType.OPENAI]: {
+            provider: ProviderType.OPENAI,
+            model: (DEFAULT_CONFIG as HeboEvalsConfig).providers![
+              ProviderType.OPENAI
+            ].model,
+            ...parsedConfig.providers?.[ProviderType.OPENAI],
+          },
+          [ProviderType.HEBO]: {
+            provider: ProviderType.HEBO,
+            model: (DEFAULT_CONFIG as HeboEvalsConfig).providers![
+              ProviderType.HEBO
+            ].model,
+            ...parsedConfig.providers?.[ProviderType.HEBO],
+          },
         },
         embedding: {
-          ...DEFAULT_CONFIG.embedding,
-          ...(parsedConfig.embedding || {}),
+          provider: ProviderType.OPENAI,
+          model: (DEFAULT_CONFIG as HeboEvalsConfig).embedding!.model,
+          ...parsedConfig.embedding,
         },
       };
 
@@ -64,22 +77,31 @@ export class ConfigLoader {
         const validatedConfig = HeboEvalsConfigSchema.parse(interpolatedConfig);
         this.config = validatedConfig;
         Logger.debug('Configuration loaded successfully');
-      } catch (validationError) {
+      } catch {
         // If validation fails, try to load with environment variables
-        const envConfig = {
+        const envConfig: Partial<HeboEvalsConfig> = {
           ...interpolatedConfig,
           providers: {
-            ...interpolatedConfig.providers,
             [ProviderType.OPENAI]: {
+              provider: ProviderType.OPENAI,
+              model: (DEFAULT_CONFIG as HeboEvalsConfig).providers![
+                ProviderType.OPENAI
+              ].model,
               ...interpolatedConfig.providers?.[ProviderType.OPENAI],
               apiKey: process.env.OPENAI_API_KEY,
             },
             [ProviderType.HEBO]: {
+              provider: ProviderType.HEBO,
+              model: (DEFAULT_CONFIG as HeboEvalsConfig).providers![
+                ProviderType.HEBO
+              ].model,
               ...interpolatedConfig.providers?.[ProviderType.HEBO],
               apiKey: process.env.HEBO_API_KEY,
             },
           },
           embedding: {
+            provider: ProviderType.OPENAI,
+            model: (DEFAULT_CONFIG as HeboEvalsConfig).embedding!.model,
             ...interpolatedConfig.embedding,
             apiKey: process.env.OPENAI_API_KEY || process.env.HEBO_API_KEY,
           },

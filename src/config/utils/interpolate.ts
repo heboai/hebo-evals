@@ -12,7 +12,7 @@
  */
 export function interpolateEnvVars(value: string): string {
   return value.replace(/\${([^}]+)}/g, (match, envVar) => {
-    const value = process.env[envVar];
+    const value = process.env[envVar as keyof NodeJS.ProcessEnv];
     if (value === undefined) {
       // Return the original string if the environment variable is not set
       return match;

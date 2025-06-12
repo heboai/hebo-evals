@@ -17,7 +17,7 @@ export function getProviderBaseUrl(provider: string): string {
 
   try {
     return configLoader.getProviderBaseUrl(normalizedProvider);
-  } catch (error) {
+  } catch {
     // Fallback to default URLs if configuration is not loaded
     const defaultUrls = {
       [ProviderType.OPENAI]: 'https://api.openai.com/v1',
@@ -45,7 +45,7 @@ export function getProviderApiKey(provider: string): string {
 
   try {
     return configLoader.getProviderApiKey(normalizedProvider);
-  } catch (error) {
+  } catch {
     throw new Error(`API key not configured for provider: ${provider}`);
   }
 }
@@ -63,7 +63,7 @@ export function getProviderAuthHeader(
 
   try {
     return configLoader.getProviderAuthHeader(normalizedProvider);
-  } catch (error) {
+  } catch {
     return undefined;
   }
 }

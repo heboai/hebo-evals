@@ -7,16 +7,12 @@ import { EvaluationExecutor } from './evaluation/evaluation-executor.js';
 import { EvaluationConfig } from './evaluation/types/evaluation.types.js';
 import { Logger } from './utils/logger.js';
 import { EmbeddingProviderFactory } from './embeddings/factory/embedding-provider.factory.js';
-import { readFileSync } from 'fs';
 import { EmbeddingConfig } from './embeddings/types/embedding.types.js';
 import { join } from 'path';
 import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
 import { IAgent } from './agents/interfaces/agent.interface.js';
 import { createAgent } from './agents/factory/agent.factory.js';
-import {
-  getProviderBaseUrl,
-  getProviderApiKey,
-} from './utils/provider-config.js';
+import { getProviderBaseUrl } from './utils/provider-config.js';
 import { ConfigLoader } from './config/config.loader.js';
 import { EmbeddingSystemConfig } from './embeddings/config/embedding.config.js';
 import { getProviderFromModel } from './utils/provider-mapping.js';
@@ -36,7 +32,7 @@ try {
   const configPath = join(process.cwd(), 'hebo-evals.config.yaml');
   configLoader.loadConfig(configPath);
   Logger.debug('Configuration loaded from default location');
-} catch (error) {
+} catch {
   Logger.debug('No configuration file found in default location');
 }
 
@@ -53,35 +49,6 @@ interface RunCommandOptions {
   verbose: boolean;
   provider?: string;
   key?: string;
-}
-
-/**
- * Interface for cli config
- */
-interface CliConfig {
-  embedding: EmbeddingConfig;
-  agent: {
-    agentKey: string;
-    provider: string;
-  };
-}
-
-/**
- * Loads configuration from a file
- * @param configPath Path to the configuration file
- * @returns The loaded configuration
- */
-function loadConfig(configPath: string): CliConfig {
-  try {
-    const resolvedPath = join(process.cwd(), configPath);
-    const configContent = readFileSync(resolvedPath, 'utf-8');
-    const parsed = JSON.parse(configContent) as CliConfig;
-    return parsed;
-  } catch (error: unknown) {
-    const errorMessage = `Failed to load config from ${configPath}: ${error instanceof Error ? error.message : String(error)}`;
-    Logger.error(errorMessage);
-    throw new Error(errorMessage);
-  }
 }
 
 /**
