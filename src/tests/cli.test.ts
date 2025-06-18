@@ -1,12 +1,16 @@
-import { jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Command } from 'commander';
 import { version } from '../utils/package-info.js';
-import { HeboAgent } from '../agents/implementations/hebo-agent.js';
+import {
+  UnifiedAgent,
+  UnifiedAgentConfig,
+} from '../agents/implementations/unified-agent.js';
 import { AgentAuthConfig } from '../agents/index.js';
+import { MessageRole } from '../core/types/message.types.js';
 
 // Mock external dependencies
-jest.mock('../agents/implementations/hebo-agent.js', () => ({
-  HeboAgent: jest.fn().mockImplementation(() => ({
+jest.mock('../agents/implementations/unified-agent.js', () => ({
+  UnifiedAgent: jest.fn().mockImplementation(() => ({
     initialize: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     authenticate: jest
       .fn<(authConfig: AgentAuthConfig) => Promise<void>>()
@@ -81,7 +85,7 @@ describe('CLI Commands', () => {
       mockCleanup = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
 
       // Update the mock instance's methods
-      const mockInstance = new HeboAgent({
+      const mockInstance = new UnifiedAgent({
         model: 'test-model',
         provider: 'hebo',
       });
@@ -148,6 +152,25 @@ describe('CLI Commands', () => {
       );
       expect(program.commands).toHaveLength(1);
       expect(program.commands[0].name()).toBe('version');
+    });
+  });
+});
+
+describe('CLI Integration', () => {
+  let agent: UnifiedAgent;
+  const config: UnifiedAgentConfig = {
+    model: 'gato-qa:v1',
+    provider: 'hebo',
+  };
+
+  beforeEach(() => {
+    agent = new UnifiedAgent(config);
+  });
+
+  describe('Agent Configuration', () => {
+    it('should initialize with correct model and provider', () => {
+      expect(agent['config'].model).toBe('gato-qa:v1');
+      expect(agent['config'].provider).toBe('hebo');
     });
   });
 });

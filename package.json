@@ -30,9 +30,11 @@
   "author": "",
   "license": "FSL-1.1-ALv2",
   "dependencies": {
+    "@ai-sdk/openai": "^0.1.0",
     "commander": "^13.1.0",
     "yaml": "^2.8.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "ai": "^2.2.35"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",

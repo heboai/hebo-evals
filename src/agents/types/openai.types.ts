@@ -51,6 +51,11 @@ export interface ResponseRequest {
    * System instructions to guide the model's behavior
    */
   instructions?: string;
+
+  /**
+   * Whether to stream the response
+   */
+  stream?: boolean;
 }
 
 /**
@@ -70,59 +75,17 @@ export interface Response {
   /**
    * The timestamp when the response was created
    */
-  created: number;
+  created_at: number;
 
   /**
-   * The model used for the response
+   * The status of the response
    */
-  model: string;
+  status: string;
 
   /**
-   * The ID of the previous response
+   * Whether the response is being generated in the background
    */
-  previous_response_id: string | null;
-
-  /**
-   * The choices array containing the response messages
-   */
-  choices?: Array<{
-    index: number;
-    message: {
-      role: string;
-      content: string;
-      name: string | null;
-      function_call: {
-        name: string;
-        arguments: string;
-      } | null;
-    };
-    finish_reason: string;
-    logprobs: {
-      token_logprobs: number[];
-      top_logprobs: Record<string, number>[];
-      text_offset: number[];
-    } | null;
-  }>;
-
-  /**
-   * The output array containing the response messages (for OpenAI API)
-   */
-  output?: Array<{
-    type: string;
-    id: string;
-    status: string;
-    role: string;
-    content: Array<{
-      type: string;
-      text: string;
-      annotations: unknown[];
-    }>;
-  }>;
-
-  /**
-   * The status of the response (for OpenAI API)
-   */
-  status?: string;
+  background: boolean;
 
   /**
    * Error information if any
@@ -134,15 +97,131 @@ export interface Response {
   };
 
   /**
+   * Details about incomplete responses
+   */
+  incomplete_details: null | {
+    reason: string;
+  };
+
+  /**
+   * System instructions used for the response
+   */
+  instructions: string;
+
+  /**
+   * Maximum number of output tokens
+   */
+  max_output_tokens: number | null;
+
+  /**
+   * The model used for the response
+   */
+  model: string;
+
+  /**
+   * The output array containing the response messages
+   */
+  output: Array<{
+    id: string;
+    type: string;
+    status: string;
+    content: Array<{
+      type: string;
+      annotations: unknown[];
+      text: string;
+    }>;
+    role: string;
+  }>;
+
+  /**
+   * Whether parallel tool calls are enabled
+   */
+  parallel_tool_calls: boolean;
+
+  /**
+   * The ID of the previous response
+   */
+  previous_response_id: string | null;
+
+  /**
+   * Reasoning information
+   */
+  reasoning: {
+    effort: null | {
+      level: string;
+      description: string;
+    };
+    summary: null | string;
+  };
+
+  /**
+   * The service tier used
+   */
+  service_tier: string;
+
+  /**
+   * Whether the conversation is stored
+   */
+  store: boolean;
+
+  /**
+   * The temperature setting used
+   */
+  temperature: number;
+
+  /**
+   * Text format settings
+   */
+  text: {
+    format: {
+      type: string;
+    };
+  };
+
+  /**
+   * Tool choice setting
+   */
+  tool_choice: string;
+
+  /**
+   * Available tools
+   */
+  tools: unknown[];
+
+  /**
+   * Top-p sampling parameter
+   */
+  top_p: number;
+
+  /**
+   * Truncation setting
+   */
+  truncation: string;
+
+  /**
    * Token usage information
    */
   usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
+    input_tokens: number;
+    input_tokens_details: {
+      cached_tokens: number;
+    };
+    output_tokens: number;
+    output_tokens_details: {
+      reasoning_tokens: number;
+    };
     total_tokens: number;
-    tool_usage?: {
-      name: string;
-      tokens: number;
-    }[];
   };
+
+  /**
+   * User information
+   */
+  user: null | {
+    id: string;
+  };
+
+  /**
+   * Additional metadata
+   */
+  metadata: Record<string, unknown>;
 }

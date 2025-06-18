@@ -7,6 +7,7 @@ export const ProviderType = {
   OPENAI: 'openai',
   HEBO: 'hebo',
   ANTHROPIC: 'anthropic',
+  CUSTOM: 'custom',
 } as const;
 
 export type ProviderType = (typeof ProviderType)[keyof typeof ProviderType];
@@ -16,7 +17,11 @@ export type ProviderType = (typeof ProviderType)[keyof typeof ProviderType];
  */
 export const ProviderConfigSchema = z
   .object({
-    provider: z.enum([ProviderType.OPENAI, ProviderType.HEBO]),
+    provider: z.enum([
+      ProviderType.OPENAI,
+      ProviderType.HEBO,
+      ProviderType.CUSTOM,
+    ]),
     baseUrl: z.string().url().optional(),
     apiKey: z.string().optional(),
     authHeader: z

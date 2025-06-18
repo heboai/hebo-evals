@@ -6,27 +6,25 @@ import { BaseMessage } from '../../core/types/message.types';
 export interface AgentConfig {
   /**
    * The model to use for the agent
-   * @example "myfirstagent:next", "myfirstagent:v1"
+   * @example "gpt-4", "claude-2"
    */
   model: string;
 
   /**
-   * The provider to use for the agent
-   * @example "hebo", "openai"
-   */
-  provider: string;
-
-  /**
    * The base URL for the agent's API
-   * @example "https://api.hebo.ai", "https://api.openai.com/v1"
+   * @example "https://api.openai.com/v1"
    */
   baseUrl?: string;
 
   /**
-   * The API key for the agent
-   * @example "sk-...", "hebo-..."
+   * Optional path to a custom configuration file
    */
-  apiKey?: string;
+  configPath?: string;
+
+  /**
+   * The provider for the agent
+   */
+  provider: string;
 }
 
 /**
@@ -51,11 +49,17 @@ export interface AgentOutput {
   /**
    * Optional metadata about the response
    */
-  metadata?: Record<string, unknown>;
+  metadata?: {
+    model?: string;
+    provider?: string;
+    id?: string;
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+    };
+  };
 
-  /**
-   * Optional error information if the request failed
-   */
   error?: {
     message: string;
     code?: string;
@@ -66,26 +70,11 @@ export interface AgentOutput {
 /**
  * Configuration for API key authentication
  */
-export interface ApiKeyAuthConfig {
+export interface AgentAuthConfig {
   /**
    * The API key to be used for authentication
    */
   agentKey: string;
-
-  /**
-   * The header name where the API key should be sent
-   * @default 'Authorization'
-   */
   headerName?: string;
-
-  /**
-   * The format of the API key in the header
-   * @default 'Bearer {apiKey}'
-   */
   headerFormat?: string;
 }
-
-/**
- * Represents the authentication configuration for an agent
- */
-export type AgentAuthConfig = ApiKeyAuthConfig;

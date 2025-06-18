@@ -6,6 +6,7 @@ import {
   AgentAuthConfig,
 } from '../types/agent.types';
 import { BaseMessage, MessageRole } from '../../core/types/message.types.js';
+import { ConfigLoader } from '../../config/config.loader.js';
 
 /**
  * Abstract base class for agent implementations
@@ -48,6 +49,21 @@ export abstract class BaseAgent implements IAgent {
         'Agent is already initialized. Create a new instance to use different configuration.',
       );
     }
+
+    // Initialize configuration loader if path is provided
+    const configLoader = ConfigLoader.getInstance();
+    if (config.configPath) {
+      configLoader.initialize(config.configPath);
+    } else {
+      configLoader.initialize();
+    }
+
+    // Validate model-provider combination
+    configLoader.validateModelProvider(config.model, config.provider);
+
+    // Validate provider configuration
+    configLoader.validateProviderConfig(config.provider);
+
     this.config = config;
     await this.validateConfig();
     this.isInitialized = true;

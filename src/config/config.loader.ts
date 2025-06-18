@@ -9,6 +9,7 @@ import {
   ProviderType,
 } from './types/config.types.js';
 import { interpolateEnvVarsInObject } from './utils/interpolate.js';
+import { join } from 'path';
 
 /**
  * Configuration loader for Hebo Eval
@@ -17,6 +18,7 @@ import { interpolateEnvVarsInObject } from './utils/interpolate.js';
 export class ConfigLoader {
   private config: HeboEvalsConfig;
   private static instance: ConfigLoader;
+  private _isInitialized: boolean = false;
 
   private constructor() {
     this.config = DEFAULT_CONFIG as HeboEvalsConfig;
@@ -33,11 +35,48 @@ export class ConfigLoader {
   }
 
   /**
+   * Checks if the configuration loader is initialized
+   * @returns True if the configuration loader is initialized
+   */
+  public isInitialized(): boolean {
+    return this._isInitialized;
+  }
+
+  /**
+   * Initializes the configuration loader with a configuration file
+   * @param path Optional path to the configuration file. If not provided, tries to load from default location
+   * @throws Error if the configuration cannot be loaded or is invalid
+   */
+  public initialize(path?: string): void {
+    // If already initialized but no new path provided, do nothing
+    if (this._isInitialized && !path) {
+      return;
+    }
+
+    try {
+      const configPath = path || join(process.cwd(), 'hebo-evals.config.yaml');
+      this.loadConfig(configPath);
+      this._isInitialized = true;
+    } catch (error) {
+      // If no path was provided and loading from default location failed, use default config
+      if (!path) {
+        Logger.warn(
+          'Failed to load configuration from default location, using default configuration',
+        );
+        this.config = DEFAULT_CONFIG as HeboEvalsConfig;
+        this._isInitialized = true;
+        return;
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Loads configuration from a YAML file
    * @param path Path to the configuration file
    * @throws Error if the file cannot be read or if the configuration is invalid
    */
-  public loadConfig(path: string): void {
+  private loadConfig(path: string): void {
     try {
       const fileContents = readFileSync(path, 'utf8');
       const parsedConfig = parse(fileContents) as Partial<HeboEvalsConfig>;
@@ -47,20 +86,8 @@ export class ConfigLoader {
         ...DEFAULT_CONFIG,
         ...parsedConfig,
         providers: {
-          [ProviderType.OPENAI]: {
-            provider: ProviderType.OPENAI,
-            model: (DEFAULT_CONFIG as HeboEvalsConfig).providers![
-              ProviderType.OPENAI
-            ].model,
-            ...parsedConfig.providers?.[ProviderType.OPENAI],
-          },
-          [ProviderType.HEBO]: {
-            provider: ProviderType.HEBO,
-            model: (DEFAULT_CONFIG as HeboEvalsConfig).providers![
-              ProviderType.HEBO
-            ].model,
-            ...parsedConfig.providers?.[ProviderType.HEBO],
-          },
+          ...DEFAULT_CONFIG.providers,
+          ...parsedConfig.providers,
         },
         embedding: {
           provider: ProviderType.OPENAI,
@@ -120,17 +147,53 @@ export class ConfigLoader {
   }
 
   /**
-   * Gets the API key for a provider from environment variables
+   * Validates a model-provider combination
+   * @param model The model name
    * @param provider The provider name
-   * @returns The API key or undefined if not found
+   * @throws Error if the combination is invalid
    */
-  private getApiKeyFromEnv(provider: string): string | undefined {
-    const envVarMap = {
-      [ProviderType.OPENAI]: 'OPENAI_API_KEY',
-      [ProviderType.HEBO]: 'HEBO_API_KEY',
-      [ProviderType.ANTHROPIC]: 'ANTHROPIC_API_KEY',
-    };
-    return process.env[envVarMap[provider as keyof typeof envVarMap]];
+  public validateModelProvider(model: string, provider: string): void {
+    const modelLower = model.toLowerCase();
+    const providerLower = provider.toLowerCase();
+
+    // Validate custom provider models
+    if (providerLower === 'custom') {
+      if (!modelLower.startsWith('custom-')) {
+        throw new Error(
+          `Configuration error: Custom provider models must start with 'custom-'. Received: ${model}`,
+        );
+      }
+      return;
+    }
+
+    // Validate OpenAI models
+    if (providerLower === 'openai') {
+      if (
+        !/^(gpt-|o\d+(?:-mini|-nano|-turbo|-high)?|text-|dall-e-|whisper-)/i.test(
+          modelLower,
+        )
+      ) {
+        throw new Error(
+          `Configuration error: OpenAI model '${model}' is not supported. Please refer to the OpenAI docs for valid model names.`,
+        );
+      }
+    }
+
+    // Validate Hebo models
+    if (providerLower === 'hebo') {
+      if (!modelLower.includes(':')) {
+        throw new Error(
+          `Configuration error: Hebo models must be in the format 'name:version' (e.g., 'gato:v1'). Received: ${model}`,
+        );
+      }
+    }
+
+    // Validate model-provider combination
+    if (modelLower.startsWith('gpt-') && providerLower !== 'openai') {
+      throw new Error(
+        `Configuration error: Model ${model} requires OpenAI provider, but ${provider} was specified`,
+      );
+    }
   }
 
   /**
@@ -141,6 +204,19 @@ export class ConfigLoader {
    */
   public getProviderConfig(provider: string): ProviderConfig {
     const providerKey = provider.toLowerCase();
+
+    // For custom providers, look for a provider that has provider: 'custom'
+    if (providerKey === 'custom') {
+      const customProvider = Object.entries(this.config.providers || {}).find(
+        ([_, config]) => config.provider === 'custom',
+      );
+      if (!customProvider) {
+        throw new Error(`Provider configuration not found: ${providerKey}`);
+      }
+      return customProvider[1];
+    }
+
+    // For other providers, look for exact match
     const providerConfig = this.config.providers?.[provider];
     if (!providerConfig) {
       throw new Error(`Provider configuration not found: ${providerKey}`);
@@ -216,7 +292,13 @@ export class ConfigLoader {
       const envApiKey = this.getApiKeyFromEnv(provider);
       if (!envApiKey) {
         throw new Error(
-          `API key not configured for provider: ${provider}. Please set the ${provider === ProviderType.OPENAI ? 'OPENAI_API_KEY' : provider === ProviderType.HEBO ? 'HEBO_API_KEY' : 'ANTHROPIC_API_KEY'} environment variable or provide it in the configuration file.`,
+          `API key not configured for provider: ${provider}. Please set the ${
+            provider === ProviderType.OPENAI
+              ? 'OPENAI_API_KEY'
+              : provider === ProviderType.HEBO
+                ? 'HEBO_API_KEY'
+                : 'ANTHROPIC_API_KEY'
+          } environment variable or provide it in the configuration file.`,
         );
       }
       providerConfig.apiKey = envApiKey;
@@ -239,10 +321,30 @@ export class ConfigLoader {
       const envApiKey = this.getApiKeyFromEnv(provider);
       if (!envApiKey) {
         throw new Error(
-          `API key not configured for embedding provider: ${provider}. Please set the ${provider === ProviderType.OPENAI ? 'OPENAI_API_KEY' : provider === ProviderType.HEBO ? 'HEBO_API_KEY' : 'ANTHROPIC_API_KEY'} environment variable or provide it in the configuration file.`,
+          `API key not configured for embedding provider: ${provider}. Please set the ${
+            provider === ProviderType.OPENAI
+              ? 'OPENAI_API_KEY'
+              : provider === ProviderType.HEBO
+                ? 'HEBO_API_KEY'
+                : 'ANTHROPIC_API_KEY'
+          } environment variable or provide it in the configuration file.`,
         );
       }
       embeddingConfig.apiKey = envApiKey;
     }
+  }
+
+  /**
+   * Gets the API key for a provider from environment variables
+   * @param provider The provider name
+   * @returns The API key or undefined if not found
+   */
+  private getApiKeyFromEnv(provider: string): string | undefined {
+    const envVarMap = {
+      [ProviderType.OPENAI]: 'OPENAI_API_KEY',
+      [ProviderType.HEBO]: 'HEBO_API_KEY',
+      [ProviderType.ANTHROPIC]: 'ANTHROPIC_API_KEY',
+    };
+    return process.env[envVarMap[provider as keyof typeof envVarMap]];
   }
 }

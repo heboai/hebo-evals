@@ -23,6 +23,7 @@ export function getProviderBaseUrl(provider: string): string {
       [ProviderType.OPENAI]: 'https://api.openai.com/v1',
       [ProviderType.HEBO]: 'https://app.hebo.ai',
       [ProviderType.ANTHROPIC]: 'https://api.anthropic.com',
+      [ProviderType.CUSTOM]: 'http://localhost:80', // Default URL for custom providers without path
     };
 
     const baseUrl = defaultUrls[normalizedProvider as keyof typeof defaultUrls];

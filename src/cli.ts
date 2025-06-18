@@ -11,11 +11,12 @@ import { EmbeddingConfig } from './embeddings/types/embedding.types.js';
 import { join } from 'path';
 import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
 import { IAgent } from './agents/interfaces/agent.interface.js';
-import { createAgent } from './agents/factory/agent.factory.js';
+import { AgentFactory } from './agents/factory/agent.factory.js';
 import { getProviderBaseUrl } from './utils/provider-config.js';
 import { ConfigLoader } from './config/config.loader.js';
 import { EmbeddingSystemConfig } from './embeddings/config/embedding.config.js';
 import { getProviderFromModel } from './utils/provider-mapping.js';
+import { ProviderType } from './config/types/config.types.js';
 
 /**
  * Main CLI entry point for Hebo Eval
@@ -24,16 +25,10 @@ import { getProviderFromModel } from './utils/provider-mapping.js';
 
 export const program = new Command();
 
-// Initialize configuration
+// Initialize configuration loader
 const configLoader = ConfigLoader.getInstance();
-
-// Try to load configuration from default location
-try {
-  const configPath = join(process.cwd(), 'hebo-evals.config.yaml');
-  configLoader.loadConfig(configPath);
-  Logger.debug('Configuration loaded from default location');
-} catch {
-  Logger.debug('No configuration file found in default location');
+if (!configLoader.isInitialized()) {
+  configLoader.initialize();
 }
 
 /**
@@ -70,7 +65,7 @@ program
 program
   .command('run')
   .description('Run an evaluation')
-  .argument('<agent>', 'The agent to evaluate (e.g., gpt-4, hebo-*, claude-*)')
+  .argument('<model>', 'The model to evaluate (e.g., gpt-4, hebo-*, claude-*)')
   .option('-c, --config <path>', 'Path to configuration file')
   .option(
     '-t, --threshold <number>',
@@ -89,7 +84,8 @@ program
     'Show verbose output including test results and provider information',
     false,
   )
-  .action(async (agent: string, options: RunCommandOptions) => {
+  .option('-k, --key <apiKey>', 'API key for authentication')
+  .action(async (model: string, options: RunCommandOptions) => {
     let heboAgent: IAgent | undefined;
     let embeddingProvider: IEmbeddingProvider | undefined;
     try {
@@ -98,47 +94,63 @@ program
         verbose: options.verbose,
       });
 
-      // Load custom configuration if provided
+      // If a custom config path is provided, load it
       if (options.config) {
-        configLoader.loadConfig(options.config);
-        Logger.debug(`Configuration loaded from ${options.config}`);
+        configLoader.initialize(options.config);
       }
 
       // Determine provider from model name
-      const { provider, modelName } = getProviderFromModel(agent);
-      const baseUrl = getProviderBaseUrl(provider);
+      const { provider, modelName } = getProviderFromModel(model);
 
-      // Validate provider configuration
-      configLoader.validateProviderConfig(provider);
-      const apiKey = configLoader.getProviderApiKey(provider);
+      // For custom providers, we need to get the provider name from the config
+      let providerName: string = provider;
+      if (provider === ProviderType.CUSTOM) {
+        const config = configLoader.getConfig();
+        const customProvider = Object.entries(config.providers || {}).find(
+          ([_, config]) => config.provider === ProviderType.CUSTOM,
+        );
+        if (!customProvider) {
+          throw new Error('No custom provider configuration found');
+        }
+        providerName = customProvider[0];
+      }
+
+      const baseUrl = getProviderBaseUrl(providerName);
 
       // Initialize agent using factory
       try {
-        heboAgent = createAgent({
+        heboAgent = await AgentFactory.createAgent({
           model: modelName,
           baseUrl,
-          provider,
+          provider: providerName,
+          configPath: options.config,
         });
 
-        // Validate agent initialization
+        // Initialize agent with configuration
         await heboAgent.initialize({
           model: modelName,
-          provider,
+          provider: providerName,
         });
+
+        // Get API key from command line options or configuration
+        const apiKey =
+          options.key || configLoader.getProviderApiKey(providerName);
+        if (!apiKey) {
+          throw new Error(
+            `API key not found. Please provide it using --key or set it in the configuration file.`,
+          );
+        }
+
+        // Authenticate agent
         await heboAgent.authenticate({ agentKey: apiKey });
       } catch (error) {
-        if (
-          error instanceof Error &&
-          error.message.includes('Configuration error')
-        ) {
-          throw new Error(error.message);
+        if (error instanceof Error) {
+          throw new Error(`Failed to initialize agent: ${error.message}`);
         }
-        throw new Error(
-          `Failed to initialize agent: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        throw error;
       }
 
-      // Initialize scoring service with embedding provider
+      // Get configuration from loader
       const config = configLoader.getConfig();
       const embeddingConfig = config.embedding;
 
@@ -148,26 +160,15 @@ program
         );
       }
 
-      // Ensure embedding configuration is complete
-      configLoader.validateEmbeddingConfig(embeddingConfig.provider);
-
-      // Convert EmbeddingConfig to EmbeddingSystemConfig
-      const embeddingSystemConfig: EmbeddingSystemConfig = {
-        defaultProvider: embeddingConfig.provider,
-        model: embeddingConfig.model,
-        baseUrl:
-          embeddingConfig.baseUrl ||
-          getProviderBaseUrl(embeddingConfig.provider),
-        apiKey: embeddingConfig.apiKey || '',
-      };
-
+      // Initialize embedding provider
       try {
-        // Convert EmbeddingSystemConfig to EmbeddingConfig
         const providerConfig: EmbeddingConfig = {
-          provider: embeddingSystemConfig.defaultProvider,
-          model: embeddingSystemConfig.model,
-          baseUrl: embeddingSystemConfig.baseUrl,
-          apiKey: embeddingSystemConfig.apiKey,
+          provider: embeddingConfig.provider,
+          model: embeddingConfig.model,
+          baseUrl:
+            embeddingConfig.baseUrl ||
+            getProviderBaseUrl(embeddingConfig.provider),
+          apiKey: embeddingConfig.apiKey || '',
         };
 
         embeddingProvider =
@@ -177,7 +178,7 @@ program
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         throw new Error(
-          `Configuration error: Failed to authenticate embedding provider: ${errorMessage}\n\nPlease check:\n1. Your embedding API key is correct and has not expired\n2. The provider (${embeddingSystemConfig.defaultProvider}) matches your API key\n3. The base URL (${embeddingSystemConfig.baseUrl}) is correct for your provider`,
+          `Configuration error: Failed to initialize embedding provider: ${errorMessage}\n\nPlease check:\n1. Your embedding API key is correct\n2. The provider (${embeddingConfig.provider}) matches your API key\n3. The base URL is correct for your provider`,
         );
       }
 
@@ -209,7 +210,7 @@ program
 
       if (options.verbose) {
         Logger.info(
-          `Running ${agent} (${provider}) with threshold ${threshold}`,
+          `Running ${model} (${providerName}) with threshold ${threshold}`,
         );
       }
 
