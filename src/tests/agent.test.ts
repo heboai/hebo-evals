@@ -1,5 +1,38 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { Agent } from '../agents/implementations/agent.js';
+import fs from 'fs';
+import path from 'path';
+
+const fixturesDir = path.join(__dirname, 'fixtures');
+const testConfigPath = path.join(fixturesDir, 'hebo-evals.config.test.yaml');
+
+// Create fixtures directory and test config if they don't exist
+if (!fs.existsSync(fixturesDir)) {
+  fs.mkdirSync(fixturesDir);
+}
+
+if (!fs.existsSync(testConfigPath)) {
+  fs.writeFileSync(
+    testConfigPath,
+    `providers:
+  openai:
+    apiKey: 'sk-test123456789012345678901234567890'
+  hebo:
+    apiKey: 'hebo_test_key_123456789012345678901234567890'
+  custom-hebo:
+    apiKey: 'custom_api_key_123456789012345678901234567890'
+    baseUrl: 'https://custom.api.com'
+`,
+  );
+}
+
+// Point the config loader to the test config
+process.env.HEBO_EVALS_CONFIG_PATH = testConfigPath;
+// Set dummy API keys for providers
+process.env.OPENAI_API_KEY = 'sk-test123456789012345678901234567890';
+process.env.HEBO_API_KEY = 'hebo_test_key_123456789012345678901234567890';
+process.env.CUSTOM_HEBO_API_KEY =
+  'custom_api_key_123456789012345678901234567890';
 
 describe('Agent', () => {
   describe('Configuration and Initialization', () => {
