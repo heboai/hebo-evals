@@ -11,12 +11,9 @@ import { EmbeddingConfig } from './embeddings/types/embedding.types.js';
 import { join } from 'path';
 import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
 import { IAgent } from './agents/interfaces/agent.interface.js';
-import { AgentFactory } from './agents/factory/agent.factory.js';
+import { Agent } from './agents/implementations/agent.js';
 import { getProviderBaseUrl } from './utils/provider-config.js';
 import { ConfigLoader } from './config/config.loader.js';
-import { EmbeddingSystemConfig } from './embeddings/config/embedding.config.js';
-import { getProviderFromModel } from './utils/provider-mapping.js';
-import { ProviderType } from './config/types/config.types.js';
 
 /**
  * Main CLI entry point for Hebo Eval
@@ -24,12 +21,6 @@ import { ProviderType } from './config/types/config.types.js';
  */
 
 export const program = new Command();
-
-// Initialize configuration loader
-const configLoader = ConfigLoader.getInstance();
-if (!configLoader.isInitialized()) {
-  configLoader.initialize();
-}
 
 /**
  * Interface for run command options
@@ -86,9 +77,15 @@ program
   )
   .option('-k, --key <apiKey>', 'API key for authentication')
   .action(async (model: string, options: RunCommandOptions) => {
-    let heboAgent: IAgent | undefined;
+    let agent: IAgent | undefined;
     let embeddingProvider: IEmbeddingProvider | undefined;
     try {
+      // Initialize configuration loader
+      const configLoader = ConfigLoader.getInstance();
+      if (!configLoader.isInitialized()) {
+        configLoader.initialize();
+      }
+
       // Configure logger verbosity
       Logger.configure({
         verbose: options.verbose,
@@ -99,56 +96,11 @@ program
         configLoader.initialize(options.config);
       }
 
-      // Determine provider from model name
-      const { provider, modelName } = getProviderFromModel(model);
-
-      // For custom providers, we need to get the provider name from the config
-      let providerName: string = provider;
-      if (provider === ProviderType.CUSTOM) {
-        const config = configLoader.getConfig();
-        const customProvider = Object.entries(config.providers || {}).find(
-          ([_, config]) => config.provider === ProviderType.CUSTOM,
-        );
-        if (!customProvider) {
-          throw new Error('No custom provider configuration found');
-        }
-        providerName = customProvider[0];
-      }
-
-      const baseUrl = getProviderBaseUrl(providerName);
-
-      // Initialize agent using factory
-      try {
-        heboAgent = await AgentFactory.createAgent({
-          model: modelName,
-          baseUrl,
-          provider: providerName,
-          configPath: options.config,
-        });
-
-        // Initialize agent with configuration
-        await heboAgent.initialize({
-          model: modelName,
-          provider: providerName,
-        });
-
-        // Get API key from command line options or configuration
-        const apiKey =
-          options.key || configLoader.getProviderApiKey(providerName);
-        if (!apiKey) {
-          throw new Error(
-            `API key not found. Please provide it using --key or set it in the configuration file.`,
-          );
-        }
-
-        // Authenticate agent
-        await heboAgent.authenticate({ agentKey: apiKey });
-      } catch (error) {
-        if (error instanceof Error) {
-          throw new Error(`Failed to initialize agent: ${error.message}`);
-        }
-        throw error;
-      }
+      // Create agent with simplified approach - all configuration logic is now in the constructor
+      agent = new Agent(model, {
+        apiKey: options.key,
+        configPath: options.config,
+      });
 
       // Get configuration from loader
       const config = configLoader.getConfig();
@@ -209,8 +161,9 @@ program
       };
 
       if (options.verbose) {
+        const agentConfig = agent.getConfig();
         Logger.info(
-          `Running ${model} (${providerName}) with threshold ${threshold}`,
+          `Running ${agentConfig.model} (${agentConfig.provider}) with threshold ${threshold}`,
         );
       }
 
@@ -219,7 +172,7 @@ program
 
       // Run evaluation
       await executor.evaluateFromDirectory(
-        heboAgent,
+        agent,
         join(process.cwd(), options.directory ?? 'examples'),
         options.stopOnError,
       );

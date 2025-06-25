@@ -1,7 +1,7 @@
 import { BaseMessage } from '../../core/types/message.types';
 
 /**
- * Represents the base configuration for an agent
+ * Simplified agent configuration
  */
 export interface AgentConfig {
   /**
@@ -9,6 +9,11 @@ export interface AgentConfig {
    * @example "gpt-4", "claude-2"
    */
   model: string;
+
+  /**
+   * The API key for authentication
+   */
+  apiKey: string;
 
   /**
    * The base URL for the agent's API
@@ -65,16 +70,4 @@ export interface AgentOutput {
     code?: string;
     details?: unknown;
   };
-}
-
-/**
- * Configuration for API key authentication
- */
-export interface AgentAuthConfig {
-  /**
-   * The API key to be used for authentication
-   */
-  agentKey: string;
-  headerName?: string;
-  headerFormat?: string;
 }

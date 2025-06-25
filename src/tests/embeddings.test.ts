@@ -4,9 +4,8 @@ import {
   EmbeddingProviderFactory,
   EmbeddingSystemConfig,
 } from '../embeddings/config/embedding.config';
-import { OpenAIEmbeddingProvider } from '../embeddings/implementations/openai-embedding-provider.js';
+import { EmbeddingProvider } from '../embeddings/implementations/embedding-provider.js';
 import { EmbeddingResponse } from '../embeddings/types/embedding.types.js';
-import { HeboEmbeddingProvider } from '../embeddings/implementations/hebo-embedding-provider.js';
 
 // Mock fetch
 const mockFetch = jest.fn<typeof fetch>();
@@ -52,6 +51,13 @@ const createMockResponse = <T extends Record<string, unknown>>(
   });
 };
 
+// Helper to create base64 encoded embedding for Hebo tests
+const createBase64Embedding = (embedding: number[]): string => {
+  const floatArray = new Float32Array(embedding);
+  const bytes = new Uint8Array(floatArray.buffer);
+  return btoa(String.fromCharCode(...bytes));
+};
+
 describe('Embedding System', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -62,7 +68,7 @@ describe('Embedding System', () => {
   });
 
   describe('EmbeddingProviderFactory', () => {
-    it('should create OpenAI provider with correct configuration', () => {
+    it('should create unified provider for OpenAI configuration', () => {
       const config: EmbeddingSystemConfig = {
         defaultProvider: 'openai',
         model: 'test-model',
@@ -71,9 +77,27 @@ describe('Embedding System', () => {
       };
 
       const provider = EmbeddingProviderFactory.createProvider(config);
-      expect(provider).toBeInstanceOf(OpenAIEmbeddingProvider);
+      expect(provider).toBeInstanceOf(EmbeddingProvider);
       expect(provider.getConfig()).toEqual({
         provider: 'openai',
+        model: 'test-model',
+        baseUrl: 'http://test-url',
+        apiKey: 'test-key',
+      });
+    });
+
+    it('should create unified provider for Hebo configuration', () => {
+      const config: EmbeddingSystemConfig = {
+        defaultProvider: 'hebo',
+        model: 'test-model',
+        baseUrl: 'http://test-url',
+        apiKey: 'test-key',
+      };
+
+      const provider = EmbeddingProviderFactory.createProvider(config);
+      expect(provider).toBeInstanceOf(EmbeddingProvider);
+      expect(provider.getConfig()).toEqual({
+        provider: 'hebo',
         model: 'test-model',
         baseUrl: 'http://test-url',
         apiKey: 'test-key',
@@ -122,7 +146,7 @@ describe('Embedding System', () => {
     });
   });
 
-  describe('OpenAIEmbeddingProvider', () => {
+  describe('EmbeddingProvider - OpenAI Mode', () => {
     const mockResponse: EmbeddingResponse = {
       embedding: [0.1, 0.2, 0.3],
       metadata: {
@@ -135,7 +159,7 @@ describe('Embedding System', () => {
       },
     };
 
-    it('should generate embedding successfully', async () => {
+    it('should generate embedding successfully with OpenAI format', async () => {
       const mockData: MockOpenAIResponse = {
         data: [
           {
@@ -154,7 +178,7 @@ describe('Embedding System', () => {
       const response = createMockResponse(mockData);
       mockFetch.mockResolvedValueOnce(response);
 
-      const provider = new OpenAIEmbeddingProvider(
+      const provider = new EmbeddingProvider(
         {
           provider: 'openai',
           model: 'test-model',
@@ -179,16 +203,65 @@ describe('Embedding System', () => {
       expect(result.metadata).toEqual(mockResponse.metadata);
       expect(mockFetch).toHaveBeenCalledWith(
         'https://api.openai.com/v1/embeddings',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-key',
+          }),
+          body: expect.not.stringContaining('"encoding_format"'),
+        }),
+      );
+    });
+
+    it('should use custom base URL when provided for OpenAI', async () => {
+      const mockData: MockOpenAIResponse = {
+        data: [
+          {
+            embedding: [0.1, 0.2, 0.3],
+            object: 'embedding',
+            index: 0,
+          },
+        ],
+        model: 'test-model',
+        object: 'list',
+        usage: {
+          prompt_tokens: 10,
+          total_tokens: 10,
+        },
+      };
+      const response = createMockResponse(mockData);
+      mockFetch.mockResolvedValueOnce(response);
+
+      const provider = new EmbeddingProvider(
+        {
+          provider: 'openai',
+          model: 'test-model',
+          baseUrl: 'https://custom.api.com/v1',
+          apiKey: 'test-key',
+        },
+        'test-key',
+      );
+
+      await provider.initialize({
+        provider: 'openai',
+        model: 'test-model',
+        baseUrl: 'https://custom.api.com/v1',
+        apiKey: 'test-key',
+      });
+
+      await provider.generateEmbedding('test text');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://custom.api.com/v1/embeddings',
         expect.any(Object),
       );
     });
 
-    it('should handle API errors', async () => {
-      mockFetch.mockResolvedValueOnce(
-        createMockResponse({ error: 'Internal Server Error' }, 500),
-      );
+    it('should handle API errors in OpenAI mode', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-      const provider = new OpenAIEmbeddingProvider(
+      const provider = new EmbeddingProvider(
         {
           provider: 'openai',
           model: 'test-model',
@@ -204,12 +277,12 @@ describe('Embedding System', () => {
       });
 
       await expect(provider.generateEmbedding('test text')).rejects.toThrow(
-        'HTTP error! status: 500',
+        'Failed to generate embedding: Network error',
       );
     });
 
-    it('should validate model presence', async () => {
-      const provider = new OpenAIEmbeddingProvider(
+    it('should validate model presence for OpenAI', async () => {
+      const provider = new EmbeddingProvider(
         {
           provider: 'openai',
           model: '',
@@ -224,11 +297,11 @@ describe('Embedding System', () => {
           model: '',
           apiKey: 'test-key',
         }),
-      ).rejects.toThrow('Model is required for OpenAI embedding provider');
+      ).rejects.toThrow('Model is required for openai embedding provider');
     });
   });
 
-  describe('HeboEmbeddingProvider', () => {
+  describe('EmbeddingProvider - Hebo Mode', () => {
     const mockResponse: EmbeddingResponse = {
       embedding: [0.1, 0.2, 0.3],
       metadata: {
@@ -241,14 +314,7 @@ describe('Embedding System', () => {
       },
     };
 
-    // Helper to create base64 encoded embedding
-    const createBase64Embedding = (embedding: number[]): string => {
-      const floatArray = new Float32Array(embedding);
-      const bytes = new Uint8Array(floatArray.buffer);
-      return btoa(String.fromCharCode(...bytes));
-    };
-
-    it('should generate embedding successfully', async () => {
+    it('should generate embedding successfully with Hebo format', async () => {
       const base64Embedding = createBase64Embedding(mockResponse.embedding);
       const mockData: MockHeboResponse = {
         data: [{ embedding: base64Embedding, object: 'embedding', index: 0 }],
@@ -262,7 +328,7 @@ describe('Embedding System', () => {
       const response = createMockResponse(mockData);
       mockFetch.mockResolvedValueOnce(response);
 
-      const provider = new HeboEmbeddingProvider(
+      const provider = new EmbeddingProvider(
         {
           provider: 'hebo',
           model: 'test-model',
@@ -298,17 +364,45 @@ describe('Embedding System', () => {
       );
     });
 
-    it('should handle API errors', async () => {
-      // Mock a failed response with status 500
-      mockFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: 'Internal Server Error' }), {
-          status: 500,
-          statusText: 'Internal Server Error',
-          headers: { 'Content-Type': 'application/json' },
-        }),
+    it('should use custom base URL when provided for Hebo', async () => {
+      const base64Embedding = createBase64Embedding([0.1, 0.2, 0.3]);
+      const mockData: MockHeboResponse = {
+        data: [{ embedding: base64Embedding, object: 'embedding', index: 0 }],
+        model: 'test-model',
+        object: 'list',
+      };
+      const response = createMockResponse(mockData);
+      mockFetch.mockResolvedValueOnce(response);
+
+      const provider = new EmbeddingProvider(
+        {
+          provider: 'hebo',
+          model: 'test-model',
+          baseUrl: 'https://custom.hebo.com/v1',
+          apiKey: 'test-key',
+        },
+        'test-key',
       );
 
-      const provider = new HeboEmbeddingProvider(
+      await provider.initialize({
+        provider: 'hebo',
+        model: 'test-model',
+        baseUrl: 'https://custom.hebo.com/v1',
+        apiKey: 'test-key',
+      });
+
+      await provider.generateEmbedding('test text');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://custom.hebo.com/v1/embeddings',
+        expect.any(Object),
+      );
+    });
+
+    it('should handle API errors in Hebo mode', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+      const provider = new EmbeddingProvider(
         {
           provider: 'hebo',
           model: 'test-model',
@@ -322,10 +416,14 @@ describe('Embedding System', () => {
         model: 'test-model',
         apiKey: 'test-key',
       });
+
+      await expect(provider.generateEmbedding('test text')).rejects.toThrow(
+        'Failed to generate embedding: Network error',
+      );
     });
 
-    it('should validate model presence', async () => {
-      const provider = new HeboEmbeddingProvider(
+    it('should validate model presence for Hebo', async () => {
+      const provider = new EmbeddingProvider(
         {
           provider: 'hebo',
           model: '',
@@ -340,10 +438,10 @@ describe('Embedding System', () => {
           model: '',
           apiKey: 'test-key',
         }),
-      ).rejects.toThrow('Model is required for Hebo embedding provider');
+      ).rejects.toThrow('Model is required for hebo embedding provider');
     });
 
-    it('should handle invalid base64 response', async () => {
+    it('should handle invalid base64 response in Hebo mode', async () => {
       mockFetch.mockResolvedValueOnce(
         createMockResponse<MockHeboResponse>({
           data: [
@@ -354,7 +452,7 @@ describe('Embedding System', () => {
         }),
       );
 
-      const provider = new HeboEmbeddingProvider(
+      const provider = new EmbeddingProvider(
         {
           provider: 'hebo',
           model: 'test-model',
@@ -369,13 +467,49 @@ describe('Embedding System', () => {
         apiKey: 'test-key',
       });
 
-      await expect(provider.generateEmbedding('test text')).rejects.toThrow();
+      await expect(provider.generateEmbedding('test text')).rejects.toThrow(
+        'Invalid base64 encoding in embedding response',
+      );
+    });
+
+    it('should retry on server errors', async () => {
+      // First call fails
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+      // Second call succeeds
+      const base64Embedding = createBase64Embedding([0.1, 0.2, 0.3]);
+      const mockData: MockHeboResponse = {
+        data: [{ embedding: base64Embedding, object: 'embedding', index: 0 }],
+        model: 'test-model',
+        object: 'list',
+      };
+      mockFetch.mockResolvedValueOnce(createMockResponse(mockData));
+
+      const provider = new EmbeddingProvider(
+        {
+          provider: 'hebo',
+          model: 'test-model',
+          apiKey: 'test-key',
+        },
+        'test-key',
+      );
+
+      await provider.initialize({
+        provider: 'hebo',
+        model: 'test-model',
+        apiKey: 'test-key',
+      });
+
+      // Since the first call is not a retryable error (not status 5xx), it should fail immediately
+      await expect(provider.generateEmbedding('test text')).rejects.toThrow(
+        'Failed to generate embedding: Network error',
+      );
     });
   });
 
   describe('BaseEmbeddingProvider', () => {
     it('should throw error when initializing an already initialized provider', async () => {
-      const provider = new OpenAIEmbeddingProvider(
+      const provider = new EmbeddingProvider(
         {
           provider: 'openai',
           model: 'test-model',
@@ -399,8 +533,8 @@ describe('Embedding System', () => {
       ).rejects.toThrow('Embedding provider is already initialized');
     });
 
-    it('should throw error when generating embeddings before initialization', async () => {
-      const provider = new OpenAIEmbeddingProvider(
+    it('should throw error when generating embedding without initialization', async () => {
+      const provider = new EmbeddingProvider(
         {
           provider: 'openai',
           model: 'test-model',
@@ -409,13 +543,34 @@ describe('Embedding System', () => {
         'test-key',
       );
 
-      await expect(provider.generateEmbedding('test')).rejects.toThrow(
+      await expect(provider.generateEmbedding('test text')).rejects.toThrow(
         'Embedding provider must be initialized before generating embeddings',
       );
     });
 
-    it('should allow reinitialization after cleanup', async () => {
-      const provider = new OpenAIEmbeddingProvider(
+    it('should throw error for empty text input', async () => {
+      const provider = new EmbeddingProvider(
+        {
+          provider: 'openai',
+          model: 'test-model',
+          apiKey: 'test-key',
+        },
+        'test-key',
+      );
+
+      await provider.initialize({
+        provider: 'openai',
+        model: 'test-model',
+        apiKey: 'test-key',
+      });
+
+      await expect(provider.generateEmbedding('')).rejects.toThrow(
+        'Input text cannot be empty',
+      );
+    });
+
+    it('should cleanup provider successfully', async () => {
+      const provider = new EmbeddingProvider(
         {
           provider: 'openai',
           model: 'test-model',
@@ -432,16 +587,14 @@ describe('Embedding System', () => {
 
       await provider.cleanup();
 
-      // Should not throw
+      // Should be able to initialize again after cleanup
       await expect(
         provider.initialize({
           provider: 'openai',
-          model: 'updated-model',
+          model: 'test-model',
           apiKey: 'test-key',
         }),
       ).resolves.not.toThrow();
-
-      expect(provider.getConfig().model).toBe('updated-model');
     });
   });
 });

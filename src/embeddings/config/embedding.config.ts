@@ -1,10 +1,5 @@
-import {
-  EmbeddingConfig,
-  OpenAIEmbeddingConfig,
-  HeboEmbeddingConfig,
-} from '../types/embedding.types.js';
-import { OpenAIEmbeddingProvider } from '../implementations/openai-embedding-provider.js';
-import { HeboEmbeddingProvider } from '../implementations/hebo-embedding-provider.js';
+import { EmbeddingConfig } from '../types/embedding.types.js';
+import { EmbeddingProvider } from '../implementations/embedding-provider.js';
 import { IEmbeddingProvider } from '../interfaces/embedding-provider.interface.js';
 
 /**
@@ -60,22 +55,9 @@ export class EmbeddingProviderFactory {
       );
     }
 
-    switch (provider) {
-      case 'openai':
-        return new OpenAIEmbeddingProvider(
-          providerConfig as OpenAIEmbeddingConfig,
-          config.apiKey,
-        );
-      case 'hebo':
-        return new HeboEmbeddingProvider(
-          providerConfig as HeboEmbeddingConfig,
-          config.apiKey,
-        );
-      default:
-        throw new Error(
-          `Configuration error: Unsupported provider: ${String(provider)}`,
-        );
-    }
+    // Use the unified provider for both OpenAI and Hebo
+    // since Hebo embeddings are just OpenAI embeddings with different URL/auth
+    return new EmbeddingProvider(providerConfig, config.apiKey);
   }
 
   /**

@@ -1,5 +1,5 @@
 /**
- * Base configuration for embedding providers
+ * Configuration for embedding providers
  */
 export interface EmbeddingConfig {
   /**
@@ -16,7 +16,7 @@ export interface EmbeddingConfig {
 
   /**
    * Base URL for the embedding API
-   * @default "https://api.openai.com/v1" for OpenAI, "https://api.hebo.ai/v1" for Hebo, "https://api.hebo.ai/v1" for Hebo
+   * @default "https://api.openai.com/v1" for OpenAI, "https://api.hebo.ai/v1" for Hebo
    */
   baseUrl?: string;
 
@@ -24,30 +24,6 @@ export interface EmbeddingConfig {
    * API key for the embedding provider
    */
   apiKey: string;
-}
-
-/**
- * Configuration specific to OpenAI embedding provider
- */
-export interface OpenAIEmbeddingConfig extends EmbeddingConfig {
-  provider: 'openai';
-  /**
-   * The OpenAI model to use
-   * @example "text-embedding-3-small", "text-embedding-3-large"
-   */
-  model: string;
-}
-
-/**
- * Configuration specific to Hebo embedding provider
- */
-export interface HeboEmbeddingConfig extends EmbeddingConfig {
-  provider: 'hebo';
-  /**
-   * The Hebo model to use
-   * @example "text-embedding-3-small", "text-embedding-3-large"
-   */
-  model: string;
 }
 
 /**

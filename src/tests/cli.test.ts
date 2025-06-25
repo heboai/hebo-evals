@@ -1,20 +1,26 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Command } from 'commander';
 import { version } from '../utils/package-info.js';
+import { Agent } from '../agents/implementations/agent.js';
 import {
-  UnifiedAgent,
-  UnifiedAgentConfig,
-} from '../agents/implementations/unified-agent.js';
-import { AgentAuthConfig } from '../agents/index.js';
-import { MessageRole } from '../core/types/message.types.js';
+  AgentConfig,
+  AgentInput,
+  AgentOutput,
+} from '../agents/types/agent.types.js';
 
 // Mock external dependencies
-jest.mock('../agents/implementations/unified-agent.js', () => ({
-  UnifiedAgent: jest.fn().mockImplementation(() => ({
-    initialize: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
-    authenticate: jest
-      .fn<(authConfig: AgentAuthConfig) => Promise<void>>()
-      .mockResolvedValue(undefined),
+jest.mock('../agents/implementations/agent.js', () => ({
+  Agent: jest.fn().mockImplementation(() => ({
+    getConfig: jest.fn<() => AgentConfig>(() => ({
+      model: 'test-model',
+      provider: 'hebo',
+      apiKey: 'test-key',
+    })),
+    sendInput: jest
+      .fn<(input: AgentInput) => Promise<AgentOutput>>()
+      .mockResolvedValue({
+        response: 'test response',
+      }),
     cleanup: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
   })),
 }));
@@ -69,28 +75,27 @@ describe('CLI Commands', () => {
   });
 
   describe('run command', () => {
-    let mockInitialize: jest.Mock<() => Promise<void>>;
-    let mockAuthenticate: jest.Mock<
-      (authConfig: AgentAuthConfig) => Promise<void>
-    >;
+    let mockGetConfig: jest.Mock<() => AgentConfig>;
+    let mockSendInput: jest.Mock<(input: AgentInput) => Promise<AgentOutput>>;
     let mockCleanup: jest.Mock<() => Promise<void>>;
 
     beforeEach(() => {
-      mockInitialize = jest
-        .fn<() => Promise<void>>()
-        .mockResolvedValue(undefined);
-      mockAuthenticate = jest
-        .fn<(authConfig: AgentAuthConfig) => Promise<void>>()
-        .mockResolvedValue(undefined);
+      mockGetConfig = jest.fn<() => AgentConfig>(() => ({
+        model: 'test-model',
+        provider: 'hebo',
+        apiKey: 'test-key',
+      }));
+      mockSendInput = jest
+        .fn<(input: AgentInput) => Promise<AgentOutput>>()
+        .mockResolvedValue({ response: 'test response' });
       mockCleanup = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
 
       // Update the mock instance's methods
-      const mockInstance = new UnifiedAgent({
-        model: 'test-model',
-        provider: 'hebo',
+      const mockInstance = new Agent('gpt-4', {
+        apiKey: 'sk-test123456789012345678901234567890',
       });
-      mockInstance.initialize = mockInitialize;
-      mockInstance.authenticate = mockAuthenticate;
+      mockInstance.getConfig = mockGetConfig;
+      mockInstance.sendInput = mockSendInput;
       mockInstance.cleanup = mockCleanup;
 
       // Configure the run command
@@ -157,20 +162,20 @@ describe('CLI Commands', () => {
 });
 
 describe('CLI Integration', () => {
-  let agent: UnifiedAgent;
-  const config: UnifiedAgentConfig = {
-    model: 'gato-qa:v1',
-    provider: 'hebo',
-  };
+  let agent: Agent;
 
   beforeEach(() => {
-    agent = new UnifiedAgent(config);
+    agent = new Agent('gato-qa:v1', {
+      apiKey: 'test-key',
+    });
   });
 
   describe('Agent Configuration', () => {
     it('should initialize with correct model and provider', () => {
-      expect(agent['config'].model).toBe('gato-qa:v1');
-      expect(agent['config'].provider).toBe('hebo');
+      const agentConfig = agent.getConfig();
+      expect(agentConfig.model).toBe('gato-qa:v1');
+      expect(agentConfig.provider).toBe('hebo');
+      expect(agentConfig.apiKey).toBe('test-key');
     });
   });
 });

@@ -14,7 +14,7 @@ providers:
   hebo:
     provider: hebo
     baseUrl: https://app.hebo.ai
-    apiKey: ${HEBO_API_KEY} # Will be replaced with the value of HEBО_API_KEY environment variable
+    apiKey: ${HEBO_API_KEY} # Will be replaced with the value of HEBO_API_KEY environment variable
     authHeader:
       name: Authorization
       format: Bearer ${HEBO_API_KEY}
