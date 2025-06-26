@@ -1,38 +1,48 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { Agent } from '../agents/implementations/agent.js';
-import fs from 'fs';
-import path from 'path';
+import { jest } from '@jest/globals';
+import { ConfigLoader } from '../config/config.loader.js';
 
-const fixturesDir = path.join(__dirname, 'fixtures');
-const testConfigPath = path.join(fixturesDir, 'hebo-evals.config.test.yaml');
+// Mock ConfigLoader to avoid file system and fixture usage in tests
+const dummyConfig: {
+  providers: Record<
+    string,
+    { apiKey: string; provider: string; model: string; baseUrl?: string }
+  >;
+} = {
+  providers: {
+    openai: {
+      apiKey: 'sk-test123456789012345678901234567890',
+      provider: 'openai',
+      model: 'gpt-4',
+    },
+    hebo: {
+      apiKey: 'hebo_test_key_123456789012345678901234567890',
+      provider: 'hebo',
+      model: 'gato-qa:v1',
+    },
+    'custom-hebo': {
+      apiKey: 'custom_api_key_123456789012345678901234567890',
+      provider: 'custom',
+      model: 'custom-model',
+      baseUrl: 'https://custom.api.com',
+    },
+  },
+};
 
-// Create fixtures directory and test config if they don't exist
-if (!fs.existsSync(fixturesDir)) {
-  fs.mkdirSync(fixturesDir);
-}
-
-if (!fs.existsSync(testConfigPath)) {
-  fs.writeFileSync(
-    testConfigPath,
-    `providers:
-  openai:
-    apiKey: 'sk-test123456789012345678901234567890'
-  hebo:
-    apiKey: 'hebo_test_key_123456789012345678901234567890'
-  custom-hebo:
-    apiKey: 'custom_api_key_123456789012345678901234567890'
-    baseUrl: 'https://custom.api.com'
-`,
-  );
-}
-
-// Point the config loader to the test config
-process.env.HEBO_EVALS_CONFIG_PATH = testConfigPath;
-// Set dummy API keys for providers
-process.env.OPENAI_API_KEY = 'sk-test123456789012345678901234567890';
-process.env.HEBO_API_KEY = 'hebo_test_key_123456789012345678901234567890';
-process.env.CUSTOM_HEBO_API_KEY =
-  'custom_api_key_123456789012345678901234567890';
+const mockGetInstance = jest.spyOn(ConfigLoader, 'getInstance');
+const mockConfigLoader = {
+  isInitialized: jest.fn(() => true),
+  initialize: jest.fn(),
+  getConfig: jest.fn(() => dummyConfig),
+  getProviderApiKey: jest.fn(
+    (provider) => dummyConfig.providers[String(provider)]?.apiKey,
+  ),
+  getProviderBaseUrl: jest.fn(
+    (provider) => dummyConfig.providers[String(provider)]?.baseUrl,
+  ),
+};
+mockGetInstance.mockReturnValue(mockConfigLoader as unknown as ConfigLoader);
 
 describe('Agent', () => {
   describe('Configuration and Initialization', () => {
