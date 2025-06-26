@@ -107,6 +107,15 @@ export class EmbeddingProvider extends BaseEmbeddingProvider {
 
       try {
         const buffer = Buffer.from(embedding, 'base64');
+
+        // Validate buffer alignment for Float32Array construction
+        if (buffer.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
+          throw new Error(
+            `Buffer alignment error: buffer.byteLength (${buffer.byteLength}) is not divisible by Float32Array.BYTES_PER_ELEMENT (${Float32Array.BYTES_PER_ELEMENT}). ` +
+              `This indicates improper buffer alignment that would cause runtime errors during Float32Array construction.`,
+          );
+        }
+
         const floatArray = new Float32Array(
           buffer.buffer,
           buffer.byteOffset,
