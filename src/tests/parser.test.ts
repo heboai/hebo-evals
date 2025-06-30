@@ -205,24 +205,18 @@ user: How are you?`;
         expect(result.messageBlocks[0]).toEqual({
           role: MessageRole.USER,
           content: 'Hello',
-          toolUsages: [],
-          toolResponses: [],
         });
 
         // Second message
         expect(result.messageBlocks[1]).toEqual({
           role: MessageRole.ASSISTANT,
           content: 'Hi there',
-          toolUsages: [],
-          toolResponses: [],
         });
 
         // Third message
         expect(result.messageBlocks[2]).toEqual({
           role: MessageRole.USER,
           content: 'How are you?',
-          toolUsages: [],
-          toolResponses: [],
         });
       });
 
@@ -237,8 +231,6 @@ assistant: Hi there`;
         expect(result.messageBlocks[0]).toEqual({
           role: MessageRole.SYSTEM,
           content: 'You are a helpful assistant',
-          toolUsages: [],
-          toolResponses: [],
         });
       });
 
@@ -268,24 +260,18 @@ It's rainy in New York, NY, today, with a temperature of 59°F, 80% precipitatio
         expect(result.messageBlocks[0]).toEqual({
           role: MessageRole.USER,
           content: 'hello',
-          toolUsages: [],
-          toolResponses: [],
         });
 
         // Second message
         expect(result.messageBlocks[1]).toEqual({
           role: MessageRole.ASSISTANT,
           content: 'hello how can I help you?',
-          toolUsages: [],
-          toolResponses: [],
         });
 
         // Third message
         expect(result.messageBlocks[2]).toEqual({
           role: MessageRole.USER,
           content: 'can you please search the weather in new york for me?',
-          toolUsages: [],
-          toolResponses: [],
         });
 
         // Fourth message (merged)
@@ -293,8 +279,6 @@ It's rainy in New York, NY, today, with a temperature of 59°F, 80% precipitatio
           role: MessageRole.ASSISTANT,
           content:
             "sure\nIt's rainy in New York, NY, today, with a temperature of 59°F, 80% precipitation, 96% humidity, and light 2 mph winds. Be prepared for wet conditions!",
-          toolUsages: [],
-          toolResponses: [],
         });
       });
 

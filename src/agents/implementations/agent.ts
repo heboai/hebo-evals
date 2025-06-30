@@ -1,11 +1,10 @@
 import { AgentConfig, AgentInput, AgentOutput } from '../types/agent.types.js';
 import { IAgent } from '../interfaces/agent.interface.js';
 import { Logger } from '../../utils/logger.js';
-import { MessageRole } from '../../core/types/message.types.js';
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 import { getProviderFromModel } from '../../utils/provider-mapping.js';
-import { getProviderBaseUrl } from '../../utils/provider-config.js';
+import { getProviderBaseUrl } from '../../config/utils/provider-config.js';
 import { ConfigLoader } from '../../config/config.loader.js';
 import { ProviderType } from '../../config/types/config.types.js';
 
@@ -152,19 +151,10 @@ export class Agent implements IAgent {
    */
   async sendInput(input: AgentInput): Promise<AgentOutput> {
     try {
-      // Convert messages to the format expected by Vercel AI SDK
-      const messages = input.messages.map((msg) => ({
-        role:
-          msg.role === MessageRole.USER
-            ? ('user' as const)
-            : ('assistant' as const),
-        content: msg.content,
-      }));
-
       // Use the OpenAI Responses API via Vercel AI SDK
       const result = await generateText({
         model: this.provider.responses(this.config.model),
-        messages,
+        messages: input.messages,
         temperature: 1.0,
       });
 
@@ -173,13 +163,8 @@ export class Agent implements IAgent {
         metadata: {
           model: this.config.model,
           provider: this.config.provider,
-          usage: result.usage
-            ? {
-                prompt_tokens: result.usage.promptTokens,
-                completion_tokens: result.usage.completionTokens,
-                total_tokens: result.usage.totalTokens,
-              }
-            : undefined,
+          usage: result.usage,
+          response: result.response,
         },
       };
     } catch (error) {

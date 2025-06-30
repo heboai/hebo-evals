@@ -1,11 +1,8 @@
 import { TestCaseParser } from './tokenizer.js';
-import {
-  MessageRole,
-  BaseMessage,
-  TestCase,
-} from '../core/types/message.types.js';
+import { MessageRole, TestCase } from '../core/types/message.types.js';
 import { roleMapper } from '../core/utils/role-mapper.js';
 import { ParseError } from './errors.js';
+import type { CoreMessage } from 'ai';
 
 /**
  * Parser for test case text files
@@ -57,6 +54,48 @@ export class Parser {
   }
 
   /**
+   * Creates a CoreMessage based on the role
+   */
+  private createCoreMessage(role: MessageRole, content: string): CoreMessage {
+    switch (role) {
+      case MessageRole.USER:
+        return {
+          role: 'user',
+          content,
+        };
+      case MessageRole.ASSISTANT:
+        return {
+          role: 'assistant',
+          content,
+        };
+      case MessageRole.SYSTEM:
+        return {
+          role: 'system',
+          content,
+        };
+      case MessageRole.TOOL:
+      case MessageRole.FUNCTION:
+        return {
+          role: 'tool',
+          content: [],
+        };
+      case MessageRole.HUMAN_AGENT:
+      case MessageRole.DEVELOPER:
+        // Map human_agent and developer to assistant for compatibility
+        return {
+          role: 'assistant',
+          content,
+        };
+      default:
+        // Default to user for unknown roles
+        return {
+          role: 'user',
+          content,
+        };
+    }
+  }
+
+  /**
    * Parses a test case from text
    * @param text The text to parse
    * @param name The name of the test case
@@ -68,9 +107,11 @@ export class Parser {
     // Remove title if present (supports both # and ## for h1 and h2)
     const cleanText = text.replace(/^#{1,2}\s*.+$/m, '').trim();
     const elements = this.parser.tokenize(cleanText);
-    const messageBlocks: BaseMessage[] = [];
-    let currentBlock: BaseMessage | null = null;
+    const messageBlocks: CoreMessage[] = [];
+    let currentRole: MessageRole | null = null;
     let currentContent: string[] = [];
+    let toolUsageLines: string[] = [];
+    let toolResponseLines: string[] = [];
 
     for (let i = 0; i < elements.length; i++) {
       const element = elements[i];
@@ -78,27 +119,30 @@ export class Parser {
       switch (element.type) {
         case 'role': {
           // Save previous block if exists
-          if (currentBlock) {
-            if (currentContent.length > 0) {
-              currentBlock.content = currentContent.join('\n');
-              currentContent = [];
+          if (currentRole !== null) {
+            let content = currentContent.join('\n');
+
+            // Append tool usage and response information to content for formatting
+            if (toolUsageLines.length > 0) {
+              content += '\n' + toolUsageLines.join('\n');
             }
-            messageBlocks.push(currentBlock);
+            if (toolResponseLines.length > 0) {
+              content += '\n' + toolResponseLines.join('\n');
+            }
+
+            messageBlocks.push(this.createCoreMessage(currentRole, content));
+            currentContent = [];
+            toolUsageLines = [];
+            toolResponseLines = [];
           }
 
           // Start new block
-          const role = this.parseRole(element.value);
-          currentBlock = {
-            role,
-            content: '',
-            toolUsages: [],
-            toolResponses: [],
-          };
+          currentRole = this.parseRole(element.value);
           break;
         }
 
         case 'content': {
-          if (!currentBlock) {
+          if (currentRole === null) {
             throw new ParseError('Content found without a role');
           }
           // Preserve content exactly as is
@@ -107,69 +151,43 @@ export class Parser {
         }
 
         case 'tool_use': {
-          if (!currentBlock) {
+          if (currentRole === null) {
             throw new ParseError('Tool use found without a role');
           }
 
-          // Parse tool usage and args from the combined value
-          const toolValue = element.value;
-          const argsMatch = toolValue.match(/^(.*?)\s*args:\s*(.*)$/i);
-
-          if (!argsMatch) {
-            throw new ParseError(
-              'Tool use must include args in format: "name args: {...}"',
-            );
-          }
-
-          const toolName = argsMatch[1].trim();
-          const args = argsMatch[2].trim();
-
-          // Validate that args is valid JSON
-          let parsedArgs: Record<string, unknown>;
-          try {
-            const parsed = JSON.parse(args) as unknown;
-            if (typeof parsed !== 'object' || parsed === null) {
-              throw new Error('Tool args must be a valid object');
-            }
-            parsedArgs = parsed as Record<string, unknown>;
-          } catch (e: unknown) {
-            const errorMessage =
-              e instanceof Error ? e.message : 'Invalid JSON';
-            throw new ParseError(
-              `Tool args must be valid JSON: ${errorMessage}`,
-            );
-          }
-
-          if (!currentBlock.toolUsages) {
-            currentBlock.toolUsages = [];
-          }
-          currentBlock.toolUsages.push({
-            name: toolName,
-            args: JSON.stringify(parsedArgs).replace(/"([^"]+)":/g, '"$1": '), // Add space after colon only
-          });
+          // Store tool usage as a line for later inclusion in content
+          toolUsageLines.push(`tool use: ${element.value}`);
           break;
         }
 
         case 'tool_response': {
-          if (!currentBlock) {
+          if (currentRole === null) {
             throw new ParseError('Tool response found without a role');
           }
 
-          if (!currentBlock.toolResponses) {
-            currentBlock.toolResponses = [];
-          }
-          currentBlock.toolResponses.push({ content: element.value });
+          // Store tool response as a line for later inclusion in content
+          toolResponseLines.push(`tool response: ${element.value}`);
           break;
         }
       }
     }
 
     // Add the last block if exists
-    if (currentBlock) {
+    if (currentRole !== null) {
+      let content = '';
       if (currentContent.length > 0) {
-        currentBlock.content = currentContent.join('\n');
+        content = currentContent.join('\n');
       }
-      messageBlocks.push(currentBlock);
+
+      // Append tool usage and response information to content for formatting
+      if (toolUsageLines.length > 0) {
+        content += '\n' + toolUsageLines.join('\n');
+      }
+      if (toolResponseLines.length > 0) {
+        content += '\n' + toolResponseLines.join('\n');
+      }
+
+      messageBlocks.push(this.createCoreMessage(currentRole, content));
     }
 
     // Validate the test case structure
@@ -201,7 +219,7 @@ export class Parser {
    * @param messageBlocks The message blocks to validate
    * @throws ParseError if validation fails
    */
-  private validateTestCase(messageBlocks: BaseMessage[]): void {
+  private validateTestCase(messageBlocks: CoreMessage[]): void {
     if (messageBlocks.length === 0) {
       throw new ParseError('Test case must contain at least one message');
     }
@@ -209,7 +227,7 @@ export class Parser {
     // Validate that system messages only appear at the start
     let foundNonSystemMessage = false;
     for (const block of messageBlocks) {
-      if (block.role === MessageRole.SYSTEM) {
+      if (block.role === 'system') {
         if (foundNonSystemMessage) {
           throw new ParseError(
             'System messages must appear at the start of the conversation',

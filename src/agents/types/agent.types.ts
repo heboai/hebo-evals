@@ -1,7 +1,11 @@
-import { BaseMessage } from '../../core/types/message.types';
+import type {
+  CoreMessage,
+  LanguageModelUsage,
+  LanguageModelResponseMetadata,
+} from 'ai';
 
 /**
- * Simplified agent configuration
+ * Simplified agent configuration using Vercel AI SDK types
  */
 export interface AgentConfig {
   /**
@@ -34,16 +38,18 @@ export interface AgentConfig {
 
 /**
  * Represents the input that can be sent to an agent
+ * Uses Vercel AI SDK CoreMessage type for consistency
  */
 export interface AgentInput {
   /**
    * List of messages to send to the agent
    */
-  messages: BaseMessage[];
+  messages: CoreMessage[];
 }
 
 /**
  * Represents the output received from an agent
+ * Uses Vercel AI SDK types for metadata and usage
  */
 export interface AgentOutput {
   /**
@@ -52,17 +58,14 @@ export interface AgentOutput {
   response: string;
 
   /**
-   * Optional metadata about the response
+   * Optional metadata about the response using Vercel AI SDK types
    */
   metadata?: {
     model?: string;
     provider?: string;
     id?: string;
-    usage?: {
-      prompt_tokens?: number;
-      completion_tokens?: number;
-      total_tokens?: number;
-    };
+    usage?: LanguageModelUsage;
+    response?: LanguageModelResponseMetadata;
   };
 
   error?: {

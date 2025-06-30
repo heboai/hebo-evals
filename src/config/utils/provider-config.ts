@@ -2,8 +2,8 @@
  * Provider-specific configuration utilities
  */
 
-import { ConfigLoader } from '../config/config.loader.js';
-import { ProviderType } from '../config/types/config.types.js';
+import { ConfigLoader } from '../config.loader.js';
+import { ProviderType } from '../types/config.types.js';
 
 /**
  * Gets the base URL for a given provider

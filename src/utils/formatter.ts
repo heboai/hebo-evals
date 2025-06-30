@@ -1,4 +1,5 @@
-import { TestCase, BaseMessage } from '../core/types/message.types.js';
+import { TestCase } from '../core/types/message.types.js';
+import type { CoreMessage } from 'ai';
 
 /**
  * Formats a test case as plain text, showing roles, content, tool usages, and tool responses.
@@ -15,24 +16,12 @@ export const formatTestCasePlain = (testCase: TestCase): string => {
  * @param block The message block to format
  * @returns The formatted string
  */
-const formatMessageBlockPlain = (block: BaseMessage): string => {
+const formatMessageBlockPlain = (block: CoreMessage): string => {
   const lines: string[] = [];
+
   // Show the role as it would appear in the test case file
-  lines.push(`${block.role.replace(/_/g, ' ')}: ${block.content}`.trim());
-
-  // Show tool usages (if any)
-  if (block.toolUsages && block.toolUsages.length > 0) {
-    for (const usage of block.toolUsages) {
-      lines.push(`tool use: ${usage.name} args: ${usage.args}`);
-    }
-  }
-
-  // Show tool responses (if any)
-  if (block.toolResponses && block.toolResponses.length > 0) {
-    for (const response of block.toolResponses) {
-      lines.push(`tool response: ${response.content}`);
-    }
-  }
+  const roleDisplay = block.role === 'tool' ? 'tool' : block.role;
+  lines.push(`${roleDisplay}: ${block.content}`.trim());
 
   return lines.join('\n');
 };

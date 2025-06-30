@@ -12,7 +12,7 @@ import { join } from 'path';
 import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
 import { IAgent } from './agents/interfaces/agent.interface.js';
 import { Agent } from './agents/implementations/agent.js';
-import { getProviderBaseUrl } from './utils/provider-config.js';
+import { getProviderBaseUrl } from './config/utils/provider-config.js';
 import { ConfigLoader } from './config/config.loader.js';
 
 /**
@@ -34,7 +34,6 @@ interface RunCommandOptions {
   maxConcurrency: string;
   verbose: boolean;
   provider?: string;
-  key?: string;
 }
 
 /**
@@ -56,7 +55,10 @@ program
 program
   .command('run')
   .description('Run an evaluation')
-  .argument('<model>', 'The model to evaluate (e.g., gpt-4, hebo-*, claude-*)')
+  .argument(
+    '<model>',
+    'The model to evaluate (e.g., gpt-*, claude-*, gato-qa:v1)',
+  )
   .option('-c, --config <path>', 'Path to configuration file')
   .option(
     '-t, --threshold <number>',
@@ -75,7 +77,6 @@ program
     'Show verbose output including test results and provider information',
     false,
   )
-  .option('-k, --key <apiKey>', 'API key for authentication')
   .action(async (model: string, options: RunCommandOptions) => {
     let agent: IAgent | undefined;
     let embeddingProvider: IEmbeddingProvider | undefined;
@@ -96,9 +97,8 @@ program
         configLoader.initialize(options.config);
       }
 
-      // Create agent with simplified approach - all configuration logic is now in the constructor
+      // Create agent - API key will be loaded from configuration
       agent = new Agent(model, {
-        apiKey: options.key,
         configPath: options.config,
       });
 

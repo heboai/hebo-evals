@@ -193,9 +193,20 @@ export class EvaluationExecutor {
 
       // Calculate semantic similarity score
       Logger.debug('Calculating similarity score');
+
+      // Extract text content from CoreMessage
+      const expectedContent =
+        typeof expectedResponse.content === 'string'
+          ? expectedResponse.content
+          : Array.isArray(expectedResponse.content)
+            ? expectedResponse.content
+                .map((part) => (part.type === 'text' ? part.text : ''))
+                .join('')
+            : '';
+
       const score = await this.scoringService.scoreStrings(
         response.response.trim(),
-        expectedResponse.content.trim(),
+        expectedContent.trim(),
       );
 
       // Consider it a success if score is above threshold (0.8 by default)
