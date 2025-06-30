@@ -21,7 +21,18 @@ const formatMessageBlockPlain = (block: CoreMessage): string => {
 
   // Show the role as it would appear in the test case file
   const roleDisplay = block.role === 'tool' ? 'tool' : block.role;
-  lines.push(`${roleDisplay}: ${block.content}`.trim());
+
+  // Extract text content from CoreMessage, handling different content types
+  const contentText =
+    typeof block.content === 'string'
+      ? block.content
+      : Array.isArray(block.content)
+        ? block.content
+            .map((part) => (part.type === 'text' ? part.text : ''))
+            .join('')
+        : '';
+
+  lines.push(`${roleDisplay}: ${contentText}`.trim());
 
   return lines.join('\n');
 };
