@@ -27,7 +27,7 @@ export const program = new Command();
  * Interface for run command options
  */
 interface RunCommandOptions {
-  directory?: string;
+  directory: string;
   config?: string;
   threshold: string;
   format: string;
@@ -61,6 +61,11 @@ program
     'The model to evaluate (e.g., gpt-*, claude-*, gato-qa:v1)',
   )
   .option('-c, --config <path>', 'Path to configuration file')
+  .option(
+    '-d, --directory <path>',
+    'Directory containing test cases (default: examples)',
+    'examples',
+  )
   .option(
     '-t, --threshold <number>',
     'Score threshold for passing (0-1)',
