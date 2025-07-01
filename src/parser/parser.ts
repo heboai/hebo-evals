@@ -75,9 +75,11 @@ export class Parser {
         };
       case MessageRole.TOOL:
       case MessageRole.FUNCTION:
+        // Convert tool messages to assistant messages for evaluation compatibility
+        // since we're using them to represent tool usage/responses as text
         return {
-          role: 'tool',
-          content: content || '',
+          role: 'assistant',
+          content,
         };
       case MessageRole.HUMAN_AGENT:
       case MessageRole.DEVELOPER:
