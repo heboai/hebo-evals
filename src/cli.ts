@@ -14,6 +14,7 @@ import { IAgent } from './agents/interfaces/agent.interface.js';
 import { Agent } from './agents/implementations/agent.js';
 import { getProviderBaseUrl } from './config/utils/provider-config.js';
 import { ConfigLoader } from './config/config.loader.js';
+import { access } from 'fs/promises';
 
 /**
  * Main CLI entry point for Hebo Eval
@@ -167,13 +168,26 @@ program
         );
       }
 
+      // Check if the examples directory exists
+      const examplesDirectory = join(
+        process.cwd(),
+        options.directory ?? 'examples',
+      );
+      try {
+        await access(examplesDirectory);
+      } catch {
+        throw new Error(
+          `Examples directory not found: ${examplesDirectory}\n\nPlease create an 'examples' directory with test case files (.txt or .md) or specify a different directory using the --directory option.`,
+        );
+      }
+
       // Initialize evaluation executor
       const executor = new EvaluationExecutor(scoringService, evaluationConfig);
 
       // Run evaluation
       await executor.evaluateFromDirectory(
         agent,
-        join(process.cwd(), options.directory ?? 'examples'),
+        examplesDirectory,
         options.stopOnError,
       );
 

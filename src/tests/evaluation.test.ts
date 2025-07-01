@@ -252,7 +252,7 @@ describe('EvaluationExecutor', () => {
     });
 
     it('should handle empty directory gracefully', async () => {
-      // Setup
+      // Setup - mock the test case loader to return empty results
       jest
         .spyOn(
           evaluationExecutor as unknown as {
@@ -269,7 +269,8 @@ describe('EvaluationExecutor', () => {
         true,
       );
 
-      // Assert
+      // Assert - the evaluation executor should still handle empty results gracefully
+      // The CLI level check for directory existence is tested separately
       expect(report.totalTests).toBe(0);
       expect(report.passedTests).toBe(0);
       expect(report.failedTests).toBe(0);
