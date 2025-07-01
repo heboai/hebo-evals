@@ -77,7 +77,7 @@ export class Parser {
       case MessageRole.FUNCTION:
         return {
           role: 'tool',
-          content: [],
+          content: content || '',
         };
       case MessageRole.HUMAN_AGENT:
       case MessageRole.DEVELOPER:
