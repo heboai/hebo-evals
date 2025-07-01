@@ -1,46 +1,55 @@
-import { BaseMessage } from '../../core/types/message.types';
+import type {
+  CoreMessage,
+  LanguageModelUsage,
+  LanguageModelResponseMetadata,
+} from 'ai';
 
 /**
- * Represents the base configuration for an agent
+ * Simplified agent configuration using Vercel AI SDK types
  */
 export interface AgentConfig {
   /**
    * The model to use for the agent
-   * @example "myfirstagent:next", "myfirstagent:v1"
+   * @example "gpt-4", "claude-2"
    */
   model: string;
 
   /**
-   * The provider to use for the agent
-   * @example "hebo", "openai"
+   * The API key for authentication
    */
-  provider: string;
+  apiKey: string;
 
   /**
    * The base URL for the agent's API
-   * @example "https://api.hebo.ai", "https://api.openai.com/v1"
+   * @example "https://api.openai.com/v1"
    */
   baseUrl?: string;
 
   /**
-   * The API key for the agent
-   * @example "sk-...", "hebo-..."
+   * Optional path to a custom configuration file
    */
-  apiKey?: string;
+  configPath?: string;
+
+  /**
+   * The provider for the agent
+   */
+  provider: string;
 }
 
 /**
  * Represents the input that can be sent to an agent
+ * Uses Vercel AI SDK CoreMessage type for consistency
  */
 export interface AgentInput {
   /**
    * List of messages to send to the agent
    */
-  messages: BaseMessage[];
+  messages: CoreMessage[];
 }
 
 /**
  * Represents the output received from an agent
+ * Uses Vercel AI SDK types for metadata and usage
  */
 export interface AgentOutput {
   /**
@@ -49,43 +58,19 @@ export interface AgentOutput {
   response: string;
 
   /**
-   * Optional metadata about the response
+   * Optional metadata about the response using Vercel AI SDK types
    */
-  metadata?: Record<string, unknown>;
+  metadata?: {
+    model?: string;
+    provider?: string;
+    id?: string;
+    usage?: LanguageModelUsage;
+    response?: LanguageModelResponseMetadata;
+  };
 
-  /**
-   * Optional error information if the request failed
-   */
   error?: {
     message: string;
     code?: string;
     details?: unknown;
   };
 }
-
-/**
- * Configuration for API key authentication
- */
-export interface ApiKeyAuthConfig {
-  /**
-   * The API key to be used for authentication
-   */
-  agentKey: string;
-
-  /**
-   * The header name where the API key should be sent
-   * @default 'Authorization'
-   */
-  headerName?: string;
-
-  /**
-   * The format of the API key in the header
-   * @default 'Bearer {apiKey}'
-   */
-  headerFormat?: string;
-}
-
-/**
- * Represents the authentication configuration for an agent
- */
-export type AgentAuthConfig = ApiKeyAuthConfig;

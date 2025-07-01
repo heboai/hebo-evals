@@ -6,14 +6,15 @@ import { ScoringService } from './scoring/scoring.service.js';
 import { EvaluationExecutor } from './evaluation/evaluation-executor.js';
 import { EvaluationConfig } from './evaluation/types/evaluation.types.js';
 import { Logger } from './utils/logger.js';
-import { EmbeddingProviderFactory } from './embeddings/config/embedding.config.js';
-import { readFileSync } from 'fs';
+import { EmbeddingProviderFactory } from './embeddings/factory/embedding-provider.factory.js';
 import { EmbeddingConfig } from './embeddings/types/embedding.types.js';
 import { join } from 'path';
 import { IEmbeddingProvider } from './embeddings/interfaces/embedding-provider.interface.js';
 import { IAgent } from './agents/interfaces/agent.interface.js';
-import { createAgent } from './agents/factory/agent.factory.js';
-import { getProviderBaseUrl } from './utils/provider-config.js';
+import { Agent } from './agents/implementations/agent.js';
+import { getProviderBaseUrl } from './config/utils/provider-config.js';
+import { ConfigLoader } from './config/config.loader.js';
+import { access } from 'fs/promises';
 
 /**
  * Main CLI entry point for Hebo Eval
@@ -26,42 +27,14 @@ export const program = new Command();
  * Interface for run command options
  */
 interface RunCommandOptions {
-  directory?: string;
+  directory: string;
   config?: string;
   threshold: string;
   format: string;
   stopOnError: boolean;
   maxConcurrency: string;
   verbose: boolean;
-}
-
-/**
- * Interface for cli config
- */
-interface CliConfig {
-  embedding: EmbeddingConfig;
-  agent: {
-    agentKey: string;
-    provider: string;
-  };
-}
-
-/**
- * Loads configuration from a file
- * @param configPath Path to the configuration file
- * @returns The loaded configuration
- */
-function loadConfig(configPath: string): CliConfig {
-  try {
-    const resolvedPath = join(process.cwd(), configPath);
-    const configContent = readFileSync(resolvedPath, 'utf-8');
-    const parsed = JSON.parse(configContent) as CliConfig;
-    return parsed;
-  } catch (error: unknown) {
-    const errorMessage = `Failed to load config from ${configPath}: ${error instanceof Error ? error.message : String(error)}`;
-    Logger.error(errorMessage);
-    throw new Error(errorMessage);
-  }
+  provider?: string;
 }
 
 /**
@@ -81,10 +54,18 @@ program
   });
 
 program
-  .command('run <agent>')
-  .description('Run evaluation on an agent')
-  .option('-d, --directory <path>', 'Directory containing test cases')
+  .command('run')
+  .description('Run an evaluation')
+  .argument(
+    '<model>',
+    'The model to evaluate (e.g., gpt-*, claude-*, gato-qa:v1)',
+  )
   .option('-c, --config <path>', 'Path to configuration file')
+  .option(
+    '-d, --directory <path>',
+    'Directory containing test cases (default: examples)',
+    'examples',
+  )
   .option(
     '-t, --threshold <number>',
     'Score threshold for passing (0-1)',
@@ -102,198 +83,125 @@ program
     'Show verbose output including test results and provider information',
     false,
   )
-  .action(async (agent: string, options: RunCommandOptions) => {
-    let heboAgent: IAgent | undefined;
+  .action(async (model: string, options: RunCommandOptions) => {
+    let agent: IAgent | undefined;
     let embeddingProvider: IEmbeddingProvider | undefined;
     try {
+      // Initialize configuration loader
+      const configLoader = ConfigLoader.getInstance();
+      if (!configLoader.isInitialized()) {
+        configLoader.initialize();
+      }
+
       // Configure logger verbosity
       Logger.configure({
         verbose: options.verbose,
       });
 
-      // Load configuration from file, environment, or defaults
-      let config;
+      // If a custom config path is provided, load it
       if (options.config) {
-        config = loadConfig(options.config);
+        configLoader.initialize(options.config);
+      }
 
-        // Validate agent configuration
-        if (!config.agent?.agentKey) {
-          throw new Error(
-            'Configuration error: Agent API key is required in config file',
-          );
-        }
+      // Create agent - API key will be loaded from configuration
+      agent = new Agent(model, {
+        configPath: options.config,
+      });
 
-        // Validate embedding configuration
-        if (!config.embedding?.provider) {
-          throw new Error(
-            'Configuration error: Embedding provider is required in config file',
-          );
-        }
-        if (!config.embedding?.apiKey) {
-          throw new Error(
-            'Configuration error: Embedding API key is required in config file',
-          );
-        }
-        if (!config.embedding?.model) {
-          throw new Error(
-            'Configuration error: Embedding model is required in config file',
-          );
-        }
-      } else {
-        // Load from environment variables
-        config = {
-          embedding: EmbeddingProviderFactory.loadFromEnv(),
-          agent: {
-            agentKey: process.env.HEBO_AGENT_API_KEY,
-            provider: process.env.HEBO_AGENT_PROVIDER || 'hebo', // Default to hebo if not specified
-          },
+      // Get configuration from loader
+      const config = configLoader.getConfig();
+      const embeddingConfig = config.embedding;
+
+      if (!embeddingConfig) {
+        throw new Error(
+          'Configuration error: Embedding configuration is required',
+        );
+      }
+
+      // Initialize embedding provider
+      try {
+        const providerConfig: EmbeddingConfig = {
+          provider: embeddingConfig.provider,
+          model: embeddingConfig.model,
+          baseUrl:
+            embeddingConfig.baseUrl ||
+            getProviderBaseUrl(embeddingConfig.provider),
+          apiKey: embeddingConfig.apiKey || '',
         };
 
-        //Validate embedding configuration
-        if (!config.embedding || Object.keys(config.embedding).length === 0) {
-          Logger.warn(
-            'Configuration warning: No embedding configuration found in environment variables',
-          );
-        }
-      }
-      // Validate required configuration
-      if (
-        !config.agent ||
-        !('agentKey' in config.agent) ||
-        !config.agent.agentKey
-      ) {
-        throw new Error(
-          'Configuration error: HEBO_AGENT_API_KEY or HEBO_API_KEY environment variable or config file is required',
-        );
-      }
-
-      // Initialize agent using factory
-      try {
-        heboAgent = createAgent({
-          model: agent,
-          baseUrl: getProviderBaseUrl(config.agent.provider),
-          provider: config.agent.provider,
-        });
-
-        // Validate agent initialization
-        await heboAgent.initialize({
-          model: agent,
-          provider: config.agent.provider,
-        });
-        await heboAgent.authenticate({ agentKey: config.agent.agentKey });
+        embeddingProvider =
+          EmbeddingProviderFactory.createProvider(providerConfig);
+        await embeddingProvider.initialize(providerConfig);
       } catch (error) {
-        if (
-          error instanceof Error &&
-          error.message.includes('Configuration error')
-        ) {
-          throw new Error(error.message);
-        }
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         throw new Error(
-          `Failed to initialize agent: ${error instanceof Error ? error.message : String(error)}`,
+          `Configuration error: Failed to initialize embedding provider: ${errorMessage}\n\nPlease check:\n1. Your embedding API key is correct\n2. The provider (${embeddingConfig.provider}) matches your API key\n3. The base URL is correct for your provider`,
         );
       }
 
-      // Initialize scoring service with embedding provider
-      let embeddingSystemConfig;
-      if ('defaultProvider' in config.embedding) {
-        // Already an EmbeddingSystemConfig
-        embeddingSystemConfig = config.embedding;
-      } else if ('provider' in config.embedding) {
-        // Convert EmbeddingConfig to EmbeddingSystemConfig
-        embeddingSystemConfig = {
-          defaultProvider: config.embedding.provider,
-          model: config.embedding.model,
-          baseUrl: config.embedding.baseUrl,
-          apiKey: config.embedding.apiKey,
-        };
-      } else {
-        throw new Error(
-          'Configuration error: Invalid embedding configuration: missing provider information',
-        );
-      }
-
-      // Validate embedding provider initialization
-      try {
-        embeddingProvider = EmbeddingProviderFactory.createProvider(
-          embeddingSystemConfig,
-        );
-        await embeddingProvider.initialize({
-          provider: embeddingSystemConfig.defaultProvider,
-          model: embeddingSystemConfig.model,
-          baseUrl: embeddingSystemConfig.baseUrl,
-          apiKey: embeddingSystemConfig.apiKey,
-        });
-
-        // Test embedding provider with a simple request
-        try {
-          await embeddingProvider.generateEmbedding('test');
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          if (errorMessage.includes('401')) {
-            throw new Error(
-              `Configuration error: Failed to authenticate embedding provider: ${errorMessage}\n\nPlease check:\n1. Your embedding API key is correct and has not expired\n2. The provider (${embeddingSystemConfig.defaultProvider}) matches your API key\n3. The base URL (${embeddingSystemConfig.baseUrl}) is correct for your provider`,
-            );
-          }
-          throw new Error(
-            `Configuration error: Failed to authenticate embedding provider: ${errorMessage}`,
-          );
-        }
-      } catch (error) {
-        throw new Error(
-          `Configuration error: Failed to initialize embedding provider: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-
-      // Create scoring service only after both services are initialized
+      // Initialize scoring service
       const scoringService = new ScoringService(embeddingProvider);
 
-      // Validate evaluation configuration
-      const threshold = Number(options.threshold);
-      const maxConcurrency = Number(options.maxConcurrency);
+      // Parse threshold
+      const threshold = parseFloat(options.threshold);
       if (isNaN(threshold) || threshold < 0 || threshold > 1) {
         throw new Error(
           'Configuration error: `--threshold` must be a number between 0 and 1',
         );
       }
-      if (!Number.isInteger(maxConcurrency) || maxConcurrency <= 0) {
+
+      // Parse max concurrency
+      const maxConcurrency = parseInt(options.maxConcurrency, 10);
+      if (isNaN(maxConcurrency) || maxConcurrency < 1) {
         throw new Error(
-          'Configuration error: `--max-concurrency` must be a positive integer',
+          'Configuration error: `--max-concurrency` must be a positive number',
         );
       }
-      const evalConfig: EvaluationConfig = {
+
+      // Create evaluation config
+      const evaluationConfig: EvaluationConfig = {
         threshold,
         outputFormat: options.format as 'json' | 'markdown' | 'text',
         maxConcurrency,
       };
 
-      // Only show configuration in verbose mode
       if (options.verbose) {
+        const agentConfig = agent.getConfig();
         Logger.info(
-          `Running ${agent} (${config.agent.provider}) with threshold ${options.threshold}`,
+          `Running ${agentConfig.model} (${agentConfig.provider}) with threshold ${threshold}`,
         );
       }
 
-      // Create and run evaluation
-      const executor = new EvaluationExecutor(scoringService, evalConfig);
+      // Check if the examples directory exists
+      const examplesDirectory = join(
+        process.cwd(),
+        options.directory ?? 'examples',
+      );
+      try {
+        await access(examplesDirectory);
+      } catch {
+        throw new Error(
+          `Examples directory not found: ${examplesDirectory}\n\nPlease create an 'examples' directory with test case files (.txt or .md) or specify a different directory using the --directory option.`,
+        );
+      }
+
+      // Initialize evaluation executor
+      const executor = new EvaluationExecutor(scoringService, evaluationConfig);
+
+      // Run evaluation
       await executor.evaluateFromDirectory(
-        heboAgent,
-        options.directory || join(process.cwd(), 'examples'),
-        options.stopOnError || false,
+        agent,
+        examplesDirectory,
+        options.stopOnError,
       );
 
       Logger.info('Evaluation completed');
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      Logger.error(errorMessage);
+      Logger.error(
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+      );
       process.exit(1);
-    } finally {
-      // Always attempt to free resources
-      await Promise.allSettled([
-        heboAgent?.cleanup?.(),
-        embeddingProvider?.cleanup?.(),
-      ]);
     }
   });
 

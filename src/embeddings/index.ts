@@ -1,13 +1,10 @@
-// Types
-export * from './types/embedding.types';
-
-// Interfaces
+// Core interfaces and types
 export * from './interfaces/embedding-provider.interface';
 export * from './interfaces/base-embedding-provider';
+export * from './types/embedding.types';
 
-// Implementations
-export * from './implementations/openai-embedding-provider';
-export * from './implementations/hebo-embedding-provider';
+// Implementations - unified provider handles OpenAI-compatible APIs
+export * from './implementations/embedding-provider';
 
-// Configuration
+// Configuration and factory
 export * from './config/embedding.config';

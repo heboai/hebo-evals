@@ -5,4 +5,4 @@
 
 export * from './types/agent.types';
 export * from './interfaces/agent.interface';
-export * from './interfaces/base-agent';
+export * from './implementations/agent';

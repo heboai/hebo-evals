@@ -1,3 +1,5 @@
+import type { CoreMessage } from 'ai';
+
 /**
  * Base role types for messages
  *
@@ -38,39 +40,13 @@ export enum MessageRole {
 }
 
 /**
- * Base tool usage type
- */
-export interface ToolUsage {
-  name: string;
-  /**
-   * Arguments for the tool as a JSON string
-   * Example: "{\"operation\": \"add\", \"numbers\": [2, 2]}"
-   */
-  args: string;
-}
-
-/**
- * Base tool response type
- */
-export interface ToolResponse {
-  content: string;
-}
-
-/**
- * Base message interface that can be extended
- */
-export interface BaseMessage {
-  role: MessageRole;
-  content: string;
-  toolUsages?: ToolUsage[];
-  toolResponses?: ToolResponse[];
-}
-
-/**
- * Test case definition
+ * Test case definition using Vercel AI SDK CoreMessage type
  */
 export interface TestCase {
   id: string;
   name: string;
-  messageBlocks: BaseMessage[];
+  messageBlocks: CoreMessage[];
 }
+
+// Re-export CoreMessage as BaseMessage for backward compatibility during migration
+export type BaseMessage = CoreMessage;
