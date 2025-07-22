@@ -61,8 +61,16 @@ export class Parser {
       testCaseText = text.slice(metadataMatch[0].length);
     }
 
-    // Split test cases by lines starting with '# '
-    const testCaseSections = testCaseText.split(/^# /m).filter((t) => t.trim());
+    // Only split on test case headers at the start of the file or after a blank line
+    let normalizedText = testCaseText;
+    if (normalizedText.startsWith('# ')) {
+      normalizedText = '__SPLIT__' + normalizedText;
+    }
+    normalizedText = normalizedText.replace(/(?:\r?\n){2,}# /g, '__SPLIT__# ');
+    const testCaseSections = normalizedText
+      .split('__SPLIT__')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
     if (testCaseSections.length === 0) {
       throw new ParseError('No test cases found in file');
     }
@@ -70,8 +78,17 @@ export class Parser {
     return testCaseSections.map((section) => {
       // The first line is the test case name (title)
       const lines = section.split(/\r?\n/);
-      const title = lines[0].trim();
-      const body = lines.slice(1).join('\n').trim();
+      let title = lines[0].trim();
+      // Remove leading '# ' if present (from split logic)
+      if (title.startsWith('# ')) {
+        title = title.slice(2).trim();
+      }
+      // If the next line after the title is empty, skip it (to match test expectation)
+      let bodyLines = lines.slice(1);
+      if (bodyLines.length > 0 && bodyLines[0].trim() === '') {
+        bodyLines = bodyLines.slice(1);
+      }
+      const body = bodyLines.join('\n').trim();
       const fullId = `${hierarchicalId}/${title}`;
       // Parse the test case body
       const testCase = this.parse(body, title, fullId);
@@ -84,50 +101,6 @@ export class Parser {
   }
 
   /**
-   * Creates a CoreMessage based on the role
-   */
-  private createCoreMessage(role: MessageRole, content: string): CoreMessage {
-    switch (role) {
-      case MessageRole.USER:
-        return {
-          role: 'user',
-          content,
-        };
-      case MessageRole.ASSISTANT:
-        return {
-          role: 'assistant',
-          content,
-        };
-      case MessageRole.SYSTEM:
-        return {
-          role: 'system',
-          content,
-        };
-      case MessageRole.TOOL:
-      case MessageRole.FUNCTION:
-        // Convert tool messages to assistant messages for evaluation compatibility
-        // since we're using them to represent tool usage/responses as text
-        return {
-          role: 'assistant',
-          content,
-        };
-      case MessageRole.HUMAN_AGENT:
-      case MessageRole.DEVELOPER:
-        // Map human_agent and developer to assistant for compatibility
-        return {
-          role: 'assistant',
-          content,
-        };
-      default:
-        // Default to user for unknown roles
-        return {
-          role: 'user',
-          content,
-        };
-    }
-  }
-
-  /**
    * Parses a test case from text
    * @param text The text to parse
    * @param name The name of the test case
@@ -136,8 +109,15 @@ export class Parser {
    * @throws ParseError if parsing fails
    */
   public parse(text: string, name: string, id: string = name): TestCase {
-    // Remove title if present (supports both # and ## for h1 and h2)
-    const cleanText = text.replace(/^#{1,2}\s*.+$/m, '').trim();
+    // Only remove the first line if it is a title (starts with # or ##), preserve all other Markdown headers
+    let cleanText = text;
+    const lines = text.split(/\r?\n/);
+    if (lines.length > 0 && /^#{1,2}\s*.+$/.test(lines[0])) {
+      cleanText = lines.slice(1).join('\n').trim();
+    } else {
+      cleanText = text.trim();
+    }
+
     const elements = this.parser.tokenize(cleanText);
     const messageBlocks: CoreMessage[] = [];
     let currentRole: MessageRole | null = null;
@@ -177,7 +157,7 @@ export class Parser {
           if (currentRole === null) {
             throw new ParseError('Content found without a role');
           }
-          // Preserve content exactly as is
+          // Merge all content for the current role, preserving blank lines and Markdown
           currentContent.push(element.value);
           break;
         }
@@ -229,6 +209,22 @@ export class Parser {
       id,
       name,
       messageBlocks,
+    };
+  }
+
+  /**
+   * Creates a CoreMessage based on the role
+   */
+  private createCoreMessage(role: MessageRole, content: string): CoreMessage {
+    // Preserve all whitespace exactly as in the original content
+    return {
+      role:
+        role === MessageRole.USER
+          ? 'user'
+          : role === MessageRole.SYSTEM
+            ? 'system'
+            : 'assistant',
+      content: content,
     };
   }
 

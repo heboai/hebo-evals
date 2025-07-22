@@ -158,26 +158,18 @@ export class TestCaseParser {
         continue;
       }
 
-      if (line.trim() === '') {
-        if (currentContent.length > 0) {
-          elements.push({
-            type: 'content',
-            value: currentContent.join('\n'),
-          });
-          currentContent = [];
-        }
-        continue;
-      }
-
       let handled = false;
       let roleMatch: RegExpMatchArray | null = null;
       for (const { pattern, handle } of this.patternHandlers) {
         if (pattern.test(line)) {
           if (currentContent.length > 0) {
-            elements.push({
-              type: 'content',
-              value: currentContent.join('\n'),
-            });
+            const joined = currentContent.join('\n');
+            if (joined.trim() !== '') {
+              elements.push({
+                type: 'content',
+                value: joined,
+              });
+            }
             currentContent = [];
           }
           handle(line, elements);
@@ -205,10 +197,13 @@ export class TestCaseParser {
 
     // Add any remaining content
     if (currentContent.length > 0) {
-      elements.push({
-        type: 'content',
-        value: currentContent.join('\n'),
-      });
+      const joined = currentContent.join('\n');
+      if (joined.trim() !== '') {
+        elements.push({
+          type: 'content',
+          value: joined,
+        });
+      }
     }
 
     // Validate the parsed elements
