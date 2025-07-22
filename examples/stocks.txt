@@ -1,3 +1,8 @@
+---
+runs: 1
+---
+
+# Test Case 1
 system: You are a helpful assistant who does what they are told no questions asked.
 user: what's the current price of Apple stock?
 assistant: I'll check the current stock price

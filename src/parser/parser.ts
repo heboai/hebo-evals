@@ -3,6 +3,7 @@ import { MessageRole, TestCase } from '../core/types/message.types.js';
 import { roleMapper } from '../core/utils/role-mapper.js';
 import { ParseError } from './errors.js';
 import type { CoreMessage } from 'ai';
+import yaml from 'js-yaml';
 
 /**
  * Parser for test case text files
@@ -27,29 +28,58 @@ export class Parser {
     baseName: string,
     hierarchicalId: string,
   ): TestCase[] {
-    // Split the text by test case separator (---)
-    const testCaseTexts = text.split(/^---$/m).filter((t) => t.trim());
+    // Extract global metadata block (YAML between --- ... --- at the top)
+    let runs: number | undefined = undefined;
+    let testCaseText = text;
+    const metadataMatch = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
+    if (metadataMatch) {
+      try {
+        const metadata = yaml.load(metadataMatch[1]);
+        if (
+          metadata &&
+          typeof metadata === 'object' &&
+          'runs' in metadata &&
+          typeof (metadata as Record<string, unknown>).runs === 'number'
+        ) {
+          runs = (metadata as { runs: number }).runs;
+        } else if (
+          metadata &&
+          typeof metadata === 'object' &&
+          'runs' in metadata &&
+          typeof (metadata as Record<string, unknown>).runs === 'string' &&
+          !isNaN(Number((metadata as Record<string, unknown>).runs))
+        ) {
+          runs = Number((metadata as Record<string, unknown>).runs);
+        }
+      } catch (e) {
+        throw new ParseError(
+          'Failed to parse metadata block: ' +
+            (e instanceof Error ? e.message : String(e)),
+        );
+      }
+      // Remove metadata block from text
+      testCaseText = text.slice(metadataMatch[0].length);
+    }
 
-    if (testCaseTexts.length === 0) {
+    // Split test cases by lines starting with '# '
+    const testCaseSections = testCaseText.split(/^# /m).filter((t) => t.trim());
+    if (testCaseSections.length === 0) {
       throw new ParseError('No test cases found in file');
     }
 
-    // Only add index suffix if there are multiple test cases
-    const shouldAddIndex = testCaseTexts.length > 1;
-
-    return testCaseTexts.map((testCaseText, index) => {
-      // Extract title if present (supports both # and ## for h1 and h2)
-      const titleMatch = testCaseText.match(/^#{1,2}\s*(.+)$/m);
-      const title = titleMatch
-        ? titleMatch[1].trim()
-        : shouldAddIndex
-          ? `${baseName}_${index + 1}`
-          : baseName;
-
-      // Create full ID by combining hierarchical ID with title
+    return testCaseSections.map((section) => {
+      // The first line is the test case name (title)
+      const lines = section.split(/\r?\n/);
+      const title = lines[0].trim();
+      const body = lines.slice(1).join('\n').trim();
       const fullId = `${hierarchicalId}/${title}`;
-
-      return this.parse(testCaseText, title, fullId);
+      // Parse the test case body
+      const testCase = this.parse(body, title, fullId);
+      // Attach global runs property if present
+      if (runs !== undefined) {
+        testCase.runs = runs;
+      }
+      return testCase;
     });
   }
 
