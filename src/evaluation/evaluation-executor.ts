@@ -57,8 +57,18 @@ export class EvaluationExecutor {
     const expandedTestCases: TestCase[] = [];
     for (const testCase of loadResult.testCases) {
       // If testCase.runs is defined, use it. Otherwise, use runsOverride (if provided), else default to 1.
-      const runs =
+      let runs =
         testCase.runs !== undefined ? testCase.runs : (runsOverride ?? 1);
+      /**
+       * Validate that runs is a positive integer. If not, log a warning and default to 1.
+       * This prevents invalid or negative run counts that could cause unexpected behavior.
+       */
+      if (!Number.isInteger(runs) || runs <= 0) {
+        Logger.warn(
+          `Invalid runs value (${runs}) for test case '${testCase.id}'. Defaulting to 1. Runs must be a positive integer.`,
+        );
+        runs = 1;
+      }
       for (let i = 0; i < runs; i++) {
         // Optionally, append a suffix to the testCase id for uniqueness
         expandedTestCases.push({
