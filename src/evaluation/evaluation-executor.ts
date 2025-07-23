@@ -36,14 +36,14 @@ export class EvaluationExecutor {
    * @param agent The agent to test
    * @param directoryPath The path to the directory containing test case files
    * @param stopOnError Whether to stop processing files after the first error (default: true)
-   * @param runsOverride Optional override for the number of times to run each test case
+   * @param defaultRuns Optional default for the number of times to run each test case (applies only if not specified in metadata)
    * @returns Promise that resolves with the evaluation report
    */
   public async evaluateFromDirectory(
     agent: IAgent,
     directoryPath: string,
     stopOnError: boolean = true,
-    runsOverride?: number,
+    defaultRuns?: number,
   ): Promise<EvaluationReport> {
     const startTime = performance.now();
 
@@ -53,12 +53,12 @@ export class EvaluationExecutor {
       stopOnError,
     );
 
-    // Expand test cases according to testCase.runs (if present), otherwise runsOverride (if provided), otherwise default 1
+    // Expand test cases according to testCase.runs (if present), otherwise defaultRuns (if provided), otherwise default 1
     const expandedTestCases: TestCase[] = [];
     for (const testCase of loadResult.testCases) {
-      // If testCase.runs is defined, use it. Otherwise, use runsOverride (if provided), else default to 1.
+      // If testCase.runs is defined, use it. Otherwise, use defaultRuns (if provided), else default to 1.
       let runs =
-        testCase.runs !== undefined ? testCase.runs : (runsOverride ?? 1);
+        testCase.runs !== undefined ? testCase.runs : (defaultRuns ?? 1);
       /**
        * Validate that runs is a positive integer. If not, log a warning and default to 1.
        * This prevents invalid or negative run counts that could cause unexpected behavior.

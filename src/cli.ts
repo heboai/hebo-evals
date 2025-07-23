@@ -85,7 +85,8 @@ program
   )
   .option(
     '-r, --runs <number>',
-    'Number of times to run each test case (overrides file metadata)',
+    'Default number of times to run each test case (applies only if not specified in file metadata)',
+    '1',
   )
   .action(
     async (model: string, options: RunCommandOptions & { runs?: string }) => {
@@ -164,8 +165,8 @@ program
           );
         }
 
-        // Parse runs override from CLI
-        let runsOverride: number | undefined = undefined;
+        // Parse defaultRuns from CLI
+        let defaultRuns: number | undefined = undefined;
         if (options.runs !== undefined) {
           const parsedRuns = parseInt(options.runs, 10);
           if (isNaN(parsedRuns) || parsedRuns < 1) {
@@ -173,7 +174,7 @@ program
               'Configuration error: `--runs` must be a positive integer',
             );
           }
-          runsOverride = parsedRuns;
+          defaultRuns = parsedRuns;
         }
 
         // Create evaluation config
@@ -209,12 +210,12 @@ program
           evaluationConfig,
         );
 
-        // Run evaluation, passing runsOverride
+        // Run evaluation, passing defaultRuns
         await executor.evaluateFromDirectory(
           agent,
           examplesDirectory,
           options.stopOnError,
-          runsOverride,
+          defaultRuns, // This will always be defined (default or user-supplied)
         );
 
         Logger.info('Evaluation completed');
