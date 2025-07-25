@@ -36,14 +36,12 @@ export class EvaluationExecutor {
    * @param agent The agent to test
    * @param directoryPath The path to the directory containing test case files
    * @param stopOnError Whether to stop processing files after the first error (default: true)
-   * @param defaultRuns Optional default for the number of times to run each test case (applies only if not specified in metadata)
    * @returns Promise that resolves with the evaluation report
    */
   public async evaluateFromDirectory(
     agent: IAgent,
     directoryPath: string,
     stopOnError: boolean = true,
-    defaultRuns?: number,
   ): Promise<EvaluationReport> {
     const startTime = performance.now();
 
@@ -56,24 +54,13 @@ export class EvaluationExecutor {
     // Expand test cases according to testCase.runs (if present), otherwise defaultRuns (if provided), otherwise default 1
     const expandedTestCases: TestCase[] = [];
     for (const testCase of loadResult.testCases) {
-      // If testCase.runs is defined, use it. Otherwise, use defaultRuns (if provided), else default to 1.
-      let runs =
-        testCase.runs !== undefined ? testCase.runs : (defaultRuns ?? 1);
-      /**
-       * Validate that runs is a positive integer. If not, log a warning and default to 1.
-       * This prevents invalid or negative run counts that could cause unexpected behavior.
-       */
-      if (!Number.isInteger(runs) || runs <= 0) {
-        Logger.warn(
-          `Invalid runs value (${runs}) for test case '${testCase.id}'. Defaulting to 1. Runs must be a positive integer.`,
-        );
-        runs = 1;
-      }
-      for (let i = 0; i < runs; i++) {
+      // Use testCase.runs if defined, otherwise do not set a fallback here (let the caller/CLI handle it)
+      let runs = testCase.runs;
+      for (let i = 0; i < (runs ?? 1); i++) {
         // Optionally, append a suffix to the testCase id for uniqueness
         expandedTestCases.push({
           ...testCase,
-          id: runs > 1 ? `${testCase.id}#${i + 1}` : testCase.id,
+          id: runs && runs > 1 ? `${testCase.id}#${i + 1}` : testCase.id,
         });
       }
     }

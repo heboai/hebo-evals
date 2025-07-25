@@ -1,2 +1,0 @@
-user: Hi There!
-assistant: Hello! I'm Teega!

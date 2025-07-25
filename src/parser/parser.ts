@@ -35,21 +35,22 @@ export class Parser {
     if (metadataMatch) {
       try {
         const metadata = yaml.load(metadataMatch[1]);
-        if (
-          metadata &&
-          typeof metadata === 'object' &&
-          'runs' in metadata &&
-          typeof (metadata as Record<string, unknown>).runs === 'number'
-        ) {
-          runs = (metadata as { runs: number }).runs;
-        } else if (
-          metadata &&
-          typeof metadata === 'object' &&
-          'runs' in metadata &&
-          typeof (metadata as Record<string, unknown>).runs === 'string' &&
-          !isNaN(Number((metadata as Record<string, unknown>).runs))
-        ) {
-          runs = Number((metadata as Record<string, unknown>).runs);
+        let parsedRuns: number | undefined = undefined;
+        if (metadata && typeof metadata === 'object' && 'runs' in metadata) {
+          const rawRuns = (metadata as Record<string, unknown>).runs;
+          if (typeof rawRuns === 'number') {
+            parsedRuns = rawRuns;
+          } else if (typeof rawRuns === 'string' && !isNaN(Number(rawRuns))) {
+            parsedRuns = Number(rawRuns);
+          }
+          if (parsedRuns !== undefined) {
+            if (!Number.isInteger(parsedRuns) || parsedRuns <= 0) {
+              throw new ParseError(
+                `Invalid runs value (${String(rawRuns)}) in metadata. Runs must be a positive integer.`,
+              );
+            }
+            runs = parsedRuns;
+          }
         }
       } catch (e) {
         throw new ParseError(
