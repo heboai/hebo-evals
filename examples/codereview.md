@@ -1,3 +1,7 @@
+---
+runs: 1
+---
+
 # Code Review Test Case
 
 user: Can you review this code snippet and suggest improvements?

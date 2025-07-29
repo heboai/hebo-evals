@@ -129,7 +129,13 @@ export class TestCaseLoader {
   public async loadFile(filePath: string): Promise<TestCase[]> {
     const content = await readFile(filePath, 'utf-8');
     const { baseName, hierarchicalId } = this.getTestCaseInfo(filePath);
-    return this.parser.parseMultiple(content, baseName, hierarchicalId);
+    // If the file contains a '# ' header, treat as multiple test cases; otherwise, treat as a single test case with the filename as the name
+    if (/^# /m.test(content)) {
+      return this.parser.parseMultiple(content, baseName, hierarchicalId);
+    } else {
+      // Single test case: use the filename as the name
+      return [this.parser.parse(content, baseName, hierarchicalId)];
+    }
   }
 
   /**

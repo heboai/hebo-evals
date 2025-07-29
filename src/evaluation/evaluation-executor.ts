@@ -36,12 +36,14 @@ export class EvaluationExecutor {
    * @param agent The agent to test
    * @param directoryPath The path to the directory containing test case files
    * @param stopOnError Whether to stop processing files after the first error (default: true)
+   * @param defaultRuns Optional default number of times to run each test case (overridden by testCase.runs if present)
    * @returns Promise that resolves with the evaluation report
    */
   public async evaluateFromDirectory(
     agent: IAgent,
     directoryPath: string,
     stopOnError: boolean = true,
+    defaultRuns?: number,
   ): Promise<EvaluationReport> {
     const startTime = performance.now();
 
@@ -51,10 +53,24 @@ export class EvaluationExecutor {
       stopOnError,
     );
 
+    // Expand test cases according to testCase.runs (if present), otherwise defaultRuns (if provided), otherwise default 1
+    const expandedTestCases: TestCase[] = [];
+    for (const testCase of loadResult.testCases) {
+      // Use testCase.runs if defined, otherwise use defaultRuns (which is always provided by the CLI), fallback to 1 for type safety
+      let runs = testCase.runs ?? defaultRuns ?? 1;
+      for (let i = 0; i < runs; i++) {
+        // Optionally, append a suffix to the testCase id for uniqueness
+        expandedTestCases.push({
+          ...testCase,
+          id: runs > 1 ? `${testCase.id} run #${i + 1}` : testCase.id,
+        });
+      }
+    }
+
     // Then execute them in parallel
     const results = await this.executeTestCasesInParallel(
       agent,
-      loadResult.testCases,
+      expandedTestCases,
       this.maxConcurrency,
     );
 
@@ -139,7 +155,11 @@ export class EvaluationExecutor {
     Logger.info(
       `Successfully loaded ${loadResult.testCases.length} test cases`,
     );
-    return this.executeTestCases(agent, loadResult.testCases);
+    return this.executeTestCasesInParallel(
+      agent,
+      loadResult.testCases,
+      this.maxConcurrency,
+    );
   }
 
   /**
@@ -166,9 +186,7 @@ export class EvaluationExecutor {
       }
 
       // Get input messages based on provider
-      let inputMessages;
-      // Send all messages except the last one (expected response) for both providers
-      inputMessages = testCase.messageBlocks.slice(0, -1);
+      const inputMessages = testCase.messageBlocks.slice(0, -1);
       Logger.debug(
         `Using message format: sending ${inputMessages.length} messages of conversation history`,
       );
@@ -182,7 +200,6 @@ export class EvaluationExecutor {
       };
 
       // Execute the test
-      Logger.debug(`Sending input to ${agentConfig.provider} agent`);
       const response = await agent.sendInput(input);
       const executionTime = performance.now() - startTime;
 
@@ -281,30 +298,13 @@ export class EvaluationExecutor {
   }
 
   /**
-   * Executes multiple test cases against an agent
-   * @param agent The agent to test
-   * @param testCases The test cases to execute
-   * @returns Promise that resolves with the evaluation results
-   */
-  public async executeTestCases(
-    agent: IAgent,
-    testCases: TestCase[],
-  ): Promise<TestCaseEvaluation[]> {
-    return this.executeTestCasesInParallel(
-      agent,
-      testCases,
-      this.maxConcurrency,
-    );
-  }
-
-  /**
    * Executes test cases in parallel with a maximum concurrency limit
    * @param agent The agent to test
    * @param testCases The test cases to execute
    * @param maxConcurrency Maximum number of concurrent executions
    * @returns Promise that resolves with the evaluation results
    */
-  private async executeTestCasesInParallel(
+  public async executeTestCasesInParallel(
     agent: IAgent,
     testCases: TestCase[],
     maxConcurrency: number,

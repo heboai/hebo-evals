@@ -147,9 +147,10 @@ describe('EvaluationExecutor', () => {
         .mockResolvedValueOnce(0.8);
 
       // Execute
-      const results = await evaluationExecutor.executeTestCases(
+      const results = await evaluationExecutor.executeTestCasesInParallel(
         mockAgent,
         mockTestCases,
+        mockConfig.maxConcurrency,
       );
 
       // Assert
@@ -170,9 +171,10 @@ describe('EvaluationExecutor', () => {
       mockScoringService.scoreStrings.mockResolvedValueOnce(0.9);
 
       // Execute
-      const results = await evaluationExecutor.executeTestCases(
+      const results = await evaluationExecutor.executeTestCasesInParallel(
         mockAgent,
         mockTestCases,
+        mockConfig.maxConcurrency,
       );
 
       // Assert

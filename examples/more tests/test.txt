@@ -1,3 +1,8 @@
+---
+runs: 1
+---
+
+# Test Case 1
 user: what is 2 + 2?
 assistant: Let me calculate that for you
 

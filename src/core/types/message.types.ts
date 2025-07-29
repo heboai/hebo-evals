@@ -46,6 +46,10 @@ export interface TestCase {
   id: string;
   name: string;
   messageBlocks: CoreMessage[];
+  /**
+   * Number of times to run this test case (from global metadata or CLI override)
+   */
+  runs?: number;
 }
 
 // Re-export CoreMessage as BaseMessage for backward compatibility during migration

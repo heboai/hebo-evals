@@ -3,6 +3,7 @@ import { MessageRole, TestCase } from '../core/types/message.types.js';
 import { roleMapper } from '../core/utils/role-mapper.js';
 import { ParseError } from './errors.js';
 import type { CoreMessage } from 'ai';
+import yaml from 'js-yaml';
 
 /**
  * Parser for test case text files
@@ -27,74 +28,77 @@ export class Parser {
     baseName: string,
     hierarchicalId: string,
   ): TestCase[] {
-    // Split the text by test case separator (---)
-    const testCaseTexts = text.split(/^---$/m).filter((t) => t.trim());
+    // Extract global metadata block (YAML between --- ... --- at the top)
+    let runs: number | undefined = undefined;
+    let testCaseText = text;
+    const metadataMatch = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
+    if (metadataMatch) {
+      try {
+        const metadata = yaml.load(metadataMatch[1]);
+        let parsedRuns: number | undefined = undefined;
+        if (metadata && typeof metadata === 'object' && 'runs' in metadata) {
+          const rawRuns = (metadata as Record<string, unknown>).runs;
+          if (typeof rawRuns === 'number') {
+            parsedRuns = rawRuns;
+          } else if (typeof rawRuns === 'string' && !isNaN(Number(rawRuns))) {
+            parsedRuns = Number(rawRuns);
+          }
+          if (parsedRuns !== undefined) {
+            if (!Number.isInteger(parsedRuns) || parsedRuns <= 0) {
+              throw new ParseError(
+                `Invalid runs value (${String(rawRuns)}) in metadata. Runs must be a positive integer.`,
+              );
+            }
+            runs = parsedRuns;
+          }
+        }
+      } catch (e) {
+        throw new ParseError(
+          'Failed to parse metadata block: ' +
+            (e instanceof Error ? e.message : String(e)),
+        );
+      }
+      // Remove metadata block from text
+      testCaseText = text.slice(metadataMatch[0].length);
+    }
 
-    if (testCaseTexts.length === 0) {
+    // Only split on test case headers at the start of the file or after a blank line
+    let normalizedText = testCaseText;
+    if (normalizedText.startsWith('# ')) {
+      normalizedText = '__SPLIT__' + normalizedText;
+    }
+    normalizedText = normalizedText.replace(/(?:\r?\n){2,}# /g, '__SPLIT__# ');
+    const testCaseSections = normalizedText
+      .split('__SPLIT__')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+    if (testCaseSections.length === 0) {
       throw new ParseError('No test cases found in file');
     }
 
-    // Only add index suffix if there are multiple test cases
-    const shouldAddIndex = testCaseTexts.length > 1;
-
-    return testCaseTexts.map((testCaseText, index) => {
-      // Extract title if present (supports both # and ## for h1 and h2)
-      const titleMatch = testCaseText.match(/^#{1,2}\s*(.+)$/m);
-      const title = titleMatch
-        ? titleMatch[1].trim()
-        : shouldAddIndex
-          ? `${baseName}_${index + 1}`
-          : baseName;
-
-      // Create full ID by combining hierarchical ID with title
+    return testCaseSections.map((section) => {
+      // The first line is the test case name (title)
+      const lines = section.split(/\r?\n/);
+      let title = lines[0].trim();
+      // Remove leading '# ' if present (from split logic)
+      if (title.startsWith('# ')) {
+        title = title.slice(2).trim();
+      }
+      // If the next line after the title is empty, skip it (to match test expectation)
+      let bodyLines = lines.slice(1);
+      if (bodyLines.length > 0 && bodyLines[0].trim() === '') {
+        bodyLines = bodyLines.slice(1);
+      }
+      const body = bodyLines.join('\n').trim();
       const fullId = `${hierarchicalId}/${title}`;
-
-      return this.parse(testCaseText, title, fullId);
+      // Parse the test case body
+      const testCase = this.parse(body, title, fullId);
+      // Attach global runs property if present
+      if (runs !== undefined) {
+        testCase.runs = runs;
+      }
+      return testCase;
     });
-  }
-
-  /**
-   * Creates a CoreMessage based on the role
-   */
-  private createCoreMessage(role: MessageRole, content: string): CoreMessage {
-    switch (role) {
-      case MessageRole.USER:
-        return {
-          role: 'user',
-          content,
-        };
-      case MessageRole.ASSISTANT:
-        return {
-          role: 'assistant',
-          content,
-        };
-      case MessageRole.SYSTEM:
-        return {
-          role: 'system',
-          content,
-        };
-      case MessageRole.TOOL:
-      case MessageRole.FUNCTION:
-        // Convert tool messages to assistant messages for evaluation compatibility
-        // since we're using them to represent tool usage/responses as text
-        return {
-          role: 'assistant',
-          content,
-        };
-      case MessageRole.HUMAN_AGENT:
-      case MessageRole.DEVELOPER:
-        // Map human_agent and developer to assistant for compatibility
-        return {
-          role: 'assistant',
-          content,
-        };
-      default:
-        // Default to user for unknown roles
-        return {
-          role: 'user',
-          content,
-        };
-    }
   }
 
   /**
@@ -106,8 +110,15 @@ export class Parser {
    * @throws ParseError if parsing fails
    */
   public parse(text: string, name: string, id: string = name): TestCase {
-    // Remove title if present (supports both # and ## for h1 and h2)
-    const cleanText = text.replace(/^#{1,2}\s*.+$/m, '').trim();
+    // Only remove the first line if it is a title (starts with # or ##), preserve all other Markdown headers
+    let cleanText = text;
+    const lines = text.split(/\r?\n/);
+    if (lines.length > 0 && /^#{1,2}\s*.+$/.test(lines[0])) {
+      cleanText = lines.slice(1).join('\n').trim();
+    } else {
+      cleanText = text.trim();
+    }
+
     const elements = this.parser.tokenize(cleanText);
     const messageBlocks: CoreMessage[] = [];
     let currentRole: MessageRole | null = null;
@@ -147,7 +158,7 @@ export class Parser {
           if (currentRole === null) {
             throw new ParseError('Content found without a role');
           }
-          // Preserve content exactly as is
+          // Merge all content for the current role, preserving blank lines and Markdown
           currentContent.push(element.value);
           break;
         }
@@ -199,6 +210,22 @@ export class Parser {
       id,
       name,
       messageBlocks,
+    };
+  }
+
+  /**
+   * Creates a CoreMessage based on the role
+   */
+  private createCoreMessage(role: MessageRole, content: string): CoreMessage {
+    // Preserve all whitespace exactly as in the original content
+    return {
+      role:
+        role === MessageRole.USER
+          ? 'user'
+          : role === MessageRole.SYSTEM
+            ? 'system'
+            : 'assistant',
+      content: content,
     };
   }
 

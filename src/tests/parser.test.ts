@@ -274,11 +274,11 @@ It's rainy in New York, NY, today, with a temperature of 59°F, 80% precipitatio
           content: 'can you please search the weather in new york for me?',
         });
 
-        // Fourth message (merged)
+        // Fourth message (merged) - now expects the blank line
         expect(result.messageBlocks[3]).toEqual({
           role: MessageRole.ASSISTANT,
           content:
-            "sure\nIt's rainy in New York, NY, today, with a temperature of 59°F, 80% precipitation, 96% humidity, and light 2 mph winds. Be prepared for wet conditions!",
+            "sure\n\nIt's rainy in New York, NY, today, with a temperature of 59°F, 80% precipitation, 96% humidity, and light 2 mph winds. Be prepared for wet conditions!",
         });
       });
 
@@ -416,7 +416,8 @@ assistant: I see the headers`;
 
       const result = parser.parse(text, 'header-test');
       expect(result.messageBlocks).toHaveLength(2);
-      expect(result.messageBlocks[0].content).not.toContain('# Level 1 Header');
+      // All headers should be preserved in the content
+      expect(result.messageBlocks[0].content).toContain('# Level 1 Header');
       expect(result.messageBlocks[0].content).toContain('## Level 2 Header');
       expect(result.messageBlocks[0].content).toContain('### Level 3 Header');
     });
