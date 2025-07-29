@@ -62,7 +62,7 @@ export class EvaluationExecutor {
         // Optionally, append a suffix to the testCase id for uniqueness
         expandedTestCases.push({
           ...testCase,
-          id: runs > 1 ? `${testCase.id}#${i + 1}` : testCase.id,
+          id: runs > 1 ? `${testCase.id} run #${i + 1}` : testCase.id,
         });
       }
     }
