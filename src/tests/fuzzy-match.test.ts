@@ -1,5 +1,6 @@
 import { FuzzyMatchParser } from '../parser/fuzzy-match-parser.js';
 import { FuzzyMatchScoringService } from '../scoring/fuzzy-match-scoring.service.js';
+import type { FuzzyMatchResult } from '../evaluation/types/fuzzy-match.types.js';
 
 describe('FuzzyMatchParser', () => {
   let parser: FuzzyMatchParser;
@@ -198,7 +199,7 @@ describe('FuzzyMatchScoringService', () => {
     });
 
     it('should return 1.0 for empty results', () => {
-      const results: any[] = [];
+      const results: FuzzyMatchResult[] = [];
       const overallScore = scoringService.calculateOverallScore(results);
       expect(overallScore).toBe(1.0);
     });

@@ -78,9 +78,10 @@ function rougeLcs(reference: string[], candidate: string[]): number {
 }
 
 function computeLCSLength(a: string[], b: string[]): number {
-  const dp = Array(a.length + 1)
-    .fill(null)
-    .map(() => Array(b.length + 1).fill(0));
+  const dp: number[][] = [];
+  for (let i = 0; i <= a.length; i++) {
+    dp[i] = new Array<number>(b.length + 1).fill(0);
+  }
 
   for (let i = 1; i <= a.length; i++) {
     for (let j = 1; j <= b.length; j++) {

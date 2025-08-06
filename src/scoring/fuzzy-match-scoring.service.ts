@@ -56,7 +56,7 @@ export class FuzzyMatchScoringService {
           bestRougeScores = { rouge1: 1.0, rouge2: 1.0, rougeL: 1.0 };
           break;
         }
-        
+
         // Try number word matching (e.g., "4" matches "four")
         if (this.isNumberMatch(expectedToken, token)) {
           bestScore = 1.0;
@@ -74,7 +74,11 @@ export class FuzzyMatchScoringService {
         for (let i = 0; i <= tokens.length - windowSize; i++) {
           const window = tokens.slice(i, i + windowSize).join(' ');
           const scores = computeRouge(assertion.expectedText, window);
-          const maxScore = Math.max(scores.rouge1, scores.rouge2, scores.rougeL);
+          const maxScore = Math.max(
+            scores.rouge1,
+            scores.rouge2,
+            scores.rougeL,
+          );
 
           if (maxScore > bestScore) {
             bestScore = maxScore;
@@ -128,11 +132,27 @@ export class FuzzyMatchScoringService {
    */
   private isNumberMatch(token1: string, token2: string): boolean {
     const numberWords: Record<string, string> = {
-      '0': 'zero', '1': 'one', '2': 'two', '3': 'three', '4': 'four',
-      '5': 'five', '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine',
-      '10': 'ten', '11': 'eleven', '12': 'twelve', '13': 'thirteen',
-      '14': 'fourteen', '15': 'fifteen', '16': 'sixteen', '17': 'seventeen',
-      '18': 'eighteen', '19': 'nineteen', '20': 'twenty'
+      '0': 'zero',
+      '1': 'one',
+      '2': 'two',
+      '3': 'three',
+      '4': 'four',
+      '5': 'five',
+      '6': 'six',
+      '7': 'seven',
+      '8': 'eight',
+      '9': 'nine',
+      '10': 'ten',
+      '11': 'eleven',
+      '12': 'twelve',
+      '13': 'thirteen',
+      '14': 'fourteen',
+      '15': 'fifteen',
+      '16': 'sixteen',
+      '17': 'seventeen',
+      '18': 'eighteen',
+      '19': 'nineteen',
+      '20': 'twenty',
     };
 
     // Check if token1 is a number and token2 is the word equivalent
