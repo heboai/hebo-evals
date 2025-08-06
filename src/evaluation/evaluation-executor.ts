@@ -233,7 +233,6 @@ export class EvaluationExecutor {
       // Handle fuzzy match assertions if present
       let fuzzyMatchResults: FuzzyMatchResult[] | undefined;
       let fuzzyMatchPassed = true;
-      let fuzzyScore = 0;
       let score = 0;
       let isMatch = false;
 
@@ -250,10 +249,6 @@ export class EvaluationExecutor {
 
         fuzzyMatchPassed =
           this.fuzzyMatchScoringService.allAssertionsPassed(fuzzyMatchResults);
-        fuzzyScore =
-          this.fuzzyMatchScoringService.calculateOverallScore(
-            fuzzyMatchResults,
-          );
 
         // Test passes only if BOTH fuzzy matching AND semantic similarity meet their thresholds
         const semanticPassed = semanticScore >= this.threshold;
