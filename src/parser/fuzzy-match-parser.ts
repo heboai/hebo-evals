@@ -15,9 +15,19 @@ export class FuzzyMatchParser {
 
     let match;
     while ((match = assertionRegex.exec(content)) !== null) {
+      const threshold = parseFloat(match[2]);
+
+      // Validate threshold is between 0 and 1 inclusive
+      if (threshold < 0 || threshold > 1) {
+        throw new Error(
+          `Invalid threshold value: ${threshold}. Threshold must be between 0 and 1 inclusive. ` +
+            `Found in assertion: [${match[1]}|${match[2]}]`,
+        );
+      }
+
       assertions.push({
         expectedText: match[1].trim(),
-        threshold: parseFloat(match[2]),
+        threshold,
         description: match[1].trim(),
       });
     }

@@ -2,7 +2,7 @@
 
 import { Command } from 'commander';
 import { version } from './utils/package-info.js';
-import { ScoringService } from './scoring/scoring.service.js';
+import { ScoringService } from './scoring/services/scoring.service.js';
 import { EvaluationExecutor } from './evaluation/evaluation-executor.js';
 import { EvaluationConfig } from './evaluation/types/evaluation.types.js';
 import { Logger } from './utils/logger.js';

@@ -25,7 +25,7 @@ jest.mock('../agents/implementations/agent.js', () => ({
     cleanup: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
   })),
 }));
-jest.mock('../scoring/scoring.service.js');
+jest.mock('../scoring/services/scoring.service.js');
 jest.mock('../evaluation/evaluation-executor.js');
 jest.mock('fs');
 jest.mock('fs/promises');

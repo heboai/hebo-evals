@@ -1,13 +1,17 @@
-import { computeRouge } from './rouge/computeRouge.js';
+import { computeRouge } from '../rouge/rouge-calculator.js';
+import { isNumberMatch } from '../utils/text-processing.js';
 import {
   FuzzyMatchAssertion,
   FuzzyMatchResult,
-} from '../evaluation/types/fuzzy-match.types.js';
+} from '../../evaluation/types/fuzzy-match.types.js';
 
 /**
  * Service for evaluating fuzzy match assertions against actual responses
  */
 export class FuzzyMatchScoringService {
+  /** Maximum allowed window size to prevent excessive computation */
+  private static readonly MAX_WINDOW_SIZE_CAP = 10;
+
   /**
    * Evaluates fuzzy match assertions against an actual response
    * @param assertions Array of fuzzy match assertions
@@ -41,7 +45,13 @@ export class FuzzyMatchScoringService {
 
     // Try different window sizes to find the best match
     const expectedTokens = assertion.expectedText.split(/\s+/);
-    const maxWindowSize = Math.min(tokens.length, expectedTokens.length * 3);
+    const maxWindowSize = Math.min(
+      tokens.length,
+      Math.min(
+        expectedTokens.length * 3,
+        FuzzyMatchScoringService.MAX_WINDOW_SIZE_CAP,
+      ),
+    );
 
     // Special case: if expected text is a single token, try to find it directly
     if (expectedTokens.length === 1) {
@@ -58,7 +68,7 @@ export class FuzzyMatchScoringService {
         }
 
         // Try number word matching (e.g., "4" matches "four")
-        if (this.isNumberMatch(expectedToken, token)) {
+        if (isNumberMatch(expectedToken, token)) {
           bestScore = 1.0;
           bestMatch = tokens[i];
           bestPosition = { start: i, end: i + 1 };
@@ -122,54 +132,5 @@ export class FuzzyMatchScoringService {
    */
   allAssertionsPassed(results: FuzzyMatchResult[]): boolean {
     return results.every((result) => result.passed);
-  }
-
-  /**
-   * Checks if two tokens represent the same number (e.g., "4" and "four")
-   * @param token1 First token
-   * @param token2 Second token
-   * @returns True if they represent the same number
-   */
-  private isNumberMatch(token1: string, token2: string): boolean {
-    const numberWords: Record<string, string> = {
-      '0': 'zero',
-      '1': 'one',
-      '2': 'two',
-      '3': 'three',
-      '4': 'four',
-      '5': 'five',
-      '6': 'six',
-      '7': 'seven',
-      '8': 'eight',
-      '9': 'nine',
-      '10': 'ten',
-      '11': 'eleven',
-      '12': 'twelve',
-      '13': 'thirteen',
-      '14': 'fourteen',
-      '15': 'fifteen',
-      '16': 'sixteen',
-      '17': 'seventeen',
-      '18': 'eighteen',
-      '19': 'nineteen',
-      '20': 'twenty',
-    };
-
-    // Check if token1 is a number and token2 is the word equivalent
-    if (numberWords[token1] === token2) {
-      return true;
-    }
-
-    // Check if token2 is a number and token1 is the word equivalent
-    if (numberWords[token2] === token1) {
-      return true;
-    }
-
-    // Check if both are numbers
-    if (!isNaN(Number(token1)) && !isNaN(Number(token2))) {
-      return Number(token1) === Number(token2);
-    }
-
-    return false;
   }
 }

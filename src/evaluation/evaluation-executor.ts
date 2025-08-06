@@ -4,8 +4,8 @@ import { Logger } from '../utils/logger.js';
 import { performance } from 'perf_hooks';
 import { TestCase } from '../core/types/message.types.js';
 import { TestCaseLoader } from '../parser/loader.js';
-import { ScoringService } from '../scoring/scoring.service.js';
-import { FuzzyMatchScoringService } from '../scoring/fuzzy-match-scoring.service.js';
+import { ScoringService } from '../scoring/services/scoring.service.js';
+import { FuzzyMatchScoringService } from '../scoring/fuzzy-match/fuzzy-match-scoring.service.js';
 import { FuzzyMatchResult } from './types/fuzzy-match.types.js';
 import { ReportGenerator } from '../report/report-generator.js';
 import {
@@ -212,9 +212,28 @@ export class EvaluationExecutor {
         throw new Error('Agent returned an empty response');
       }
 
+      // Always calculate semantic similarity score for overall comparison
+      Logger.debug('Calculating semantic similarity score');
+
+      // Extract text content from CoreMessage
+      const expectedContent =
+        typeof expectedResponse.content === 'string'
+          ? expectedResponse.content
+          : Array.isArray(expectedResponse.content)
+            ? expectedResponse.content
+                .map((part) => (part.type === 'text' ? part.text : ''))
+                .join('')
+            : '';
+
+      const semanticScore = await this.scoringService.scoreStrings(
+        response.response.trim(),
+        expectedContent.trim(),
+      );
+
       // Handle fuzzy match assertions if present
       let fuzzyMatchResults: FuzzyMatchResult[] | undefined;
       let fuzzyMatchPassed = true;
+      let fuzzyScore = 0;
       let score = 0;
       let isMatch = false;
 
@@ -231,30 +250,20 @@ export class EvaluationExecutor {
 
         fuzzyMatchPassed =
           this.fuzzyMatchScoringService.allAssertionsPassed(fuzzyMatchResults);
-        score =
+        fuzzyScore =
           this.fuzzyMatchScoringService.calculateOverallScore(
             fuzzyMatchResults,
           );
-        isMatch = fuzzyMatchPassed;
+
+        // Test passes only if BOTH fuzzy matching AND semantic similarity meet their thresholds
+        const semanticPassed = semanticScore >= this.threshold;
+        isMatch = fuzzyMatchPassed && semanticPassed;
+
+        // Use semantic score as the primary score for reporting
+        score = semanticScore;
       } else {
-        // Use traditional semantic similarity scoring
-        Logger.debug('Calculating semantic similarity score');
-
-        // Extract text content from CoreMessage
-        const expectedContent =
-          typeof expectedResponse.content === 'string'
-            ? expectedResponse.content
-            : Array.isArray(expectedResponse.content)
-              ? expectedResponse.content
-                  .map((part) => (part.type === 'text' ? part.text : ''))
-                  .join('')
-              : '';
-
-        score = await this.scoringService.scoreStrings(
-          response.response.trim(),
-          expectedContent.trim(),
-        );
-
+        // Use traditional semantic similarity scoring only
+        score = semanticScore;
         // Consider it a success if score is above threshold (0.8 by default)
         isMatch = score >= this.threshold;
       }

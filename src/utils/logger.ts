@@ -390,6 +390,7 @@ export class Logger {
           if (result.score !== undefined) {
             console.log(`Score: ${result.score.toFixed(3)}`);
           }
+
           if (result.executionTime) {
             console.log(`Time: ${result.executionTime.toFixed(2)}ms`);
           }
@@ -418,16 +419,10 @@ export class Logger {
               );
               console.log(`  ${status} Best Match: "${fuzzyResult.bestMatch}"`);
               console.log(
-                `    ROUGE-1: ${fuzzyResult.rougeScores.rouge1.toFixed(2)}, `,
-              );
-              console.log(
-                `ROUGE-2: ${fuzzyResult.rougeScores.rouge2.toFixed(2)}, `,
-              );
-              console.log(
-                `ROUGE-L: ${fuzzyResult.rougeScores.rougeL.toFixed(2)} `,
-              );
-              console.log(
-                `→ Final Score: ${fuzzyResult.finalScore.toFixed(2)} ${statusText}\n`,
+                `    ROUGE-1: ${fuzzyResult.rougeScores.rouge1.toFixed(2)}, ` +
+                  `ROUGE-2: ${fuzzyResult.rougeScores.rouge2.toFixed(2)}, ` +
+                  `ROUGE-L: ${fuzzyResult.rougeScores.rougeL.toFixed(2)} ` +
+                  `→ Final Score: ${fuzzyResult.finalScore.toFixed(2)} ${statusText}\n`,
               );
             }
           }

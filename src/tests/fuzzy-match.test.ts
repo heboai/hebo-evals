@@ -1,5 +1,5 @@
 import { FuzzyMatchParser } from '../parser/fuzzy-match-parser.js';
-import { FuzzyMatchScoringService } from '../scoring/fuzzy-match-scoring.service.js';
+import { FuzzyMatchScoringService } from '../scoring/fuzzy-match/fuzzy-match-scoring.service.js';
 import type { FuzzyMatchResult } from '../evaluation/types/fuzzy-match.types.js';
 
 describe('FuzzyMatchParser', () => {
