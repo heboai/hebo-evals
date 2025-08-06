@@ -4,15 +4,19 @@ import { roleMapper } from '../core/utils/role-mapper.js';
 import { ParseError } from './errors.js';
 import type { CoreMessage } from 'ai';
 import yaml from 'js-yaml';
+import { FuzzyMatchParser } from './fuzzy-match-parser.js';
+import { FuzzyMatchAssertion } from '../evaluation/types/fuzzy-match.types.js';
 
 /**
  * Parser for test case text files
  */
 export class Parser {
   private parser: TestCaseParser;
+  private fuzzyMatchParser: FuzzyMatchParser;
 
   constructor() {
     this.parser = new TestCaseParser();
+    this.fuzzyMatchParser = new FuzzyMatchParser();
   }
 
   /**
@@ -121,6 +125,7 @@ export class Parser {
 
     const elements = this.parser.tokenize(cleanText);
     const messageBlocks: CoreMessage[] = [];
+    const fuzzyMatchAssertions: FuzzyMatchAssertion[] = [];
     let currentRole: MessageRole | null = null;
     let currentContent: string[] = [];
     let toolUsageLines: string[] = [];
@@ -143,7 +148,13 @@ export class Parser {
               content += '\n' + toolResponseLines.join('\n');
             }
 
-            messageBlocks.push(this.createCoreMessage(currentRole, content));
+            messageBlocks.push(
+              this.createCoreMessageWithAssertions(
+                currentRole,
+                content,
+                fuzzyMatchAssertions,
+              ),
+            );
             currentContent = [];
             toolUsageLines = [];
             toolResponseLines = [];
@@ -200,7 +211,13 @@ export class Parser {
         content += '\n' + toolResponseLines.join('\n');
       }
 
-      messageBlocks.push(this.createCoreMessage(currentRole, content));
+      messageBlocks.push(
+        this.createCoreMessageWithAssertions(
+          currentRole,
+          content,
+          fuzzyMatchAssertions,
+        ),
+      );
     }
 
     // Validate the test case structure
@@ -210,6 +227,8 @@ export class Parser {
       id,
       name,
       messageBlocks,
+      fuzzyMatchAssertions:
+        fuzzyMatchAssertions.length > 0 ? fuzzyMatchAssertions : undefined,
     };
   }
 
@@ -227,6 +246,31 @@ export class Parser {
             : 'assistant',
       content: content,
     };
+  }
+
+  /**
+   * Creates a CoreMessage and extracts fuzzy match assertions if present
+   */
+  private createCoreMessageWithAssertions(
+    role: MessageRole,
+    content: string,
+    fuzzyMatchAssertions: FuzzyMatchAssertion[],
+  ): CoreMessage {
+    if (role === MessageRole.ASSISTANT) {
+      // Extract fuzzy match assertions from assistant messages
+      const assertions = this.fuzzyMatchParser.parseAssertions(content);
+      fuzzyMatchAssertions.push(...assertions);
+
+      // Clean the content by removing fuzzy match syntax
+      const cleanContent = this.fuzzyMatchParser.cleanContent(content);
+
+      return {
+        role: 'assistant',
+        content: cleanContent,
+      };
+    }
+
+    return this.createCoreMessage(role, content);
   }
 
   /**
