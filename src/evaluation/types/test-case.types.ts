@@ -1,5 +1,6 @@
 import { BaseMessage } from '../../core/types/message.types.js';
 import { TestCase as CoreTestCase } from '../../core/types/message.types.js';
+import { FuzzyMatchAssertion, FuzzyMatchResult } from './fuzzy-match.types.js';
 
 /**
  * Represents a test case for agent evaluation.
@@ -19,6 +20,11 @@ export interface TestCase extends CoreTestCase {
    * The sequence of messages that form the test case.
    */
   messageBlocks: BaseMessage[];
+
+  /**
+   * Fuzzy match assertions extracted from assistant messages
+   */
+  fuzzyMatchAssertions?: FuzzyMatchAssertion[];
 }
 
 /**
@@ -85,4 +91,14 @@ export interface TestCaseEvaluation {
    * The original test case that was evaluated.
    */
   testCase: TestCase;
+
+  /**
+   * Results of fuzzy match evaluations
+   */
+  fuzzyMatchResults?: FuzzyMatchResult[];
+
+  /**
+   * Whether all fuzzy match assertions passed
+   */
+  fuzzyMatchPassed?: boolean;
 }

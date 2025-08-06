@@ -86,6 +86,13 @@ export class Logger {
     };
     response: string;
     formattedResult: string;
+    fuzzyMatchResults?: Array<{
+      assertion: { expectedText: string; threshold: number };
+      passed: boolean;
+      bestMatch: string;
+      rougeScores: { rouge1: number; rouge2: number; rougeL: number };
+      finalScore: number;
+    }>;
   }> = [];
 
   private constructor() {}
@@ -320,6 +327,13 @@ export class Logger {
       executionTime?: number;
       testCase?: { input: string; expected: string };
       response?: string;
+      fuzzyMatchResults?: Array<{
+        assertion: { expectedText: string; threshold: number };
+        passed: boolean;
+        bestMatch: string;
+        rougeScores: { rouge1: number; rouge2: number; rougeL: number };
+        finalScore: number;
+      }>;
     } = {},
   ): void {
     const color = passed ? COLORS.test.pass : COLORS.test.fail;
@@ -336,6 +350,7 @@ export class Logger {
       testCase: details.testCase ?? { input: '', expected: '' },
       response: details.response ?? '',
       formattedResult: formattedString,
+      fuzzyMatchResults: details.fuzzyMatchResults,
     });
   }
 
@@ -375,6 +390,7 @@ export class Logger {
           if (result.score !== undefined) {
             console.log(`Score: ${result.score.toFixed(3)}`);
           }
+
           if (result.executionTime) {
             console.log(`Time: ${result.executionTime.toFixed(2)}ms`);
           }
@@ -388,6 +404,29 @@ export class Logger {
             console.log('\nError:');
             console.log(result.error);
           }
+
+          // Display fuzzy match results if present
+          if (result.fuzzyMatchResults && result.fuzzyMatchResults.length > 0) {
+            console.log('\nFuzzy Match Assertions (ROUGE):');
+            console.log('-------------------------------');
+
+            for (const fuzzyResult of result.fuzzyMatchResults) {
+              const status = fuzzyResult.passed ? '✓' : '✗';
+              const statusText = fuzzyResult.passed ? '✅' : '❌';
+
+              console.log(
+                `[${fuzzyResult.assertion.expectedText}|${fuzzyResult.assertion.threshold}]`,
+              );
+              console.log(`  ${status} Best Match: "${fuzzyResult.bestMatch}"`);
+              console.log(
+                `    ROUGE-1: ${fuzzyResult.rougeScores.rouge1.toFixed(2)}, ` +
+                  `ROUGE-2: ${fuzzyResult.rougeScores.rouge2.toFixed(2)}, ` +
+                  `ROUGE-L: ${fuzzyResult.rougeScores.rougeL.toFixed(2)} ` +
+                  `→ Final Score: ${fuzzyResult.finalScore.toFixed(2)} ${statusText}\n`,
+              );
+            }
+          }
+
           console.log('\n---\n');
         });
     }

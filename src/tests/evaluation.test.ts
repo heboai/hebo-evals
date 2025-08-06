@@ -1,12 +1,12 @@
 import { EvaluationExecutor } from '../evaluation/evaluation-executor';
-import { ScoringService } from '../scoring/scoring.service';
+import { ScoringService } from '../scoring/services/scoring.service.js';
 import { IAgent } from '../agents/interfaces/agent.interface';
 import { TestCase, MessageRole } from '../core/types/message.types';
 import { EvaluationConfig } from '../evaluation/types/evaluation.types';
 import { jest } from '@jest/globals';
 
 // Mock dependencies
-jest.mock('../scoring/scoring.service');
+jest.mock('../scoring/services/scoring.service.js');
 jest.mock('../parser/loader');
 jest.mock('../report/report-generator');
 
