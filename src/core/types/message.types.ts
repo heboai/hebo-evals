@@ -1,4 +1,5 @@
 import type { CoreMessage } from 'ai';
+import type { FuzzyMatchAssertion } from '../../evaluation/types/fuzzy-match.types.js';
 
 /**
  * Base role types for messages
@@ -50,6 +51,10 @@ export interface TestCase {
    * Number of times to run this test case (from global metadata or CLI override)
    */
   runs?: number;
+  /**
+   * Fuzzy match assertions extracted from assistant messages
+   */
+  fuzzyMatchAssertions?: FuzzyMatchAssertion[];
 }
 
 // Re-export CoreMessage as BaseMessage for backward compatibility during migration
