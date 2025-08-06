@@ -5,6 +5,8 @@ import { performance } from 'perf_hooks';
 import { TestCase } from '../core/types/message.types.js';
 import { TestCaseLoader } from '../parser/loader.js';
 import { ScoringService } from '../scoring/scoring.service.js';
+import { FuzzyMatchScoringService } from '../scoring/fuzzy-match-scoring.service.js';
+import { FuzzyMatchResult } from './types/fuzzy-match.types.js';
 import { ReportGenerator } from '../report/report-generator.js';
 import {
   EvaluationConfig,
@@ -19,6 +21,7 @@ import { formatTestCasePlain } from '../utils/formatter.js';
 export class EvaluationExecutor {
   private testCaseLoader: TestCaseLoader;
   private scoringService: ScoringService;
+  private fuzzyMatchScoringService: FuzzyMatchScoringService;
   private reportGenerator: ReportGenerator;
   private readonly threshold: number;
   private readonly maxConcurrency: number;
@@ -26,6 +29,7 @@ export class EvaluationExecutor {
   constructor(scoringService: ScoringService, config: EvaluationConfig) {
     this.testCaseLoader = new TestCaseLoader();
     this.scoringService = scoringService;
+    this.fuzzyMatchScoringService = new FuzzyMatchScoringService();
     this.reportGenerator = new ReportGenerator(config);
     this.threshold = config.threshold ?? 0.8;
     this.maxConcurrency = config.maxConcurrency ?? 5;
@@ -208,26 +212,52 @@ export class EvaluationExecutor {
         throw new Error('Agent returned an empty response');
       }
 
-      // Calculate semantic similarity score
-      Logger.debug('Calculating similarity score');
+      // Handle fuzzy match assertions if present
+      let fuzzyMatchResults: FuzzyMatchResult[] | undefined;
+      let fuzzyMatchPassed = true;
+      let score = 0;
+      let isMatch = false;
 
-      // Extract text content from CoreMessage
-      const expectedContent =
-        typeof expectedResponse.content === 'string'
-          ? expectedResponse.content
-          : Array.isArray(expectedResponse.content)
+      if (
+        testCase.fuzzyMatchAssertions &&
+        testCase.fuzzyMatchAssertions.length > 0
+      ) {
+        // Use fuzzy match scoring
+        Logger.debug('Evaluating fuzzy match assertions');
+        fuzzyMatchResults = this.fuzzyMatchScoringService.evaluateAssertions(
+          testCase.fuzzyMatchAssertions,
+          response.response.trim(),
+        );
+
+        fuzzyMatchPassed =
+          this.fuzzyMatchScoringService.allAssertionsPassed(fuzzyMatchResults);
+        score =
+          this.fuzzyMatchScoringService.calculateOverallScore(
+            fuzzyMatchResults,
+          );
+        isMatch = fuzzyMatchPassed;
+      } else {
+        // Use traditional semantic similarity scoring
+        Logger.debug('Calculating semantic similarity score');
+
+        // Extract text content from CoreMessage
+        const expectedContent =
+          typeof expectedResponse.content === 'string'
             ? expectedResponse.content
-                .map((part) => (part.type === 'text' ? part.text : ''))
-                .join('')
-            : '';
+            : Array.isArray(expectedResponse.content)
+              ? expectedResponse.content
+                  .map((part) => (part.type === 'text' ? part.text : ''))
+                  .join('')
+              : '';
 
-      const score = await this.scoringService.scoreStrings(
-        response.response.trim(),
-        expectedContent.trim(),
-      );
+        score = await this.scoringService.scoreStrings(
+          response.response.trim(),
+          expectedContent.trim(),
+        );
 
-      // Consider it a success if score is above threshold (0.8 by default)
-      const isMatch = score >= this.threshold;
+        // Consider it a success if score is above threshold (0.8 by default)
+        isMatch = score >= this.threshold;
+      }
 
       // Log test result using the new format
       Logger.testResult(testCase.id, isMatch, {
@@ -249,6 +279,7 @@ export class EvaluationExecutor {
           }),
         },
         response: response.response,
+        fuzzyMatchResults,
       });
 
       return {
@@ -259,6 +290,8 @@ export class EvaluationExecutor {
         executionTime,
         response: response.response,
         testCase,
+        fuzzyMatchResults,
+        fuzzyMatchPassed,
       };
     } catch (error) {
       const executionTime = performance.now() - startTime;
